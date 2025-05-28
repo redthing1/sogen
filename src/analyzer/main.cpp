@@ -5,7 +5,6 @@
 
 #include "object_watching.hpp"
 #include "snapshot.hpp"
-#include "minidump.hpp"
 
 #ifdef OS_EMSCRIPTEN
 #include <event_handler.hpp>
@@ -253,7 +252,7 @@ namespace
         {
             // load minidump
             auto win_emu = create_empty_emulator(options);
-            minidump::load_minidump(*win_emu, options.minidump_path);
+            win_emu->load_minidump(options.minidump_path);
             return win_emu;
         }
 

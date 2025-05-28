@@ -25,9 +25,7 @@ target_include_directories(reflect INTERFACE
 
 ##########################################
 
-option(BUILD_PARSER "" OFF)
-option(BUILD_PYTHON_BINDING "" OFF)
-add_subdirectory(udmp-parser/src)
+add_subdirectory(minidump_cpp)
 
 ##########################################
 
