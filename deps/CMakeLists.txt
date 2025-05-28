@@ -25,5 +25,11 @@ target_include_directories(reflect INTERFACE
 
 ##########################################
 
+option(BUILD_PARSER "" OFF)
+option(BUILD_PYTHON_BINDING "" OFF)
+add_subdirectory(udmp-parser/src)
+
+##########################################
+
 include(googletest.cmake)
 include(zlib.cmake)

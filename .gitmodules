@@ -24,3 +24,6 @@
 [submodule "deps/base64"]
 	path = deps/base64
 	url = https://github.com/tobiaslocker/base64.git
+[submodule "deps/udmp-parser"]
+	path = deps/udmp-parser
+	url = https://github.com/0vercl0k/udmp-parser
