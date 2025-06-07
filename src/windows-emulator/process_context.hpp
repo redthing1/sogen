@@ -32,9 +32,10 @@ struct process_context
 {
     struct callbacks
     {
-        utils::optional_function<void(handle h, emulator_thread& thr)> on_create_thread{};
+        utils::optional_function<void(handle h, emulator_thread& thr)> on_thread_create{};
         utils::optional_function<void(handle h, emulator_thread& thr)> on_thread_terminated{};
-        utils::optional_function<void()> on_thread_switch{};
+        utils::optional_function<void(emulator_thread& current_thread, emulator_thread& new_thread)> on_thread_switch{};
+        utils::optional_function<void(emulator_thread& current_thread)> on_thread_set_name{};
     };
 
     struct atom_entry
@@ -92,7 +93,6 @@ struct process_context
     uint64_t dbwin_buffer{0};
     uint64_t dbwin_buffer_size{0};
 
-    std::optional<uint64_t> exception_rip{};
     std::optional<NTSTATUS> exit_status{};
 
     emulator_allocator base_allocator;
@@ -115,6 +115,7 @@ struct process_context
     handle_store<handle_types::port, port> ports{};
     handle_store<handle_types::mutant, mutant> mutants{};
     handle_store<handle_types::window, window> windows{};
+    handle_store<handle_types::timer, timer> timers{};
     handle_store<handle_types::registry, registry_key, 2> registry_keys{};
     std::map<uint16_t, atom_entry> atoms{};
 

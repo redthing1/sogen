@@ -1,14 +1,12 @@
 #include "std_include.hpp"
 
 #include <windows_emulator.hpp>
+#include <backend_selection.hpp>
 #include <win_x64_gdb_stub_handler.hpp>
 
 #include "object_watching.hpp"
 #include "snapshot.hpp"
-
-#ifdef OS_EMSCRIPTEN
-#include <event_handler.hpp>
-#endif
+#include "analysis.hpp"
 
 #include <utils/interupt_handler.hpp>
 
@@ -16,18 +14,12 @@
 
 namespace
 {
-    struct analysis_options
+    struct analysis_options : analysis_settings
     {
         mutable bool use_gdb{false};
-        bool concise_logging{false};
-        bool verbose_logging{false};
-        bool silent{false};
-        bool buffer_stdout{false};
         std::filesystem::path dump{};
         std::string registry_path{"./registry"};
         std::string emulation_root{};
-        std::set<std::string, std::less<>> modules{};
-        std::set<std::string, std::less<>> ignored_functions{};
         std::unordered_map<windows_path, std::filesystem::path> path_mappings{};
     };
 
@@ -58,23 +50,25 @@ namespace
     }
 
     void watch_system_objects(windows_emulator& win_emu, const std::set<std::string, std::less<>>& modules,
-                              const bool cache_logging)
+                              const bool verbose)
     {
+        win_emu.setup_process_if_necessary();
+
         (void)win_emu;
         (void)modules;
-        (void)cache_logging;
+        (void)verbose;
 
 #if !defined(__GNUC__) || defined(__clang__)
-        watch_object(win_emu, modules, *win_emu.current_thread().teb, cache_logging);
-        watch_object(win_emu, modules, win_emu.process.peb, cache_logging);
+        watch_object(win_emu, modules, *win_emu.current_thread().teb, verbose);
+        watch_object(win_emu, modules, win_emu.process.peb, verbose);
         watch_object(win_emu, modules, emulator_object<KUSER_SHARED_DATA64>{win_emu.emu(), kusd_mmio::address()},
-                     cache_logging);
+                     verbose);
 
-        auto* params_hook = watch_object(win_emu, modules, win_emu.process.process_params, cache_logging);
+        auto* params_hook = watch_object(win_emu, modules, win_emu.process.process_params, verbose);
 
         win_emu.emu().hook_memory_write(
             win_emu.process.peb.value() + offsetof(PEB64, ProcessParameters), 0x8,
-            [&win_emu, cache_logging, params_hook, modules](const uint64_t address, const void*, size_t) mutable {
+            [&win_emu, verbose, params_hook, modules](const uint64_t address, const void*, size_t) mutable {
                 const auto target_address = win_emu.process.peb.value() + offsetof(PEB64, ProcessParameters);
 
                 if (address == target_address)
@@ -85,7 +79,7 @@ namespace
                     };
 
                     win_emu.emu().delete_hook(params_hook);
-                    params_hook = watch_object(win_emu, modules, obj, cache_logging);
+                    params_hook = watch_object(win_emu, modules, obj, verbose);
                 }
             });
 #endif
@@ -108,8 +102,19 @@ namespace
         }
     }
 
-    bool run_emulation(windows_emulator& win_emu, const analysis_options& options)
+    void do_post_emulation_work(const analysis_context& c)
     {
+        if (c.settings->buffer_stdout)
+        {
+            c.win_emu->log.info("%.*s%s", static_cast<int>(c.output.size()), c.output.data(),
+                                c.output.ends_with("\n") ? "" : "\n");
+        }
+    }
+
+    bool run_emulation(const analysis_context& c, const analysis_options& options)
+    {
+        auto& win_emu = *c.win_emu;
+
         std::atomic_uint32_t signals_received{0};
         utils::interupt_handler _{[&] {
             const auto value = signals_received++;
@@ -122,7 +127,7 @@ namespace
                 _Exit(1);
             }
 
-            win_emu.emu().stop();
+            win_emu.stop();
         }};
 
         try
@@ -157,12 +162,14 @@ namespace
         }
         catch (const std::exception& e)
         {
+            do_post_emulation_work(c);
             win_emu.log.error("Emulation failed at: 0x%" PRIx64 " - %s\n", win_emu.emu().read_instruction_pointer(),
                               e.what());
             throw;
         }
         catch (...)
         {
+            do_post_emulation_work(c);
             win_emu.log.error("Emulation failed at: 0x%" PRIx64 "\n", win_emu.emu().read_instruction_pointer());
             throw;
         }
@@ -170,6 +177,7 @@ namespace
         const auto exit_status = win_emu.process.exit_status;
         if (!exit_status.has_value())
         {
+            do_post_emulation_work(c);
             win_emu.log.error("Emulation terminated without status!\n");
             return false;
         }
@@ -178,6 +186,7 @@ namespace
 
         if (!options.silent)
         {
+            do_post_emulation_work(c);
             win_emu.log.disable_output(false);
             win_emu.log.print(success ? color::green : color::red, "Emulation terminated with status: %X\n",
                               *exit_status);
@@ -205,19 +214,14 @@ namespace
         return {
             .emulation_root = options.emulation_root,
             .registry_directory = options.registry_path,
-            .verbose_calls = options.verbose_logging,
-            .disable_logging = options.silent,
-            .silent_until_main = options.concise_logging,
             .path_mappings = options.path_mappings,
-            .modules = options.modules,
-            .ignored_functions = options.ignored_functions,
         };
     }
 
     std::unique_ptr<windows_emulator> create_empty_emulator(const analysis_options& options)
     {
         const auto settings = create_emulator_settings(options);
-        return std::make_unique<windows_emulator>(settings);
+        return std::make_unique<windows_emulator>(create_x86_64_emulator(), settings);
     }
 
     std::unique_ptr<windows_emulator> create_application_emulator(const analysis_options& options,
@@ -234,7 +238,7 @@ namespace
         };
 
         const auto settings = create_emulator_settings(options);
-        return std::make_unique<windows_emulator>(std::move(app_settings), settings);
+        return std::make_unique<windows_emulator>(create_x86_64_emulator(), std::move(app_settings), settings);
     }
 
     std::unique_ptr<windows_emulator> setup_emulator(const analysis_options& options,
@@ -252,28 +256,18 @@ namespace
 
     bool run(const analysis_options& options, const std::span<const std::string_view> args)
     {
-        const auto win_emu = setup_emulator(options, args);
-
-#ifdef OS_EMSCRIPTEN
-        win_emu->callbacks.on_thread_switch = [&] {
-            debugger::event_context c{.win_emu = *win_emu};
-            debugger::handle_events(c); //
+        analysis_context context{
+            .settings = &options,
         };
-#endif
+
+        const auto win_emu = setup_emulator(options, args);
+        win_emu->log.disable_output(options.concise_logging || options.silent);
+        context.win_emu = win_emu.get();
 
         win_emu->log.log("Using emulator: %s\n", win_emu->emu().get_name().c_str());
 
-        (void)&watch_system_objects;
-        watch_system_objects(*win_emu, options.modules, !options.verbose_logging);
-        win_emu->buffer_stdout = options.buffer_stdout;
-
-        if (options.silent)
-        {
-            win_emu->buffer_stdout = false;
-            win_emu->callbacks.on_stdout = [](const std::string_view data) {
-                (void)fwrite(data.data(), 1, data.size(), stdout);
-            };
-        }
+        register_analysis_callbacks(context);
+        watch_system_objects(*win_emu, options.modules, options.verbose_logging);
 
         const auto& exe = *win_emu->mod_manager.executable;
 
@@ -333,7 +327,7 @@ namespace
             win_emu->emu().hook_memory_write(section.region.start, section.region.length, std::move(write_handler));
         }
 
-        return run_emulation(*win_emu, options);
+        return run_emulation(context, options);
     }
 
     std::vector<std::string_view> bundle_arguments(const int argc, char** argv)
@@ -472,45 +466,50 @@ namespace
 
         return options;
     }
+
+    int run_main(const int argc, char** argv)
+    {
+        try
+        {
+            auto args = bundle_arguments(argc, argv);
+            if (args.empty())
+            {
+                print_help();
+                return 1;
+            }
+
+            const auto options = parse_options(args);
+
+            bool result{};
+
+            do
+            {
+                result = run(options, args);
+            } while (options.use_gdb);
+
+            return result ? 0 : 1;
+        }
+        catch (std::exception& e)
+        {
+            puts(e.what());
+
+#if defined(_WIN32) && 0
+            MessageBoxA(nullptr, e.what(), "ERROR", MB_ICONERROR);
+#endif
+        }
+
+        return 1;
+    }
 }
 
 int main(const int argc, char** argv)
 {
-    try
-    {
-        auto args = bundle_arguments(argc, argv);
-        if (args.empty())
-        {
-            print_help();
-            return 1;
-        }
-
-        const auto options = parse_options(args);
-
-        bool result{};
-
-        do
-        {
-            result = run(options, args);
-        } while (options.use_gdb);
-
-        return result ? 0 : 1;
-    }
-    catch (std::exception& e)
-    {
-        puts(e.what());
-
-#if defined(_WIN32) && 0
-        MessageBoxA(nullptr, e.what(), "ERROR", MB_ICONERROR);
-#endif
-    }
-
-    return 1;
+    return run_main(argc, argv);
 }
 
 #ifdef _WIN32
 int WINAPI WinMain(HINSTANCE, HINSTANCE, PSTR, int)
 {
-    return main(__argc, __argv);
+    return run_main(__argc, __argv);
 }
 #endif

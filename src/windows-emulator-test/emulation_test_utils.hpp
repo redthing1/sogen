@@ -1,8 +1,13 @@
 #pragma once
 
+#ifdef __MINGW64__
+#include <unistd.h>
+#endif
+
 #include <cstdlib>
 #include <gtest/gtest.h>
 #include <windows_emulator.hpp>
+#include <backend_selection.hpp>
 
 #include <network/static_socket_factory.hpp>
 
@@ -63,7 +68,9 @@ namespace test
 
         if (is_verbose)
         {
-            settings.disable_logging = false;
+            callbacks.on_stdout = [](const std::string_view data) {
+                std::cout << data; //
+            };
         }
 
         settings.emulation_root = get_emulator_root();
@@ -72,6 +79,7 @@ namespace test
             std::filesystem::temp_directory_path() / ("emulator-test-file-" + std::to_string(getpid()) + ".txt");
 
         return windows_emulator{
+            create_x86_64_emulator(),
             settings,
             std::move(callbacks),
             emulator_interfaces{
@@ -87,8 +95,9 @@ namespace test
 
         if (is_verbose)
         {
-            settings.disable_logging = false;
-            // settings.verbose_calls = true;
+            callbacks.on_stdout = [](const std::string_view data) {
+                std::cout << data; //
+            };
         }
 
         settings.emulation_root = get_emulator_root();
@@ -97,6 +106,7 @@ namespace test
             std::filesystem::temp_directory_path() / ("emulator-test-file-" + std::to_string(getpid()) + ".txt");
 
         return windows_emulator{
+            create_x86_64_emulator(),
             get_sample_app_settings(config),
             settings,
             std::move(callbacks),
@@ -109,7 +119,6 @@ namespace test
     inline windows_emulator create_sample_emulator(const sample_configuration& config = {})
     {
         emulator_settings settings{
-            .disable_logging = true,
             .use_relative_time = true,
         };
 
@@ -119,7 +128,6 @@ namespace test
     inline windows_emulator create_empty_emulator()
     {
         emulator_settings settings{
-            .disable_logging = true,
             .use_relative_time = true,
         };
 

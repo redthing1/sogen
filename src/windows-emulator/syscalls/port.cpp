@@ -14,7 +14,7 @@ namespace syscalls
                                   const emulator_object<ULONG> connection_info_length)
     {
         auto port_name = read_unicode_string(c.emu, server_port_name);
-        c.win_emu.log.print(color::dark_gray, "NtConnectPort: %s\n", u16_to_u8(port_name).c_str());
+        c.win_emu.callbacks.on_generic_access("Connecting port", port_name);
 
         port p{};
         p.name = std::move(port_name);
@@ -77,12 +77,19 @@ namespace syscalls
 
         // TODO: Fix this. This is broken and wrong.
 
-        const emulator_object<PORT_DATA_ENTRY<EmulatorTraits<Emu64>>> data{c.emu, receive_message.value() + 0x48};
-        const auto dest = data.read();
-        const auto base = dest.Base;
+        try
+        {
+            const emulator_object<PORT_DATA_ENTRY<EmulatorTraits<Emu64>>> data{c.emu, receive_message.value() + 0x48};
+            const auto dest = data.read();
+            const auto base = dest.Base;
 
-        const auto value = base + 0x10;
-        c.emu.write_memory(base + 8, &value, sizeof(value));
+            const auto value = base + 0x10;
+            c.emu.write_memory(base + 8, &value, sizeof(value));
+        }
+        catch (...)
+        {
+            return STATUS_NOT_SUPPORTED;
+        }
 
         return STATUS_SUCCESS;
     }

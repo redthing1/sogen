@@ -39,6 +39,11 @@ namespace syscalls
         return STATUS_SUCCESS;
     }
 
+    NTSTATUS handle_NtQueryEvent()
+    {
+        return STATUS_NOT_SUPPORTED;
+    }
+
     NTSTATUS handle_NtClearEvent(const syscall_context& c, const handle event_handle)
     {
         auto* e = c.proc.events.get(event_handle);
@@ -63,6 +68,7 @@ namespace syscalls
             if (attributes.ObjectName)
             {
                 name = read_unicode_string(c.emu, attributes.ObjectName);
+                c.win_emu.callbacks.on_generic_access("Opening event", name);
             }
         }
 
@@ -99,7 +105,7 @@ namespace syscalls
     {
         const auto attributes = object_attributes.read();
         const auto name = read_unicode_string(c.emu, attributes.ObjectName);
-        c.win_emu.log.print(color::dark_gray, "--> Event name: %s\n", u16_to_u8(name).c_str());
+        c.win_emu.callbacks.on_generic_access("Opening event", name);
 
         if (name == u"\\KernelObjects\\SystemErrorPortReady")
         {
@@ -110,6 +116,12 @@ namespace syscalls
         if (name == u"Global\\SvcctrlStartEvent_A3752DX")
         {
             event_handle.write(SVCCTRL_START_EVENT.bits);
+            return STATUS_SUCCESS;
+        }
+
+        if (name == u"\\SECURITY\\LSA_AUTHENTICATION_INITIALIZED")
+        {
+            event_handle.write(LSA_AUTHENTICATION_INITIALIZED.bits);
             return STATUS_SUCCESS;
         }
 
