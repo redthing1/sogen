@@ -1,13 +1,21 @@
 #pragma once
 #include <span>
 #include <string>
+#include <vector>
 #include <cstddef>
+#include <cstdint>
 #include <cwctype>
 #include <algorithm>
 #include <string_view>
 
 namespace utils::string
 {
+#ifdef __clang__
+    __attribute__((__format__(__printf__, 1, 2)))
+#endif
+    const char*
+    va(const char* format, ...);
+
     template <typename T, size_t Size>
         requires(std::is_trivially_copyable_v<T>)
     // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays,hicpp-avoid-c-arrays,modernize-avoid-c-arrays)
@@ -36,19 +44,16 @@ namespace utils::string
         return static_cast<char>(std::tolower(static_cast<unsigned char>(val)));
     }
 
-    inline char16_t char_to_lower(const char16_t val)
-    {
-        if (val >= u'A' && val <= u'Z')
-        {
-            return val + 32;
-        }
-
-        return val;
-    }
-
     inline wchar_t char_to_lower(const wchar_t val)
     {
         return static_cast<wchar_t>(std::towlower(val));
+    }
+
+    inline char16_t char_to_lower(const char16_t val)
+    {
+        static_assert(sizeof(char16_t) <= sizeof(wchar_t));
+        static_assert(sizeof(char16_t) == sizeof(uint16_t));
+        return static_cast<char16_t>(char_to_lower(static_cast<wchar_t>(static_cast<uint16_t>(val))));
     }
 
     template <class Elem, class Traits, class Alloc>

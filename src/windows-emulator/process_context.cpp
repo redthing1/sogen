@@ -251,7 +251,6 @@ void process_context::serialize(utils::buffer_serializer& buffer) const
     buffer.write(this->shared_section_size);
     buffer.write(this->dbwin_buffer);
     buffer.write(this->dbwin_buffer_size);
-    buffer.write_optional(this->exception_rip);
     buffer.write_optional(this->exit_status);
     buffer.write(this->base_allocator);
     buffer.write(this->peb);
@@ -272,6 +271,7 @@ void process_context::serialize(utils::buffer_serializer& buffer) const
     buffer.write(this->ports);
     buffer.write(this->mutants);
     buffer.write(this->windows);
+    buffer.write(this->timers);
     buffer.write(this->registry_keys);
     buffer.write_map(this->atoms);
 
@@ -290,7 +290,6 @@ void process_context::deserialize(utils::buffer_deserializer& buffer)
     buffer.read(this->shared_section_size);
     buffer.read(this->dbwin_buffer);
     buffer.read(this->dbwin_buffer_size);
-    buffer.read_optional(this->exception_rip);
     buffer.read_optional(this->exit_status);
     buffer.read(this->base_allocator);
     buffer.read(this->peb);
@@ -311,6 +310,7 @@ void process_context::deserialize(utils::buffer_deserializer& buffer)
     buffer.read(this->ports);
     buffer.read(this->mutants);
     buffer.read(this->windows);
+    buffer.read(this->timers);
     buffer.read(this->registry_keys);
     buffer.read_map(this->atoms);
 
@@ -359,7 +359,7 @@ handle process_context::create_thread(memory_manager& memory, const uint64_t sta
 {
     emulator_thread t{memory, *this, start_address, argument, stack_size, suspended, ++this->spawned_thread_count};
     auto [h, thr] = this->threads.store_and_get(std::move(t));
-    this->callbacks_->on_create_thread(h, *thr);
+    this->callbacks_->on_thread_create(h, *thr);
     return h;
 }
 
