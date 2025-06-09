@@ -11,6 +11,7 @@
 #include "apiset/apiset.hpp"
 
 #include "network/static_socket_factory.hpp"
+#include "minidump_loader.hpp"
 
 constexpr auto MAX_INSTRUCTIONS_PER_TIME_SLICE = 0x20000;
 
@@ -663,8 +664,8 @@ void windows_emulator::restore_snapshot()
     // this->process = *this->process_snapshot_;
 }
 
-void windows_emulator::load_minidump(const std::filesystem::path& minidump_file)
+void windows_emulator::load_minidump(const std::filesystem::path& minidump_path)
 {
-    minidump_loader mdmp_loader(*this, minidump_file);
+    minidump_loader mdmp_loader(*this, minidump_path);
     mdmp_loader.load_into_emulator();
 }

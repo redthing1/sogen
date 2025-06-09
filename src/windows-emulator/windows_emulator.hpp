@@ -164,7 +164,7 @@ class windows_emulator
     void save_snapshot();
     void restore_snapshot();
 
-    void load_minidump(const std::filesystem::path& minidump_file);
+    void load_minidump(const std::filesystem::path& minidump_path);
 
     uint16_t get_host_port(const uint16_t emulator_port) const
     {
