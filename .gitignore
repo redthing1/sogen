@@ -1,6 +1,9 @@
 /Ghidra
 build-*/
 
+.vscode
+.claude
+
 ### Windows
 
 # Windows image file caches
