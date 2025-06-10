@@ -143,6 +143,12 @@ namespace
                 win_x64_gdb_stub_handler handler{win_emu, should_stop};
                 gdb_stub::run_gdb_stub(network::address{"0.0.0.0:28960", AF_INET}, handler);
             }
+            else if (!options.minidump_path.empty())
+            {
+                // For minidumps, don't start execution automatically; just report ready state
+                win_emu.log.print(color::green, "Minidump loaded successfully. Process state ready for analysis.\n");
+                return true; // Return success without starting emulation
+            }
             else
             {
                 win_emu.start();
