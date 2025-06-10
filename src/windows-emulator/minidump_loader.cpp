@@ -392,6 +392,125 @@ namespace
         win_emu.log.info("Content: %zu segments written (%s), %zu failed\n", written_count,
                          format_size(total_bytes_written).c_str(), write_failed_count);
     }
+
+    bool is_main_executable(const minidump::module_info& module)
+    {
+        const auto name = module.module_name;
+        return name.find(".exe") != std::string::npos;
+    }
+
+    bool is_ntdll(const minidump::module_info& module)
+    {
+        const auto name = module.module_name;
+        return name == "ntdll.dll" || name == "NTDLL.DLL";
+    }
+
+    bool is_win32u(const minidump::module_info& module)
+    {
+        const auto name = module.module_name;
+        return name == "win32u.dll" || name == "WIN32U.DLL";
+    }
+
+    void reconstruct_module_state(windows_emulator& win_emu, const minidump::minidump_file* dump_file)
+    {
+        if (!dump_file)
+        {
+            win_emu.log.error("Dump file not loaded\n");
+            return;
+        }
+
+        const auto& modules = dump_file->modules();
+        win_emu.log.info("Reconstructing module state: %zu modules\n", modules.size());
+
+        size_t mapped_count = 0;
+        size_t failed_count = 0;
+        size_t identified_count = 0;
+
+        for (const auto& module : modules)
+        {
+            try
+            {
+                auto* mapped_module = win_emu.mod_manager.map_memory_module(module.base_of_image, module.size_of_image,
+                                                                            module.module_name, win_emu.log);
+
+                if (mapped_module)
+                {
+                    mapped_count++;
+                    win_emu.log.info("  Mapped %s at %s (%s, %zu sections, %zu exports)\n", module.module_name.c_str(),
+                                     format_address(module.base_of_image).c_str(),
+                                     format_size(module.size_of_image).c_str(), mapped_module->sections.size(),
+                                     mapped_module->exports.size());
+
+                    if (is_main_executable(module))
+                    {
+                        win_emu.mod_manager.executable = mapped_module;
+                        identified_count++;
+                        win_emu.log.info("    Identified as main executable\n");
+                    }
+                    else if (is_ntdll(module))
+                    {
+                        win_emu.mod_manager.ntdll = mapped_module;
+                        identified_count++;
+                        win_emu.log.info("    Identified as ntdll\n");
+                    }
+                    else if (is_win32u(module))
+                    {
+                        win_emu.mod_manager.win32u = mapped_module;
+                        identified_count++;
+                        win_emu.log.info("    Identified as win32u\n");
+                    }
+                }
+                else
+                {
+                    failed_count++;
+                    win_emu.log.warn("  Failed to map %s at %s\n", module.module_name.c_str(),
+                                     format_address(module.base_of_image).c_str());
+                }
+            }
+            catch (const std::exception& e)
+            {
+                failed_count++;
+                win_emu.log.error("  Exception mapping %s: %s\n", module.module_name.c_str(), e.what());
+            }
+        }
+
+        win_emu.log.info("Module reconstruction: %zu mapped, %zu failed, %zu system modules identified\n", mapped_count,
+                         failed_count, identified_count);
+    }
+
+    void reconstruct_process_context(windows_emulator& win_emu, const minidump::minidump_file* dump_file)
+    {
+        if (!dump_file)
+        {
+            win_emu.log.error("Dump file not loaded\n");
+            return;
+        }
+
+        const auto& threads = dump_file->threads();
+        win_emu.log.info("Reconstructing process context: %zu threads\n", threads.size());
+
+        // For minidump analysis, we just need to extract and log thread information
+        // Don't actually create running threads since they're snapshots
+
+        for (const auto& thread_info : threads)
+        {
+            win_emu.log.info("  Thread %u: TEB at %s, stack %s (%s), context %u bytes\n", thread_info.thread_id,
+                             format_address(thread_info.teb).c_str(),
+                             format_address(thread_info.stack_start_of_memory_range).c_str(),
+                             format_size(thread_info.stack_data_size).c_str(), thread_info.context_data_size);
+        }
+
+        const auto* exception_info = dump_file->get_exception_info();
+        if (exception_info)
+        {
+            win_emu.process.current_ip = exception_info->exception_record.exception_address;
+            win_emu.log.info("Exception context: RIP=%s, code=0x%08X\n",
+                             format_address(exception_info->exception_record.exception_address).c_str(),
+                             exception_info->exception_record.exception_code);
+        }
+
+        win_emu.log.info("Process context: %zu threads analyzed\n", threads.size());
+    }
 }
 
 minidump_loader::minidump_loader(windows_emulator& win_emu, const std::filesystem::path& minidump_path)
@@ -426,8 +545,10 @@ void minidump_loader::load_into_emulator()
         log_dump_summary(win_emu_, dump_file.get(), stats);
         process_streams(win_emu_, dump_file.get());
         reconstruct_memory_state(win_emu_, dump_file.get(), dump_reader.get());
+        reconstruct_module_state(win_emu_, dump_file.get());
+        reconstruct_process_context(win_emu_, dump_file.get());
 
-        win_emu_.log.info("TODO: Module and process state reconstruction not yet implemented\n");
+        win_emu_.log.info("TODO: Handle table and advanced execution state reconstruction not yet implemented\n");
     }
     catch (const std::exception& e)
     {
