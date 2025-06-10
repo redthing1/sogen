@@ -184,9 +184,9 @@ namespace
         for (const auto& region : memory_regions)
         {
             total_reserved += region.region_size;
-            if (region.state & 0x1000)
+            if (region.state & MEM_COMMIT)
                 total_committed += region.region_size;
-            if (region.protect & 0x100)
+            if (region.protect & PAGE_GUARD)
                 guard_pages++;
         }
         win_emu.log.info("Memory: %zu regions, %" PRIu64 " bytes reserved, %" PRIu64 " bytes committed, %zu guard pages\n", memory_regions.size(),
@@ -267,22 +267,40 @@ namespace
 
         for (const auto& region : memory_regions)
         {
-            const bool is_reserved = (region.state & 0x2000) != 0;  // MEM_RESERVE
-            const bool is_committed = (region.state & 0x1000) != 0; // MEM_COMMIT
-            const bool is_free = (region.state & 0x10000) != 0;     // MEM_FREE
+            const bool is_reserved = (region.state & MEM_RESERVE) != 0;
+            const bool is_committed = (region.state & MEM_COMMIT) != 0;
+            const bool is_free = (region.state & MEM_FREE) != 0;
 
             if (is_free)
                 continue;
 
             memory_permission perms = memory_permission::none;
-            if (region.protect & 0x04)
+            
+            // Strip modifier flags like PAGE_GUARD, PAGE_NOCACHE, etc.
+            const uint32_t base_protect = region.protect & 0xFF;
+            
+            switch (base_protect)
+            {
+            case PAGE_READWRITE:
                 perms = memory_permission::read_write;
-            if (region.protect & 0x02)
+                break;
+            case PAGE_READONLY:
                 perms = memory_permission::read;
-            if (region.protect & 0x20)
+                break;
+            case PAGE_EXECUTE_READ:
                 perms = memory_permission::read | memory_permission::exec;
-            if (region.protect & 0x40)
+                break;
+            case PAGE_EXECUTE_READWRITE:
                 perms = memory_permission::all;
+                break;
+            case PAGE_NOACCESS:
+                perms = memory_permission::none;
+                break;
+            default:
+                // For any other protection, default to read-only as safest fallback
+                perms = memory_permission::read;
+                break;
+            }
 
             try
             {
