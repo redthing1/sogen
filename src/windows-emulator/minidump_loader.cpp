@@ -3,8 +3,6 @@
 #include "windows_emulator.hpp"
 
 #include <minidump/minidump.hpp>
-#include <iomanip>
-#include <sstream>
 
 namespace
 {
@@ -19,37 +17,6 @@ namespace
         bool has_exception = false;
         bool has_system_info = false;
     };
-
-    std::string format_address(uint64_t address)
-    {
-        std::ostringstream oss;
-        oss << "0x" << std::hex << std::uppercase << std::setfill('0') << std::setw(16) << address;
-        return oss.str();
-    }
-
-    std::string format_size(uint64_t size)
-    {
-        const char* units[] = {"B", "KB", "MB", "GB", "TB"};
-        double sz = static_cast<double>(size);
-        int unit = 0;
-
-        while (sz >= 1024.0 && unit < 4)
-        {
-            sz /= 1024.0;
-            unit++;
-        }
-
-        std::ostringstream oss;
-        if (unit == 0)
-        {
-            oss << static_cast<uint64_t>(sz) << " " << units[unit];
-        }
-        else
-        {
-            oss << std::fixed << std::setprecision(2) << sz << " " << units[unit];
-        }
-        return oss.str();
-    }
 
     std::string get_architecture_string(const minidump::minidump_file* dump_file)
     {
@@ -91,7 +58,7 @@ namespace
         }
 
         const auto file_size = std::filesystem::file_size(minidump_path);
-        win_emu.log.info("File size: %s\n", format_size(file_size).c_str());
+        win_emu.log.info("File size: %zu bytes\n", file_size);
 
         auto parsed_file = minidump::minidump_file::parse(minidump_path.string());
         if (!parsed_file)
@@ -188,10 +155,10 @@ namespace
             stats.total_memory_size += segment.size;
         }
 
-        win_emu.log.info("Summary: %s, %zu threads, %zu modules, %zu regions, %zu segments, %zu handles, %s memory\n",
+        win_emu.log.info("Summary: %s, %zu threads, %zu modules, %zu regions, %zu segments, %zu handles, %" PRIu64 " bytes memory\n",
                          get_architecture_string(dump_file).c_str(), stats.thread_count, stats.module_count,
                          stats.memory_region_count, stats.memory_segment_count, stats.handle_count,
-                         format_size(stats.total_memory_size).c_str());
+                         stats.total_memory_size);
     }
 
     void process_streams(windows_emulator& win_emu, const minidump::minidump_file* dump_file)
@@ -222,8 +189,8 @@ namespace
             if (region.protect & 0x100)
                 guard_pages++;
         }
-        win_emu.log.info("Memory: %zu regions, %s reserved, %s committed, %zu guard pages\n", memory_regions.size(),
-                         format_size(total_reserved).c_str(), format_size(total_committed).c_str(), guard_pages);
+        win_emu.log.info("Memory: %zu regions, %" PRIu64 " bytes reserved, %" PRIu64 " bytes committed, %zu guard pages\n", memory_regions.size(),
+                         total_reserved, total_committed, guard_pages);
 
         // Process memory content
         const auto& memory_segments = dump_file->memory_segments();
@@ -235,27 +202,25 @@ namespace
         }
         if (!memory_segments.empty())
         {
-            win_emu.log.info("Content: %zu segments, range %s-%s (%s span)\n", memory_segments.size(),
-                             format_address(min_addr).c_str(), format_address(max_addr).c_str(),
-                             format_size(max_addr - min_addr).c_str());
+            win_emu.log.info("Content: %zu segments, range 0x%" PRIx64 "-0x%" PRIx64 " (%" PRIu64 " bytes span)\n", memory_segments.size(),
+                             min_addr, max_addr, max_addr - min_addr);
         }
 
         // Process modules
         const auto& modules = dump_file->modules();
         for (const auto& module : modules)
         {
-            win_emu.log.info("Module: %s at %s (%s)\n", module.module_name.c_str(),
-                             format_address(module.base_of_image).c_str(), format_size(module.size_of_image).c_str());
+            win_emu.log.info("Module: %s at 0x%" PRIx64 " (%u bytes)\n", module.module_name.c_str(),
+                             module.base_of_image, module.size_of_image);
         }
 
         // Process threads
         const auto& threads = dump_file->threads();
         for (const auto& thread : threads)
         {
-            win_emu.log.info("Thread %u: TEB %s, stack %s (%s), context %u bytes\n", thread.thread_id,
-                             format_address(thread.teb).c_str(),
-                             format_address(thread.stack_start_of_memory_range).c_str(),
-                             format_size(thread.stack_data_size).c_str(), thread.context_data_size);
+            win_emu.log.info("Thread %u: TEB 0x%" PRIx64 ", stack 0x%" PRIx64 " (%u bytes), context %u bytes\n", thread.thread_id,
+                             thread.teb, thread.stack_start_of_memory_range,
+                             thread.stack_data_size, thread.context_data_size);
         }
 
         // Process handles
@@ -276,9 +241,9 @@ namespace
         const auto* exception = dump_file->get_exception_info();
         if (exception)
         {
-            win_emu.log.info("Exception: thread %u, code 0x%08X at %s\n", exception->thread_id,
+            win_emu.log.info("Exception: thread %u, code 0x%08X at 0x%" PRIx64 "\n", exception->thread_id,
                              exception->exception_record.exception_code,
-                             format_address(exception->exception_record.exception_address).c_str());
+                             exception->exception_record.exception_address);
         }
     }
 
@@ -326,16 +291,14 @@ namespace
                     if (win_emu.memory.allocate_memory(region.base_address, region.region_size, perms, false))
                     {
                         committed_count++;
-                        win_emu.log.info("  Allocated committed %s: size=%s, state=0x%08X, protect=0x%08X\n",
-                                         format_address(region.base_address).c_str(),
-                                         format_size(region.region_size).c_str(), region.state, region.protect);
+                        win_emu.log.info("  Allocated committed 0x%" PRIx64 ": size=%" PRIu64 ", state=0x%08X, protect=0x%08X\n",
+                                         region.base_address, region.region_size, region.state, region.protect);
                     }
                     else
                     {
                         failed_count++;
-                        win_emu.log.warn("  Failed to allocate committed %s: size=%s\n",
-                                         format_address(region.base_address).c_str(),
-                                         format_size(region.region_size).c_str());
+                        win_emu.log.warn("  Failed to allocate committed 0x%" PRIx64 ": size=%" PRIu64 "\n",
+                                         region.base_address, region.region_size);
                     }
                 }
                 else if (is_reserved)
@@ -343,24 +306,21 @@ namespace
                     if (win_emu.memory.allocate_memory(region.base_address, region.region_size, perms, true))
                     {
                         reserved_count++;
-                        win_emu.log.info("  Reserved %s: size=%s, state=0x%08X, protect=0x%08X\n",
-                                         format_address(region.base_address).c_str(),
-                                         format_size(region.region_size).c_str(), region.state, region.protect);
+                        win_emu.log.info("  Reserved 0x%" PRIx64 ": size=%" PRIu64 ", state=0x%08X, protect=0x%08X\n",
+                                         region.base_address, region.region_size, region.state, region.protect);
                     }
                     else
                     {
                         failed_count++;
-                        win_emu.log.warn("  Failed to reserve %s: size=%s\n",
-                                         format_address(region.base_address).c_str(),
-                                         format_size(region.region_size).c_str());
+                        win_emu.log.warn("  Failed to reserve 0x%" PRIx64 ": size=%" PRIu64 "\n",
+                                         region.base_address, region.region_size);
                     }
                 }
             }
             catch (const std::exception& e)
             {
                 failed_count++;
-                win_emu.log.error("  Exception allocating %s: %s\n", format_address(region.base_address).c_str(),
-                                  e.what());
+                win_emu.log.error("  Exception allocating 0x%" PRIx64 ": %s\n", region.base_address, e.what());
             }
         }
 
@@ -378,19 +338,19 @@ namespace
                 win_emu.memory.write_memory(segment.start_virtual_address, memory_data.data(), memory_data.size());
                 written_count++;
                 total_bytes_written += memory_data.size();
-                win_emu.log.info("  Written segment %s: %s\n", format_address(segment.start_virtual_address).c_str(),
-                                 format_size(memory_data.size()).c_str());
+                win_emu.log.info("  Written segment 0x%" PRIx64 ": %zu bytes\n", segment.start_virtual_address,
+                                 memory_data.size());
             }
             catch (const std::exception& e)
             {
                 write_failed_count++;
-                win_emu.log.error("  Failed to write segment %s: %s\n",
-                                  format_address(segment.start_virtual_address).c_str(), e.what());
+                win_emu.log.error("  Failed to write segment 0x%" PRIx64 ": %s\n",
+                                  segment.start_virtual_address, e.what());
             }
         }
 
-        win_emu.log.info("Content: %zu segments written (%s), %zu failed\n", written_count,
-                         format_size(total_bytes_written).c_str(), write_failed_count);
+        win_emu.log.info("Content: %zu segments written (%" PRIu64 " bytes), %zu failed\n", written_count,
+                         total_bytes_written, write_failed_count);
     }
 
     bool is_main_executable(const minidump::module_info& module)
@@ -436,9 +396,8 @@ namespace
                 if (mapped_module)
                 {
                     mapped_count++;
-                    win_emu.log.info("  Mapped %s at %s (%s, %zu sections, %zu exports)\n", module.module_name.c_str(),
-                                     format_address(module.base_of_image).c_str(),
-                                     format_size(module.size_of_image).c_str(), mapped_module->sections.size(),
+                    win_emu.log.info("  Mapped %s at 0x%" PRIx64 " (%u bytes, %zu sections, %zu exports)\n", module.module_name.c_str(),
+                                     module.base_of_image, module.size_of_image, mapped_module->sections.size(),
                                      mapped_module->exports.size());
 
                     if (is_main_executable(module))
@@ -463,8 +422,8 @@ namespace
                 else
                 {
                     failed_count++;
-                    win_emu.log.warn("  Failed to map %s at %s\n", module.module_name.c_str(),
-                                     format_address(module.base_of_image).c_str());
+                    win_emu.log.warn("  Failed to map %s at 0x%" PRIx64 "\n", module.module_name.c_str(),
+                                     module.base_of_image);
                 }
             }
             catch (const std::exception& e)
@@ -478,6 +437,32 @@ namespace
                          failed_count, identified_count);
     }
 
+    void setup_kusd_from_dump(windows_emulator& win_emu, const minidump::minidump_file* dump_file)
+    {
+        const auto* sys_info = dump_file->get_system_info();
+        if (!sys_info)
+        {
+            win_emu.log.warn("No system info available - using default KUSD\n");
+            return;
+        }
+
+        win_emu.log.info("Setting up KUSER_SHARED_DATA from dump system info\n");
+        
+        auto& kusd = win_emu.process.kusd.get();
+        kusd.NtMajorVersion = sys_info->major_version;
+        kusd.NtMinorVersion = sys_info->minor_version; 
+        kusd.NtBuildNumber = sys_info->build_number;
+        kusd.NativeProcessorArchitecture = sys_info->processor_architecture;
+        kusd.ActiveProcessorCount = sys_info->number_of_processors;
+        kusd.UnparkedProcessorCount = sys_info->number_of_processors;
+        kusd.NtProductType = static_cast<NT_PRODUCT_TYPE>(sys_info->product_type);
+        kusd.ProductTypeIsValid = 1;
+
+        win_emu.log.info("KUSD updated: Windows %u.%u.%u, %u processors, product type %u\n", 
+                        sys_info->major_version, sys_info->minor_version, sys_info->build_number,
+                        sys_info->number_of_processors, sys_info->product_type);
+    }
+
     void reconstruct_process_context(windows_emulator& win_emu, const minidump::minidump_file* dump_file)
     {
         if (!dump_file)
@@ -489,23 +474,19 @@ namespace
         const auto& threads = dump_file->threads();
         win_emu.log.info("Reconstructing process context: %zu threads\n", threads.size());
 
-        // For minidump analysis, we just need to extract and log thread information
-        // Don't actually create running threads since they're snapshots
-
         for (const auto& thread_info : threads)
         {
-            win_emu.log.info("  Thread %u: TEB at %s, stack %s (%s), context %u bytes\n", thread_info.thread_id,
-                             format_address(thread_info.teb).c_str(),
-                             format_address(thread_info.stack_start_of_memory_range).c_str(),
-                             format_size(thread_info.stack_data_size).c_str(), thread_info.context_data_size);
+            win_emu.log.info("  Thread %u: TEB at 0x%" PRIx64 ", stack 0x%" PRIx64 " (%u bytes), context %u bytes\n", thread_info.thread_id,
+                             thread_info.teb, thread_info.stack_start_of_memory_range,
+                             thread_info.stack_data_size, thread_info.context_data_size);
         }
 
         const auto* exception_info = dump_file->get_exception_info();
         if (exception_info)
         {
             win_emu.process.current_ip = exception_info->exception_record.exception_address;
-            win_emu.log.info("Exception context: RIP=%s, code=0x%08X\n",
-                             format_address(exception_info->exception_record.exception_address).c_str(),
+            win_emu.log.info("Exception context: RIP=0x%" PRIx64 ", code=0x%08X\n",
+                             exception_info->exception_record.exception_address,
                              exception_info->exception_record.exception_code);
         }
 
@@ -541,6 +522,8 @@ void minidump_loader::load_into_emulator()
             throw std::runtime_error("Minidump compatibility validation failed");
         }
 
+        setup_kusd_from_dump(win_emu_, dump_file.get());
+        
         dump_statistics stats;
         log_dump_summary(win_emu_, dump_file.get(), stats);
         process_streams(win_emu_, dump_file.get());
@@ -548,7 +531,7 @@ void minidump_loader::load_into_emulator()
         reconstruct_module_state(win_emu_, dump_file.get());
         reconstruct_process_context(win_emu_, dump_file.get());
 
-        win_emu_.log.info("TODO: Handle table and advanced execution state reconstruction not yet implemented\n");
+        win_emu_.log.info("Minidump loading completed successfully\n");
     }
     catch (const std::exception& e)
     {
