@@ -328,7 +328,7 @@ windows_emulator::windows_emulator(std::unique_ptr<x86_64_emulator> emu, const e
         this->map_port(mapping.first, mapping.second);
     }
 
-    this->setup_hooks();
+        this->setup_hooks();
 }
 
 windows_emulator::~windows_emulator() = default;
@@ -434,6 +434,9 @@ void windows_emulator::on_instruction_execution(const uint64_t address)
 
 void windows_emulator::setup_hooks()
 {
+    uint64_t tsc_base = splitmix64(0xCAFEBABEDEADBEEFull);
+    constexpr uint64_t tick_scale = 50;
+
     this->emu().hook_instruction(x86_hookable_instructions::syscall, [&] {
         this->dispatcher.dispatch(*this);
         return instruction_hook_continuation::skip_instruction;
@@ -442,9 +445,10 @@ void windows_emulator::setup_hooks()
     this->emu().hook_instruction(x86_hookable_instructions::rdtscp, [&] {
         this->callbacks.on_rdtscp();
 
-        const auto ticks = this->clock_->timestamp_counter();
-        this->emu().reg(x86_register::rax, ticks & 0xFFFFFFFF);
-        this->emu().reg(x86_register::rdx, (ticks >> 32) & 0xFFFFFFFF);
+        const uint64_t retired = this->executed_instructions_;
+        const uint64_t ticks = tsc_base + (retired * tick_scale);
+        this->emu().reg(x86_register::rax, static_cast<uint32_t>(ticks));
+        this->emu().reg(x86_register::rdx, static_cast<uint32_t>(ticks >> 32));
 
         // Return the IA32_TSC_AUX value in RCX (low 32 bits)
         auto tsc_aux = 0; // Need to replace this with proper CPUID later
@@ -456,9 +460,10 @@ void windows_emulator::setup_hooks()
     this->emu().hook_instruction(x86_hookable_instructions::rdtsc, [&] {
         this->callbacks.on_rdtsc();
 
-        const auto ticks = this->clock_->timestamp_counter();
-        this->emu().reg(x86_register::rax, ticks & 0xFFFFFFFF);
-        this->emu().reg(x86_register::rdx, (ticks >> 32) & 0xFFFFFFFF);
+        const uint64_t retired = this->executed_instructions_;
+        const uint64_t ticks = tsc_base + (retired * tick_scale);
+        this->emu().reg(x86_register::rax, static_cast<uint32_t>(ticks));
+        this->emu().reg(x86_register::rdx, static_cast<uint32_t>(ticks >> 32));
 
         return instruction_hook_continuation::skip_instruction;
     });
