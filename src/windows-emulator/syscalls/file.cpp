@@ -51,7 +51,7 @@ namespace syscalls
                                          const emulator_object<IO_STATUS_BLOCK<EmulatorTraits<Emu64>>> io_status_block,
                                          const uint64_t file_information, const ULONG length, const FILE_INFORMATION_CLASS info_class)
     {
-        const auto* f = c.proc.files.get(file_handle);
+        auto* f = c.proc.files.get(file_handle);
         if (!f)
         {
             if (c.proc.devices.get(file_handle))
@@ -88,7 +88,22 @@ namespace syscalls
 
             c.win_emu.log.warn("--> File rename requested: %s --> %s\n", u16_to_u8(f->name).c_str(), u16_to_u8(new_name).c_str());
 
-            return STATUS_ACCESS_DENIED;
+            std::error_code ec{};
+            bool file_exists = std::filesystem::exists(new_name, ec);
+
+            if (ec)
+            {
+                return STATUS_ACCESS_DENIED;
+            }
+
+            if (!info.ReplaceIfExists && file_exists)
+            {
+                return STATUS_OBJECT_NAME_EXISTS;
+            }
+
+            f->handle.defer_rename(c.win_emu.file_sys.translate(f->name), c.win_emu.file_sys.translate(new_name));
+
+            return STATUS_SUCCESS;
         }
 
         if (info_class == FileBasicInformation)
@@ -886,6 +901,12 @@ namespace syscalls
             return STATUS_SUCCESS;
         }
 
+        if (filename == u"\\??\\CONOUT$")
+        {
+            file_handle.write(STDOUT_HANDLE);
+            return STATUS_SUCCESS;
+        }
+
         file f{};
         f.name = std::move(filename);
 
@@ -1022,8 +1043,19 @@ namespace syscalls
             return STATUS_INVALID_PARAMETER;
         }
 
-        const auto filename =
-            read_unicode_string(c.emu, emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>>{c.emu, attributes.ObjectName});
+        auto filename = read_unicode_string(c.emu, emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>>{c.emu, attributes.ObjectName});
+
+        if (attributes.RootDirectory)
+        {
+            const auto* root = c.proc.files.get(attributes.RootDirectory);
+            if (!root)
+            {
+                return STATUS_INVALID_HANDLE;
+            }
+
+            const auto has_separator = root->name.ends_with(u"\\") || root->name.ends_with(u"/");
+            filename = root->name + (has_separator ? u"" : u"\\") + filename;
+        }
 
         c.win_emu.callbacks.on_generic_access("Querying file attributes", filename);
 

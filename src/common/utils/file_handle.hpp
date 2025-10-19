@@ -7,6 +7,12 @@ namespace utils
 {
     class file_handle
     {
+        struct rename_information
+        {
+            std::filesystem::path old_filepath;
+            std::filesystem::path new_filepath;
+        };
+
       public:
         file_handle() = default;
 
@@ -80,8 +86,14 @@ namespace utils
             return _ftelli64(this->file_);
         }
 
+        void defer_rename(std::filesystem::path oldname, std::filesystem::path newname)
+        {
+            deferred_rename_ = {.old_filepath = std::move(oldname), .new_filepath = std::move(newname)};
+        }
+
       private:
         FILE* file_{};
+        std::optional<rename_information> deferred_rename_;
 
         void release()
         {
@@ -89,6 +101,13 @@ namespace utils
             {
                 (void)fclose(this->file_);
                 this->file_ = {};
+            }
+
+            if (this->deferred_rename_)
+            {
+                std::error_code ec{};
+                std::filesystem::rename(this->deferred_rename_->old_filepath, this->deferred_rename_->new_filepath, ec);
+                this->deferred_rename_ = {};
             }
         }
     };

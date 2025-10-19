@@ -295,4 +295,9 @@ namespace syscalls
     {
         return STATUS_NOT_SUPPORTED;
     }
+
+    BOOL handle_NtLockVirtualMemory()
+    {
+        return TRUE;
+    }
 }
