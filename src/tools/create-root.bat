@@ -136,6 +136,7 @@ CALL :collect srvcli.dll
 CALL :collect wlanapi.dll
 CALL :collect windowscodecs.dll
 CALL :collect mobilenetworking.dll
+CALL :collect FWPUCLNT.dll
 
 CALL :collect locale.nls
 CALL :collect c_1252.nls
