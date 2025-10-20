@@ -111,7 +111,7 @@ namespace network
         const auto res = ::recvfrom(this->socket_.get_socket(), reinterpret_cast<char*>(data.data()), static_cast<send_size>(data.size()),
                                     0, &source.get_addr(), &source_length);
 
-        assert(source.get_size() == source_length);
+        assert(res < 0 || source.get_size() == source_length);
 
         return res;
     }
