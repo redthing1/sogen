@@ -161,6 +161,13 @@ void kusd_mmio::update()
 {
     const auto time = this->clock_->system_now();
     utils::convert_to_ksystem_time(&this->kusd_.SystemTime, time);
+
+    const auto ticks = this->clock_->steady_now();
+    const auto duration_100ns =
+        std::chrono::duration_cast<std::chrono::duration<uint64_t, std::ratio<1, 10000000>>>(ticks.time_since_epoch()).count();
+
+    this->kusd_.TickCount.TickCountQuad = (duration_100ns << 24) / this->kusd_.TickCountMultiplier;
+    this->kusd_.TickCount.TickCount.High2Time = this->kusd_.TickCount.TickCount.High1Time;
 }
 
 void kusd_mmio::register_mmio()
