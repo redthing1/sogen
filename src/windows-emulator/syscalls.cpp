@@ -171,8 +171,23 @@ namespace syscalls
                                         emulator_object<REMOTE_PORT_VIEW64> server_shared_memory,
                                         emulator_object<ULONG> maximum_message_length, emulator_pointer connection_info,
                                         emulator_object<ULONG> connection_info_length);
+    NTSTATUS handle_NtAlpcConnectPort(const syscall_context& c, emulator_object<handle> port_handle,
+                                      emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>> server_port_name,
+                                      emulator_object<OBJECT_ATTRIBUTES<EmulatorTraits<Emu64>>> /*object_attributes*/,
+                                      emulator_pointer /*port_attributes*/, ULONG /*flags*/, emulator_pointer /*required_server_sid*/,
+                                      emulator_pointer /*connection_message*/,
+                                      emulator_object<EmulatorTraits<Emu64>::SIZE_T> /*buffer_length*/,
+                                      emulator_pointer /*out_message_attributes*/, emulator_pointer /*in_message_attributes*/,
+                                      emulator_object<LARGE_INTEGER> /*timeout*/);
+    NTSTATUS handle_NtAlpcConnectPortEx(const syscall_context& c, emulator_object<handle> port_handle,
+                                        emulator_object<OBJECT_ATTRIBUTES<EmulatorTraits<Emu64>>> connection_port_object_attributes,
+                                        emulator_object<OBJECT_ATTRIBUTES<EmulatorTraits<Emu64>>> /*client_port_object_attributes*/,
+                                        emulator_pointer port_attributes, ULONG flags, emulator_pointer /*server_security_requirements*/,
+                                        emulator_pointer connection_message, emulator_object<EmulatorTraits<Emu64>::SIZE_T> buffer_length,
+                                        emulator_pointer out_message_attributes, emulator_pointer in_message_attributes,
+                                        emulator_object<LARGE_INTEGER> timeout);
     NTSTATUS handle_NtAlpcSendWaitReceivePort(const syscall_context& c, handle port_handle, ULONG /*flags*/,
-                                              emulator_object<PORT_MESSAGE64> /*send_message*/,
+                                              emulator_object<PORT_MESSAGE64> send_message,
                                               emulator_object<ALPC_MESSAGE_ATTRIBUTES>
                                               /*send_message_attributes*/,
                                               emulator_object<PORT_MESSAGE64> receive_message,
@@ -180,8 +195,9 @@ namespace syscalls
                                               emulator_object<ALPC_MESSAGE_ATTRIBUTES>
                                               /*receive_message_attributes*/,
                                               emulator_object<LARGE_INTEGER> /*timeout*/);
-    NTSTATUS handle_NtAlpcConnectPort();
-    NTSTATUS handle_NtAlpcConnectPortEx();
+    NTSTATUS handle_NtAlpcQueryInformation();
+    NTSTATUS handle_NtAlpcCreateSecurityContext();
+    NTSTATUS handle_NtAlpcDeleteSecurityContext();
 
     // syscalls/process.cpp:
     NTSTATUS handle_NtQueryInformationProcess(const syscall_context& c, handle process_handle, uint32_t info_class,
@@ -1072,8 +1088,9 @@ void syscall_dispatcher::add_handlers(std::map<std::string, syscall_handler>& ha
     add_handler(NtReleaseSemaphore);
     add_handler(NtEnumerateKey);
     add_handler(NtEnumerateValueKey);
-    add_handler(NtAlpcConnectPort);
     add_handler(NtAlpcConnectPortEx);
+    add_handler(NtAlpcConnectPort);
+    add_handler(NtAlpcQueryInformation);
     add_handler(NtGetNextThread);
     add_handler(NtSetInformationObject);
     add_handler(NtUserGetCursorPos);
@@ -1135,6 +1152,8 @@ void syscall_dispatcher::add_handlers(std::map<std::string, syscall_handler>& ha
     add_handler(NtRemoveIoCompletionEx);
     add_handler(NtCreateDebugObject);
     add_handler(NtReleaseWorkerFactoryWorker);
+    add_handler(NtAlpcCreateSecurityContext);
+    add_handler(NtAlpcDeleteSecurityContext);
 
 #undef add_handler
 }
