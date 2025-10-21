@@ -53,8 +53,7 @@ namespace test
         ASSERT_EQ(serializer1.get_buffer(), serializer2.get_buffer());
     }
 
-#if 0  // currently broken
-	TEST(SerializationTest, EmulationIsReproducible)
+    TEST(SerializationTest, EmulationIsReproducible)
     {
         auto emu1 = create_sample_emulator();
         emu1.start();
@@ -102,6 +101,4 @@ namespace test
 
         ASSERT_EQ(serializer1.get_buffer(), serializer2.get_buffer());
     }
-#endif // 0
-
 }
