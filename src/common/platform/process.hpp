@@ -994,58 +994,6 @@ struct CLIENT_ID64
     DWORD64 UniqueThread;
 };
 
-struct PORT_MESSAGE64
-{
-    union
-    {
-        struct
-        {
-            CSHORT DataLength;
-            CSHORT TotalLength;
-        } s1;
-
-        ULONG Length;
-    } u1;
-
-    union
-    {
-        struct
-        {
-            CSHORT Type;
-            CSHORT DataInfoOffset;
-        } s2;
-
-        ULONG ZeroInit;
-    } u2;
-
-    union
-    {
-        CLIENT_ID64 ClientId;
-        double DoNotUseThisField;
-    };
-
-    ULONG MessageId;
-
-    union
-    {
-        EmulatorTraits<Emu64>::SIZE_T ClientViewSize; // only valid for LPC_CONNECTION_REQUEST messages
-        ULONG CallbackId;                             // only valid for LPC_REQUEST messages
-    };
-};
-
-struct ALPC_MESSAGE_ATTRIBUTES
-{
-    ULONG AllocatedAttributes;
-    ULONG ValidAttributes;
-};
-
-template <typename Traits>
-struct PORT_DATA_ENTRY
-{
-    typename Traits::PVOID Base;
-    ULONG Size;
-};
-
 template <typename Traits>
 struct EMU_RTL_SRWLOCK
 {

@@ -13,6 +13,7 @@
 #include "kusd_mmio.hpp"
 #include "windows_objects.hpp"
 #include "emulator_thread.hpp"
+#include "port.hpp"
 
 #include "apiset/apiset.hpp"
 
@@ -123,7 +124,7 @@ struct process_context
     handle_store<handle_types::section, section> sections{};
     handle_store<handle_types::device, io_device_container> devices{};
     handle_store<handle_types::semaphore, semaphore> semaphores{};
-    handle_store<handle_types::port, port> ports{};
+    handle_store<handle_types::port, port_container> ports{};
     handle_store<handle_types::mutant, mutant> mutants{};
     handle_store<handle_types::window, window> windows{};
     handle_store<handle_types::timer, timer> timers{};
