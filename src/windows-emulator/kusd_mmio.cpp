@@ -51,8 +51,10 @@ namespace
         kusd.Cookie = 0;
         kusd.ConsoleSessionForegroundProcessId = 0x00000000000028f4;
         kusd.TimeUpdateLock = 0x0000000002b28586;
-        kusd.BaselineSystemTimeQpc = 0x0000004b17cd596c;
-        kusd.BaselineInterruptTimeQpc = 0x0000004b17cd596c;
+        // This is the QPC time when `SystemTime` is set
+        // We set it to UINT64_MAX, so `SystemTime` won't get adjusted in `RtlGetSystemTimePrecise`
+        kusd.BaselineSystemTimeQpc = 0xFFFFFFFFFFFFFFFF;
+        kusd.BaselineInterruptTimeQpc = 0xFFFFFFFFFFFFFFFF;
         kusd.QpcSystemTimeIncrement = 0x8000000000000000;
         kusd.QpcInterruptTimeIncrement = 0x8000000000000000;
         kusd.QpcSystemTimeIncrementShift = 0x01;

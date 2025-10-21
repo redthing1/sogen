@@ -186,6 +186,7 @@ struct file : ref_counted_object
     utils::file_handle handle{};
     std::u16string name{};
     std::optional<file_enumeration_state> enumeration_state{};
+    std::optional<std::u16string> deferred_rename;
 
     bool is_file() const
     {

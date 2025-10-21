@@ -492,14 +492,27 @@ namespace
         const auto& exe = *win_emu->mod_manager.executable;
 
         win_emu->emu().hook_instruction(x86_hookable_instructions::cpuid, [&] {
-            const auto rip = win_emu->emu().read_instruction_pointer();
-            const auto leaf = win_emu->emu().reg<uint32_t>(x86_register::eax);
+            auto& emu = win_emu->emu();
+
+            const auto rip = emu.read_instruction_pointer();
+            const auto leaf = emu.reg<uint32_t>(x86_register::eax);
             const auto mod = get_module_if_interesting(win_emu->mod_manager, options.modules, rip);
 
             if (mod.has_value() && (!concise_logging || context.cpuid_cache.insert({rip, leaf}).second))
             {
                 win_emu->log.print(color::blue, "Executing CPUID instruction with leaf 0x%X at 0x%" PRIx64 " (%s)\n", leaf, rip,
                                    (*mod) ? (*mod)->name.c_str() : "<N/A>");
+            }
+
+            if (leaf == 1)
+            {
+                // NOTE: We hard-code these values to disable SSE4.x
+                emu.reg<uint32_t>(x86_register::eax, 0x000906EA);
+                emu.reg<uint32_t>(x86_register::ebx, 0x00100800);
+                emu.reg<uint32_t>(x86_register::ecx, 0xFFE2F38F);
+                emu.reg<uint32_t>(x86_register::edx, 0xBFEBFBFF);
+
+                return instruction_hook_continuation::skip_instruction;
             }
 
             return instruction_hook_continuation::run_instruction;
