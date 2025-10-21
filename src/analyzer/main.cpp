@@ -496,7 +496,6 @@ namespace
 
             const auto rip = emu.read_instruction_pointer();
             const auto leaf = emu.reg<uint32_t>(x86_register::eax);
-            const auto sub = emu.reg<uint32_t>(x86_register::ecx);
             const auto mod = get_module_if_interesting(win_emu->mod_manager, options.modules, rip);
 
             if (mod.has_value() && (!concise_logging || context.cpuid_cache.insert({rip, leaf}).second))
