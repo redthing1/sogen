@@ -507,21 +507,11 @@ namespace
 
             if (leaf == 1)
             {
-                std::array<int, 4> regs = {0, 0, 0, 0};
-                __cpuidex(regs.data(), static_cast<int>(leaf), static_cast<int>(sub));
-                uint32_t eax = static_cast<uint32_t>(regs[0]);
-                uint32_t ebx = static_cast<uint32_t>(regs[1]);
-                uint32_t ecx = static_cast<uint32_t>(regs[2]);
-                uint32_t edx = static_cast<uint32_t>(regs[3]);
-
-                // Disable SSE4.x
-                ecx &= ~(1u << 19); // SSE4.1
-                ecx &= ~(1u << 20); // SSE4.2
-
-                emu.reg<uint32_t>(x86_register::eax, eax);
-                emu.reg<uint32_t>(x86_register::ebx, ebx);
-                emu.reg<uint32_t>(x86_register::ecx, ecx);
-                emu.reg<uint32_t>(x86_register::edx, edx);
+                // NOTE: We hard-code these values to disable SSE4.x
+                emu.reg<uint32_t>(x86_register::eax, 0x000906EA);
+                emu.reg<uint32_t>(x86_register::ebx, 0x00100800);
+                emu.reg<uint32_t>(x86_register::ecx, 0xFFE2F38F);
+                emu.reg<uint32_t>(x86_register::edx, 0xBFEBFBFF);
 
                 return instruction_hook_continuation::skip_instruction;
             }
