@@ -4,7 +4,6 @@
 #include "windows_emulator.hpp"
 #include "ports/api_port.hpp"
 #include "ports/dns_resolver.hpp"
-#include "utils/finally.hpp"
 
 namespace
 {

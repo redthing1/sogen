@@ -61,7 +61,7 @@ namespace syscalls
                                       const emulator_object<LARGE_INTEGER> /*timeout*/)
     {
         auto port_name = read_unicode_string(c.emu, server_port_name);
-        c.win_emu.log.print(color::dark_gray, "NtAlpcConnectPort: %s\n", u16_to_u8(port_name).c_str());
+        c.win_emu.callbacks.on_generic_access("Connecting port", port_name);
 
         port_container container{std::u16string(port_name), c.win_emu, {}};
 
