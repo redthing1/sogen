@@ -156,6 +156,7 @@ mapped_module* module_manager::map_memory_module(uint64_t base_address, uint64_t
 
         const auto image_base = mod.image_base;
         const auto entry = this->modules_.try_emplace(image_base, std::move(mod));
+        this->last_module_cache_ = this->modules_.end();
         this->callbacks_->on_module_load(entry.first->second);
         return &entry.first->second;
     }
@@ -183,6 +184,7 @@ void module_manager::serialize(utils::buffer_serializer& buffer) const
 void module_manager::deserialize(utils::buffer_deserializer& buffer)
 {
     buffer.read_map(this->modules_);
+    this->last_module_cache_ = this->modules_.end();
 
     const auto executable_base = buffer.read<uint64_t>();
     const auto ntdll_base = buffer.read<uint64_t>();
@@ -209,6 +211,7 @@ bool module_manager::unmap(const uint64_t address)
     this->callbacks_->on_module_unload(mod->second);
     unmap_module(*this->memory_, mod->second);
     this->modules_.erase(mod);
+    this->last_module_cache_ = this->modules_.end();
 
     return true;
 }
