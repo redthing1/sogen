@@ -309,6 +309,14 @@ typedef struct _FILE_FS_DEVICE_INFORMATION
     ULONG Characteristics;
 } FILE_FS_DEVICE_INFORMATION, *PFILE_FS_DEVICE_INFORMATION;
 
+typedef struct _FILE_FS_ATTRIBUTE_INFORMATION
+{
+    ULONG FileSystemAttributes;
+    LONG MaximumComponentNameLength;
+    ULONG FileSystemNameLength;
+    char16_t FileSystemName[10];
+} FILE_FS_ATTRIBUTE_INFORMATION, *PFILE_FS_ATTRIBUTE_INFORMATION;
+
 typedef struct _FILE_POSITION_INFORMATION
 {
     LARGE_INTEGER CurrentByteOffset;
