@@ -547,12 +547,36 @@ namespace syscalls
             return ret(STATUS_SUCCESS);
         }
 
+        if (info_class == FileIsRemoteDeviceInformation)
+        {
+            if (!f->handle)
+            {
+                return ret(STATUS_NOT_SUPPORTED);
+            }
+
+            block.Information = sizeof(FILE_IS_REMOTE_DEVICE_INFORMATION);
+
+            if (length < block.Information)
+            {
+                return ret(STATUS_BUFFER_OVERFLOW);
+            }
+
+            const emulator_object<FILE_IS_REMOTE_DEVICE_INFORMATION> info{c.emu, file_information};
+            FILE_IS_REMOTE_DEVICE_INFORMATION i{};
+
+            i.IsRemote = FALSE;
+
+            info.write(i);
+
+            return ret(STATUS_SUCCESS);
+        }
+
         if (info_class == FileAllInformation)
         {
             return ret(STATUS_NOT_SUPPORTED);
         }
 
-        c.win_emu.log.error("Unsupported query file info class: %X\n", info_class);
+        c.win_emu.log.error("Unsupported query file info class: 0x%X\n", info_class);
         c.emu.stop();
 
         return ret(STATUS_NOT_SUPPORTED);
