@@ -937,6 +937,31 @@ namespace syscalls
         return STATUS_SUCCESS;
     }
 
+    BOOL handle_NtUserEnumDisplaySettings(const syscall_context& c,
+                                          const emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>> device_name, const DWORD mode_num,
+                                          const emulator_object<EMU_DEVMODEW> dev_mode, const DWORD /*flags*/)
+    {
+        if (dev_mode && mode_num == ENUM_CURRENT_SETTINGS)
+        {
+            const auto dev_name = read_unicode_string(c.emu, device_name);
+
+            if (dev_name == u"\\\\.\\DISPLAY1")
+            {
+                dev_mode.access([](EMU_DEVMODEW& dm) {
+                    dm.dmFields = 0x5C0000; // DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT | DM_DISPLAYFREQUENCY
+                    dm.dmPelsWidth = 1920;
+                    dm.dmPelsHeight = 1080;
+                    dm.dmBitsPerPel = 32;
+                    dm.dmDisplayFrequency = 60;
+                });
+
+                return TRUE;
+            }
+        }
+
+        return FALSE;
+    }
+
     NTSTATUS handle_NtAssociateWaitCompletionPacket()
     {
         return STATUS_SUCCESS;
@@ -1131,6 +1156,7 @@ void syscall_dispatcher::add_handlers(std::map<std::string, syscall_handler>& ha
     add_handler(NtUserGetRawInputDeviceList);
     add_handler(NtUserGetKeyboardType);
     add_handler(NtUserEnumDisplayDevices);
+    add_handler(NtUserEnumDisplaySettings);
     add_handler(NtUserSetProp);
     add_handler(NtUserSetProp2);
     add_handler(NtUserChangeWindowMessageFilterEx);

@@ -52,4 +52,63 @@ struct EMU_DISPLAY_DEVICEW
     char16_t DeviceKey[128];
 };
 
+#ifndef ENUM_CURRENT_SETTINGS
+#define ENUM_CURRENT_SETTINGS ((DWORD) - 1)
+#endif
+
+struct EMU_DEVMODEW
+{
+    char16_t dmDeviceName[32];
+    WORD dmSpecVersion;
+    WORD dmDriverVersion;
+    WORD dmSize;
+    WORD dmDriverExtra;
+    DWORD dmFields;
+    union
+    {
+        struct
+        {
+            int16_t dmOrientation;
+            int16_t dmPaperSize;
+            int16_t dmPaperLength;
+            int16_t dmPaperWidth;
+            int16_t dmScale;
+            int16_t dmCopies;
+            int16_t dmDefaultSource;
+            int16_t dmPrintQuality;
+        } s;
+        POINT dmPosition;
+        struct
+        {
+            POINT dmPosition;
+            DWORD dmDisplayOrientation;
+            DWORD dmDisplayFixedOutput;
+        } s2;
+    } u;
+    int16_t dmColor;
+    int16_t dmDuplex;
+    int16_t dmYResolution;
+    int16_t dmTTOption;
+    int16_t dmCollate;
+    char16_t dmFormName[32];
+    WORD dmLogPixels;
+    DWORD dmBitsPerPel;
+    DWORD dmPelsWidth;
+    DWORD dmPelsHeight;
+    union
+    {
+        DWORD dmDisplayFlags;
+        DWORD dmNup;
+    } u2;
+    DWORD dmDisplayFrequency;
+    DWORD dmICMMethod;
+    DWORD dmICMIntent;
+    DWORD dmMediaType;
+    DWORD dmDitherType;
+    DWORD dmReserved1;
+    DWORD dmReserved2;
+    DWORD dmPanningWidth;
+    DWORD dmPanningHeight;
+};
+
 // NOLINTEND(modernize-use-using,cppcoreguidelines-avoid-c-arrays,hicpp-avoid-c-arrays,modernize-avoid-c-arrays)
