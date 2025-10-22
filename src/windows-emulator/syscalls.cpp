@@ -926,7 +926,7 @@ namespace syscalls
         }
 
         display_device.access([&](EMU_DISPLAY_DEVICEW& dev) {
-            dev.StateFlags = 0;
+            dev.StateFlags = 0x80005; // DISPLAY_DEVICE_UNSAFE_MODES_ON | DISPLAY_DEVICE_PRIMARY_DEVICE | DISPLAY_DEVICE_ATTACHED_TO_DESKTOP
             utils::string::copy(dev.DeviceName, u"\\\\.\\DISPLAY1");
             utils::string::copy(dev.DeviceID, u"PCI\\VEN_10DE&DEV_0000&SUBSYS_00000000&REV_A1");
             utils::string::copy(dev.DeviceString, u"Emulator Display");
