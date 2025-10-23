@@ -187,7 +187,7 @@ namespace syscalls
                 c.emu, fs_information, length, io_status_block, [&](_FILE_FS_ATTRIBUTE_INFORMATION& info) {
                     info.FileSystemAttributes = 0x40006; // FILE_CASE_PRESERVED_NAMES | FILE_UNICODE_ON_DISK | FILE_NAMED_STREAMS
                     info.MaximumComponentNameLength = 255;
-                    const auto name = u"NTFS"s;
+                    constexpr auto name = u"NTFS"sv;
                     info.FileSystemNameLength = static_cast<ULONG>(name.size() * sizeof(char16_t));
                     memcpy(info.FileSystemName, name.data(), info.FileSystemNameLength);
                 });
