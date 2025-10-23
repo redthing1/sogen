@@ -290,21 +290,3 @@ struct semaphore : ref_counted_object
         buffer.read(this->max_count);
     }
 };
-
-struct port : ref_counted_object
-{
-    std::u16string name{};
-    uint64_t view_base{};
-
-    void serialize_object(utils::buffer_serializer& buffer) const override
-    {
-        buffer.write(this->name);
-        buffer.write(this->view_base);
-    }
-
-    void deserialize_object(utils::buffer_deserializer& buffer) override
-    {
-        buffer.read(this->name);
-        buffer.read(this->view_base);
-    }
-};
