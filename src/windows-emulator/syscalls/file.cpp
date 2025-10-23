@@ -571,6 +571,38 @@ namespace syscalls
             return ret(STATUS_SUCCESS);
         }
 
+        if (info_class == FileIdInformation)
+        {
+            if (!f->handle)
+            {
+                return ret(STATUS_NOT_SUPPORTED);
+            }
+
+            block.Information = sizeof(FILE_ID_INFORMATION);
+
+            if (length < block.Information)
+            {
+                return ret(STATUS_BUFFER_OVERFLOW);
+            }
+
+            struct _stat64 file_stat{};
+            if (fstat64(f->handle, &file_stat) != 0)
+            {
+                return ret(STATUS_INVALID_HANDLE);
+            }
+
+            const emulator_object<FILE_ID_INFORMATION> info{c.emu, file_information};
+            FILE_ID_INFORMATION i{};
+
+            i.VolumeSerialNumber = file_stat.st_dev;
+            memset(&i.FileId, 0, sizeof(i.FileId));
+            memcpy(&i.FileId.Identifier[0], &file_stat.st_ino, sizeof(file_stat.st_ino));
+
+            info.write(i);
+
+            return ret(STATUS_SUCCESS);
+        }
+
         if (info_class == FileAllInformation)
         {
             return ret(STATUS_NOT_SUPPORTED);
