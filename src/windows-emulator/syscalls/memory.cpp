@@ -23,7 +23,9 @@ namespace syscalls
         if (base_address < MIN_ALLOCATION_ADDRESS || base_address >= MAX_ALLOCATION_END_EXCL)
         {
             if (return_length)
+            {
                 return_length.write(0);
+            }
             return STATUS_INVALID_PARAMETER;
         }
 
