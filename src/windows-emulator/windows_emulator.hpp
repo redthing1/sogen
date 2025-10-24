@@ -225,11 +225,3 @@ class windows_emulator
 
     void register_factories(utils::buffer_deserializer& buffer);
 };
-
-static inline uint64_t splitmix64(uint64_t x) noexcept
-{
-    x += 0x9E3779B97F4A7C15ull;
-    x = (x ^ (x >> 30)) * 0xBF58476D1CE4E5B9ull;
-    x = (x ^ (x >> 27)) * 0x94D049BB133111EBull;
-    return x ^ (x >> 31);
-}
