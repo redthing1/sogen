@@ -434,4 +434,9 @@ namespace syscalls
 
         return STATUS_SUCCESS;
     }
+
+    NTSTATUS handle_NtSetSecurityObject()
+    {
+        return STATUS_SUCCESS;
+    }
 }

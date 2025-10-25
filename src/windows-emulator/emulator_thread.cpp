@@ -207,7 +207,10 @@ emulator_thread::emulator_thread(memory_manager& memory, const process_context& 
         teb_obj.NtTib.StackBase = wow64_cpureserved_base;
         teb_obj.NtTib.Self = this->teb64->value();
         teb_obj.CurrentLocale = 0x409;
+
         teb_obj.ProcessEnvironmentBlock = context.peb64.value();
+        teb_obj.StaticUnicodeString.MaximumLength = sizeof(teb_obj.StaticUnicodeBuffer);
+        teb_obj.StaticUnicodeString.Buffer = this->teb64->value() + offsetof(TEB64, StaticUnicodeBuffer);
 
         // Set WowTebOffset to point to 32-bit TEB offset
         teb_obj.WowTebOffset = static_cast<int32_t>(wow_teb_offset); // 0x2000

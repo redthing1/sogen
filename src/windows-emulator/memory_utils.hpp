@@ -51,8 +51,10 @@ inline std::optional<nt_memory_permission> try_map_nt_to_emulator_protection(uin
     case PAGE_EXECUTE_READWRITE:
         common = memory_permission::all;
         break;
-    case 0:
     case PAGE_EXECUTE_WRITECOPY:
+        common = memory_permission::all;
+        break;
+    case 0:
     default:
         return std::nullopt;
     }

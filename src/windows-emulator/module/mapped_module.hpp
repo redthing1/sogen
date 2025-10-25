@@ -54,7 +54,7 @@ struct mapped_module
 
     bool contains(const uint64_t address) const
     {
-        return address >= this->image_base && address < (this->image_base + this->size_of_image);
+        return (address - this->image_base) < this->size_of_image;
     }
 
     uint64_t find_export(const std::string_view export_name) const

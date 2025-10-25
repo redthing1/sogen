@@ -19,24 +19,16 @@ namespace utils::string
     template <typename T, size_t Size>
         requires(std::is_trivially_copyable_v<T>)
     // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays,hicpp-avoid-c-arrays,modernize-avoid-c-arrays)
-    void copy(T (&array)[Size], const std::basic_string_view<T> str)
+    void copy(T (&array)[Size], const T* str)
     {
         if constexpr (Size == 0)
         {
             return;
         }
 
-        const auto size = std::min(Size, str.size());
-        memcpy(array, str.data(), size * sizeof(T));
+        const auto size = std::min(Size, std::char_traits<T>::length(str));
+        memcpy(array, str, size * sizeof(T));
         array[std::min(Size - 1, size)] = {};
-    }
-
-    template <typename T, size_t Size>
-        requires(std::is_trivially_copyable_v<T>)
-    // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays,hicpp-avoid-c-arrays,modernize-avoid-c-arrays)
-    void copy(T (&array)[Size], const T* str)
-    {
-        copy<T, Size>(array, std::basic_string_view<T>(str));
     }
 
     inline char char_to_lower(const char val)

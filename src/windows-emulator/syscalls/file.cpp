@@ -182,8 +182,18 @@ namespace syscalls
             return handle_query<FILE_FS_VOLUME_INFORMATION>(c.emu, fs_information, length, io_status_block,
                                                             [&](FILE_FS_VOLUME_INFORMATION&) {});
 
+        case FileFsAttributeInformation:
+            return handle_query<_FILE_FS_ATTRIBUTE_INFORMATION>(
+                c.emu, fs_information, length, io_status_block, [&](_FILE_FS_ATTRIBUTE_INFORMATION& info) {
+                    info.FileSystemAttributes = 0x40006; // FILE_CASE_PRESERVED_NAMES | FILE_UNICODE_ON_DISK | FILE_NAMED_STREAMS
+                    info.MaximumComponentNameLength = 255;
+                    constexpr auto name = u"NTFS"sv;
+                    info.FileSystemNameLength = static_cast<ULONG>(name.size() * sizeof(char16_t));
+                    memcpy(info.FileSystemName, name.data(), info.FileSystemNameLength);
+                });
+
         default:
-            c.win_emu.log.error("Unsupported fs info class: %X\n", fs_information_class);
+            c.win_emu.log.error("Unsupported fs info class: 0x%X\n", fs_information_class);
             c.emu.stop();
             return write_io_status(io_status_block, STATUS_NOT_SUPPORTED, true);
         }
@@ -211,7 +221,7 @@ namespace syscalls
 
             files.emplace_back(file_entry{
                 .file_path = file.path().filename(),
-                .file_size = file.file_size(),
+                .file_size = file.is_directory() ? 0 : file.file_size(),
                 .is_directory = file.is_directory(),
             });
         }
@@ -232,7 +242,7 @@ namespace syscalls
 
             files.emplace_back(file_entry{
                 .file_path = filename,
-                .file_size = dir_entry.file_size(),
+                .file_size = dir_entry.is_directory() ? 0 : dir_entry.file_size(),
                 .is_directory = dir_entry.is_directory(),
             });
         });
@@ -537,12 +547,68 @@ namespace syscalls
             return ret(STATUS_SUCCESS);
         }
 
+        if (info_class == FileIsRemoteDeviceInformation)
+        {
+            if (!f->handle)
+            {
+                return ret(STATUS_NOT_SUPPORTED);
+            }
+
+            block.Information = sizeof(FILE_IS_REMOTE_DEVICE_INFORMATION);
+
+            if (length < block.Information)
+            {
+                return ret(STATUS_BUFFER_OVERFLOW);
+            }
+
+            const emulator_object<FILE_IS_REMOTE_DEVICE_INFORMATION> info{c.emu, file_information};
+            FILE_IS_REMOTE_DEVICE_INFORMATION i{};
+
+            i.IsRemote = FALSE;
+
+            info.write(i);
+
+            return ret(STATUS_SUCCESS);
+        }
+
+        if (info_class == FileIdInformation)
+        {
+            if (!f->handle)
+            {
+                return ret(STATUS_NOT_SUPPORTED);
+            }
+
+            block.Information = sizeof(FILE_ID_INFORMATION);
+
+            if (length < block.Information)
+            {
+                return ret(STATUS_BUFFER_OVERFLOW);
+            }
+
+            struct _stat64 file_stat{};
+            if (fstat64(f->handle, &file_stat) != 0)
+            {
+                return ret(STATUS_INVALID_HANDLE);
+            }
+
+            const emulator_object<FILE_ID_INFORMATION> info{c.emu, file_information};
+            FILE_ID_INFORMATION i{};
+
+            i.VolumeSerialNumber = file_stat.st_dev;
+            memset(&i.FileId, 0, sizeof(i.FileId));
+            memcpy(&i.FileId.Identifier[0], &file_stat.st_ino, sizeof(file_stat.st_ino));
+
+            info.write(i);
+
+            return ret(STATUS_SUCCESS);
+        }
+
         if (info_class == FileAllInformation)
         {
             return ret(STATUS_NOT_SUPPORTED);
         }
 
-        c.win_emu.log.error("Unsupported query file info class: %X\n", info_class);
+        c.win_emu.log.error("Unsupported query file info class: 0x%X\n", info_class);
         c.emu.stop();
 
         return ret(STATUS_NOT_SUPPORTED);

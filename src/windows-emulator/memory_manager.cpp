@@ -490,7 +490,7 @@ uint64_t memory_manager::find_free_allocation_base(const size_t size, const uint
 
     // Since reserved_regions_ is a sorted map, we can iterate through it
     // and find gaps between regions
-    while (start_address + size <= MAX_ALLOCATION_ADDRESS)
+    while (start_address + size <= MAX_ALLOCATION_END_EXCL)
     {
         bool conflict = false;
 
@@ -530,7 +530,7 @@ region_info memory_manager::get_region_info(const uint64_t address)
 {
     region_info result{};
     result.start = MIN_ALLOCATION_ADDRESS;
-    result.length = static_cast<size_t>(MAX_ALLOCATION_ADDRESS - result.start);
+    result.length = static_cast<size_t>(MAX_ALLOCATION_END_EXCL - result.start);
     result.permissions = nt_memory_permission();
     result.initial_permissions = nt_memory_permission();
     result.allocation_base = {};
@@ -555,7 +555,7 @@ region_info memory_manager::get_region_info(const uint64_t address)
     if (lower_end <= address)
     {
         result.start = lower_end;
-        result.length = static_cast<size_t>(MAX_ALLOCATION_ADDRESS - result.start);
+        result.length = static_cast<size_t>(MAX_ALLOCATION_END_EXCL - result.start);
         return result;
     }
 
