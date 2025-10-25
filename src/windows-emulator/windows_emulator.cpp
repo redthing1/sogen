@@ -443,8 +443,8 @@ void windows_emulator::setup_hooks()
         this->callbacks.on_rdtscp();
 
         const auto ticks = this->clock_->timestamp_counter();
-        this->emu().reg(x86_register::rax, ticks & 0xFFFFFFFF);
-        this->emu().reg(x86_register::rdx, (ticks >> 32) & 0xFFFFFFFF);
+        this->emu().reg(x86_register::rax, static_cast<uint32_t>(ticks));
+        this->emu().reg(x86_register::rdx, static_cast<uint32_t>(ticks >> 32));
 
         // Return the IA32_TSC_AUX value in RCX (low 32 bits)
         auto tsc_aux = 0; // Need to replace this with proper CPUID later
@@ -457,8 +457,8 @@ void windows_emulator::setup_hooks()
         this->callbacks.on_rdtsc();
 
         const auto ticks = this->clock_->timestamp_counter();
-        this->emu().reg(x86_register::rax, ticks & 0xFFFFFFFF);
-        this->emu().reg(x86_register::rdx, (ticks >> 32) & 0xFFFFFFFF);
+        this->emu().reg(x86_register::rax, static_cast<uint32_t>(ticks));
+        this->emu().reg(x86_register::rdx, static_cast<uint32_t>(ticks >> 32));
 
         return instruction_hook_continuation::skip_instruction;
     });
