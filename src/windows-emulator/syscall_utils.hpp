@@ -31,7 +31,7 @@ inline bool is_syscall(const std::string_view name)
 
 inline bool is_named_pipe_path(const std::u16string_view& filename)
 {
-    return filename == u"\\Device\\NamedPipe\\" || filename.starts_with(u"\\Device\\NamedPipe\\");
+    return filename == u"\\Device\\NamedPipe\\" || filename.starts_with(u"\\Device\\NamedPipe\\") || filename.starts_with(u"\\??\\pipe\\");
 }
 
 inline std::optional<uint32_t> extract_syscall_id(const exported_symbol& symbol, std::span<const std::byte> data)

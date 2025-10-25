@@ -83,9 +83,15 @@ class module_manager
     callbacks* callbacks_{};
 
     module_map modules_{};
+    mutable module_map::iterator last_module_cache_{modules_.end()};
 
     module_map::iterator get_module(const uint64_t address)
     {
+        if (last_module_cache_ != this->modules_.end() && last_module_cache_->second.contains(address))
+        {
+            return last_module_cache_;
+        }
+
         if (this->modules_.empty())
         {
             return this->modules_.end();
@@ -101,6 +107,7 @@ class module_manager
 
         if (upper_bound->second.contains(address))
         {
+            last_module_cache_ = upper_bound;
             return upper_bound;
         }
 

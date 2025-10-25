@@ -119,6 +119,8 @@ emulator_thread::emulator_thread(memory_manager& memory, const process_context& 
         teb_obj.NtTib.Self = this->teb->value();
         teb_obj.CurrentLocale = 0x409;
         teb_obj.ProcessEnvironmentBlock = context.peb.value();
+        teb_obj.StaticUnicodeString.MaximumLength = sizeof(teb_obj.StaticUnicodeBuffer);
+        teb_obj.StaticUnicodeString.Buffer = this->teb->value() + offsetof(TEB64, StaticUnicodeBuffer);
     });
 }
 
