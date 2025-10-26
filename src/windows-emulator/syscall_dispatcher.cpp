@@ -101,13 +101,6 @@ void syscall_dispatcher::dispatch(windows_emulator& win_emu)
         }
 
         entry->second.handler(c);
-
-        if (c.write_status && !c.retrigger_syscall)
-        {
-            const auto status = static_cast<uint32_t>(emu.reg<uint64_t>(x86_register::rax));
-            win_emu.log.print(color::dark_gray, "Syscall return: %s (0x%X, raw: 0x%X) -> 0x%08X\n", entry->second.name.c_str(), syscall_id,
-                              raw_syscall_id, status);
-        }
     }
     catch (std::exception& e)
     {

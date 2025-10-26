@@ -246,8 +246,6 @@ execution_mode module_manager::detect_execution_mode(const windows_path& executa
 void module_manager::load_native_64bit_modules(const windows_path& executable_path, const windows_path& ntdll_path,
                                                const windows_path& win32u_path, const logger& logger)
 {
-    logger.info("Loading native 64-bit modules\n");
-
     this->executable = this->map_module(executable_path, logger, true);
     this->ntdll = this->map_module(ntdll_path, logger, true);
     this->win32u = this->map_module(win32u_path, logger, true);
