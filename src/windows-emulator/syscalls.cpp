@@ -358,8 +358,9 @@ namespace syscalls
         {
             if (performance_counter)
             {
-                performance_counter.access(
-                    [&](LARGE_INTEGER& value) { value.QuadPart = c.win_emu.clock().steady_now().time_since_epoch().count(); });
+                performance_counter.access([&](LARGE_INTEGER& value) {
+                    value.QuadPart = c.win_emu.clock().steady_now().time_since_epoch().count(); //
+                });
             }
 
             if (performance_frequency)
