@@ -65,6 +65,12 @@ namespace utils
         buffer.write(mod.size_of_image);
         buffer.write(mod.entry_point);
 
+        buffer.write(mod.machine);
+        buffer.write(mod.size_of_stack_reserve);
+        buffer.write(mod.size_of_stack_commit);
+        buffer.write(mod.size_of_heap_reserve);
+        buffer.write(mod.size_of_heap_commit);
+
         buffer.write_vector(mod.exports);
         buffer.write_map(mod.address_names);
 
@@ -82,6 +88,12 @@ namespace utils
         buffer.read(mod.image_base_file);
         buffer.read(mod.size_of_image);
         buffer.read(mod.entry_point);
+
+        buffer.read(mod.machine);
+        buffer.read(mod.size_of_stack_reserve);
+        buffer.read(mod.size_of_stack_commit);
+        buffer.read(mod.size_of_heap_reserve);
+        buffer.read(mod.size_of_heap_commit);
 
         buffer.read_vector(mod.exports);
         buffer.read_map(mod.address_names);
