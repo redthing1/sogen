@@ -208,7 +208,7 @@ jobs:
           - platform: macOS arm64
             runner: macos-latest
           - platform: macOS x86_64
-            runner: macos-13
+            runner: macos-15-intel
           - platform: Android x86_64
             runner: ubuntu-24.04
             abi: x86_64
@@ -404,7 +404,7 @@ jobs:
           - platform: macOS arm64
             runner: macos-latest
           - platform: macOS x86_64
-            runner: macos-13
+            runner: macos-15-intel
     steps:
       - name: Checkout Source
         uses: actions/checkout@v5
