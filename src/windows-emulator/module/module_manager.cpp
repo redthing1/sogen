@@ -325,10 +325,7 @@ void module_manager::load_wow64_modules(const windows_path& executable_path, con
         this->wow64_modules_.ntdll32->find_export("RtlpFreezeTimeBias");
 
     // Set RngData to a random non-zero value for early randomization
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<uint32_t> dis(1, UINT32_MAX);
-    init_block.RngData = dis(gen);
+    init_block.RngData = 0x11111111;
 
     // Set flags and mitigation options based on WinDbg data
     init_block.Flags = 0x22222022;
