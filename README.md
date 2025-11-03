@@ -12,7 +12,7 @@ Sogen is a high-performance Windows user space emulator that operates at syscall
 
 Perfect for security research, malware analysis, and DRM research where fine-grained control over process execution is required.
 
-Built in C++ and powered by the [Unicorn Engine](https://github.com/unicorn-engine/unicorn) (or the [icicle-emu](https://github.com/icicle-emu/icicle-emu) 🆕).
+Built in C++ and powered by the [Unicorn Engine](https://github.com/unicorn-engine/unicorn) or the [icicle-emu](https://github.com/icicle-emu/icicle-emu).
 
 Try it out: <a href="https://sogen.dev">sogen.dev</a>
 
