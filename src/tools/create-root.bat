@@ -130,6 +130,11 @@ CALL :collect wintrust.dll
 CALL :collect wintypes.dll
 CALL :collect wlanapi.dll
 CALL :collect wldap32.dll
+CALL :collect wow64.dll
+CALL :collect wow64base.dll
+CALL :collect wow64con.dll
+CALL :collect wow64cpu.dll
+CALL :collect wow64win.dll
 CALL :collect ws2_32.dll
 CALL :collect wsock32.dll
 CALL :collect wtsapi32.dll
