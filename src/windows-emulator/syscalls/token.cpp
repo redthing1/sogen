@@ -366,4 +366,10 @@ namespace syscalls
         // puts("NtQuerySecurityAttributesToken not supported");
         return STATUS_NOT_SUPPORTED;
     }
+
+    NTSTATUS handle_NtAdjustPrivilegesToken()
+    {
+        // puts("NtQuerySecurityAttributesToken not supported");
+        return STATUS_NOT_SUPPORTED;
+    }
 }

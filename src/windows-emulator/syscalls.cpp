@@ -350,6 +350,7 @@ namespace syscalls
                                             uint64_t token_information, ULONG token_information_length,
                                             emulator_object<ULONG> return_length);
     NTSTATUS handle_NtQuerySecurityAttributesToken();
+    NTSTATUS handle_NtAdjustPrivilegesToken();
 
     NTSTATUS handle_NtQueryPerformanceCounter(const syscall_context& c, const emulator_object<LARGE_INTEGER> performance_counter,
                                               const emulator_object<LARGE_INTEGER> performance_frequency)
@@ -1067,6 +1068,7 @@ void syscall_dispatcher::add_handlers(std::map<std::string, syscall_handler>& ha
     add_handler(NtOpenProcessToken);
     add_handler(NtOpenProcessTokenEx);
     add_handler(NtQuerySecurityAttributesToken);
+    add_handler(NtAdjustPrivilegesToken);
     add_handler(NtQueryLicenseValue);
     add_handler(NtTestAlert);
     add_handler(NtContinue);
