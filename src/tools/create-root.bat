@@ -56,6 +56,7 @@ CALL :collect dxva2.dll
 CALL :collect fwpuclnt.dll
 CALL :collect gdi32.dll
 CALL :collect gdi32full.dll
+CALL :collect gdiplus.dll
 CALL :collect glu32.dll
 CALL :collect hal.dll
 CALL :collect hid.dll
@@ -171,3 +172,4 @@ EXIT /B
 CALL :collect_file %SYSDIR%, %~1, %EMU_SYSDIR%
 CALL :collect_file %SYSDIR_WOW64%, %~1, %EMU_SYSDIR_WOW64%
 EXIT /B
+
