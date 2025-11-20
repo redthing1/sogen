@@ -1118,4 +1118,10 @@ struct EMU_SYSTEM_LOGICAL_PROCESSOR_INFORMATION
     } DUMMYUNIONNAME;
 };
 
+struct PROCESS_PRIORITY_CLASS
+{
+    BOOLEAN Foreground;
+    UCHAR PriorityClass;
+};
+
 // NOLINTEND(modernize-use-using,cppcoreguidelines-avoid-c-arrays,hicpp-avoid-c-arrays,modernize-avoid-c-arrays)
