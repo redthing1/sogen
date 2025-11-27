@@ -217,10 +217,26 @@ if(MOMO_ENABLE_SANITIZER)
 endif()
 
 ##########################################
-# Must be a dynamic runtime (/MD or /MDd) to enforce
-# shared allocators between emulator and implementation
+# MSVC Runtime Library Selection
+#
+# Default is dynamic runtime (/MD or /MDd) to enforce shared allocators
+# between emulator and implementation.
+#
+# Use SOGEN_STATIC_CRT=ON for static runtime (/MT or /MTd) when embedding
+# in projects that require it (e.g., IDA plugins).
+#
+# WARNING: Static CRT may cause heap corruption if memory is allocated
+# in one module and freed in another. Ensure allocation ownership is clear.
 
-set(CMAKE_MSVC_RUNTIME_LIBRARY MultiThreaded$<$<CONFIG:Debug>:Debug>DLL)
+option(SOGEN_STATIC_CRT "Use static CRT (/MT) instead of dynamic (/MD)" OFF)
+
+if(SOGEN_STATIC_CRT)
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+elseif(DEFINED CMAKE_MSVC_RUNTIME_LIBRARY)
+  # Respect parent project's setting
+else()
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+endif()
 
 ##########################################
 
