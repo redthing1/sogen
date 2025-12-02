@@ -107,7 +107,7 @@ namespace
 
         constexpr int thread_count = 5;
         HANDLE threads[thread_count] = {nullptr};
-        ctx_t* ctxs[thread_count] = {nullptr};
+        ctx_t ctxs[thread_count] = {};
 
         for (int i = 0; i < thread_count; i++)
         {
