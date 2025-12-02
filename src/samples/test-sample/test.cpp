@@ -111,8 +111,8 @@ namespace
 
         for (int i = 0; i < thread_count; i++)
         {
-            ctx_t* ctx = ctxs[i] = new ctx_t{5 * (i + 1), i - 2};
-            threads[i] = CreateThread(nullptr, 0, thread_proc, ctx, 0, nullptr);
+            ctxs[i] = {5 * (i + 1), 0};
+            threads[i] = CreateThread(nullptr, 0, thread_proc, &ctxs[i], 0, nullptr);
             if (!threads[i])
             {
                 return false;
@@ -124,12 +124,11 @@ namespace
         const int expected_results[thread_count] = {5, 10, 15, 20, 25};
         for (int i = 0; i < thread_count; i++)
         {
-            if (ctxs[i]->result != expected_results[i])
+            if (ctxs[i].result != expected_results[i])
             {
                 return false;
             }
             CloseHandle(threads[i]);
-            delete ctxs[i];
         }
 
         return true;
