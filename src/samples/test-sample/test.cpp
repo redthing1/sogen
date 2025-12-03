@@ -87,6 +87,53 @@ namespace
         return counter == (thread_count * 3ULL);
     }
 
+    bool test_threads_winapi()
+    {
+        struct ctx_t
+        {
+            int iterations;
+            int result;
+        };
+
+        static LPTHREAD_START_ROUTINE thread_proc = [](LPVOID lpParameter) -> DWORD {
+            ctx_t& c = *static_cast<ctx_t*>(lpParameter);
+            c.result = 0;
+            for (int i = 1; i <= c.iterations; i++)
+            {
+                ++c.result;
+            }
+            return 0;
+        };
+
+        constexpr int thread_count = 5;
+        HANDLE threads[thread_count] = {nullptr};
+        ctx_t ctxs[thread_count] = {};
+
+        for (int i = 0; i < thread_count; i++)
+        {
+            ctxs[i] = {5 * (i + 1), 0};
+            threads[i] = CreateThread(nullptr, 0, thread_proc, &ctxs[i], 0, nullptr);
+            if (!threads[i])
+            {
+                return false;
+            }
+        }
+
+        WaitForMultipleObjects(thread_count, threads, TRUE, INFINITE);
+
+        const int expected_results[thread_count] = {5, 10, 15, 20, 25};
+        for (int i = 0; i < thread_count; i++)
+        {
+            if (ctxs[i].result != expected_results[i])
+            {
+                return false;
+            }
+            CloseHandle(threads[i]);
+        }
+
+        return true;
+    }
+
     bool test_tls()
     {
         std::atomic_bool kill{false};
@@ -863,6 +910,7 @@ int main(const int argc, const char* argv[])
     RUN_TEST(test_system_info, "System Info")
     RUN_TEST(test_time_zone, "Time Zone")
     RUN_TEST(test_threads, "Threads")
+    RUN_TEST(test_threads_winapi, "Threads WinAPI")
     RUN_TEST(test_env, "Environment")
     RUN_TEST(test_exceptions, "Exceptions")
 #ifndef __MINGW64__
