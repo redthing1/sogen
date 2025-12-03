@@ -12,7 +12,7 @@
 
 namespace unicorn
 {
-#if !MOMO_BUILD_AS_LIBRARY
+#if !SOGEN_BUILD_STATIC
     UNICORN_EMULATOR_DLL_STORAGE
 #endif
     std::unique_ptr<x86_64_emulator> create_x86_64_emulator();

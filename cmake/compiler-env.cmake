@@ -31,10 +31,10 @@ endif()
 
 ##########################################
 
-if(MOMO_BUILD_AS_LIBRARY)
-    add_compile_definitions(MOMO_BUILD_AS_LIBRARY=1)
+if(SOGEN_BUILD_STATIC)
+    add_compile_definitions(SOGEN_BUILD_STATIC=1)
 else()
-    add_compile_definitions(MOMO_BUILD_AS_LIBRARY=0)
+    add_compile_definitions(SOGEN_BUILD_STATIC=0)
 endif()
 
 ##########################################
@@ -229,6 +229,13 @@ endif()
 # in one module and freed in another. Ensure allocation ownership is clear.
 
 option(SOGEN_STATIC_CRT "Use static CRT (/MT) instead of dynamic (/MD)" OFF)
+
+if(SOGEN_STATIC_CRT AND NOT SOGEN_BUILD_STATIC)
+  message(FATAL_ERROR
+    "SOGEN_STATIC_CRT=ON requires SOGEN_BUILD_STATIC=ON.\n"
+    "Static CRT with shared libraries causes heap corruption - "
+    "each DLL gets its own allocator, but sogen passes ownership across boundaries.")
+endif()
 
 if(SOGEN_STATIC_CRT)
   set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
