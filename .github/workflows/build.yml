@@ -35,7 +35,7 @@ jobs:
       LLVM_VERSION: 21
     steps:
       - name: Checkout Source
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -67,7 +67,7 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout Source
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Verify Formatting
         uses: jidicula/clang-format-action@v4.16.0
@@ -82,7 +82,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout Source
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -123,7 +123,7 @@ jobs:
           #  runner: windows-2019
     steps:
       - name: Checkout Source
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Download DirectX Runtime
         run: curl --connect-timeout 20 --max-time 200 --retry 5 --retry-delay 2 --retry-max-time 200 -L -o directx_Jun2010_redist.exe https://download.microsoft.com/download/8/4/A/84A35BF1-DAFE-4AE8-82AF-AD2AE20B6B14/directx_Jun2010_redist.exe
@@ -230,7 +230,7 @@ jobs:
             cmake-options: "-DMOMO_EMSCRIPTEN_SUPPORT_NODEJS=On -DMOMO_ENABLE_RUST_CODE=Off -DCMAKE_TOOLCHAIN_FILE=$(dirname $(which emcc))/cmake/Modules/Platform/Emscripten.cmake"
     steps:
       - name: Checkout Source
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -330,7 +330,7 @@ jobs:
             devcmd_arch: x64
     steps:
       - name: Checkout Source
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -407,7 +407,7 @@ jobs:
             runner: macos-15-intel
     steps:
       - name: Checkout Source
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -478,7 +478,7 @@ jobs:
             preset: release
     steps:
       - name: Checkout Source
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -646,7 +646,7 @@ jobs:
     needs: [create-emulation-root, build]
     steps:
       - name: Checkout Source
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
