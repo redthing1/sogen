@@ -66,6 +66,8 @@ class emulator_object
   public:
     using value_type = T;
 
+    emulator_object() = default;
+
     emulator_object(const x64_emulator_wrapper& wrapper, const uint64_t address = 0)
         : emulator_object(wrapper.get(), address)
     {
@@ -156,6 +158,11 @@ class emulator_object
     void set_address(const uint64_t address)
     {
         this->address_ = address;
+    }
+
+    void set_memory_interface(memory_interface& memory)
+    {
+        this->memory_ = &memory;
     }
 
     emulator_object<T> shift(const int64_t offset) const

@@ -481,6 +481,15 @@ void process_context::deserialize(utils::buffer_deserializer& buffer)
     buffer.read_optional(this->process_params32);
     buffer.read(this->kusd);
 
+    if (this->peb32.has_value())
+    {
+        this->peb32->set_memory_interface(*this->peb64.get_memory_interface());
+    }
+    if (this->process_params32.has_value())
+    {
+        this->process_params32->set_memory_interface(*this->peb64.get_memory_interface());
+    }
+
     buffer.read(this->is_wow64_process);
     buffer.read(this->ntdll_image_base);
     buffer.read(this->ldr_initialize_thunk);
