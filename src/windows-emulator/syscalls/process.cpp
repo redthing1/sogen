@@ -185,7 +185,8 @@ namespace syscalls
             || info_class == ProcessRaiseUMExceptionOnInvalidHandleClose //
             || info_class == ProcessDynamicFunctionTableInformation      //
             || info_class == ProcessPriorityBoost                        //
-            || info_class == ProcessPriorityClassEx)
+            || info_class == ProcessPriorityClassEx                      //
+            || info_class == ProcessPriorityClass)
         {
             return STATUS_SUCCESS;
         }
