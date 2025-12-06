@@ -8,7 +8,7 @@ file(GLOB_RECURSE SRC_FILES CONFIGURE_DEPENDS
 
 list(SORT SRC_FILES)
 
-if(MOMO_BUILD_AS_LIBRARY)
+if(SOGEN_BUILD_STATIC)
 	add_library(icicle-emulator STATIC ${SRC_FILES})
 else()
     add_library(icicle-emulator SHARED ${SRC_FILES})

@@ -44,7 +44,7 @@ endif()
 
 ##########################################
 
-option(MOMO_BUILD_AS_LIBRARY "Configure and Build the sogen as a shared library (without the samples and tests)" ${MOMO_IS_SUBPROJECT})
+option(SOGEN_BUILD_STATIC "Build sogen as static libraries for embedding (e.g., IDA plugins)" ${MOMO_IS_SUBPROJECT})
 
 ##########################################
 
