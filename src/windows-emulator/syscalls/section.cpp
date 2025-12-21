@@ -138,7 +138,7 @@ namespace syscalls
         if ((allocation_attributes & SEC_IMAGE) && !s.file_name.empty())
         {
             std::vector<std::byte> file_data;
-            if (utils::io::read_file(s.file_name, &file_data))
+            if (utils::io::read_file(c.win_emu.file_sys.translate(s.file_name), &file_data))
             {
                 section::image_info info{};
 
@@ -355,7 +355,7 @@ namespace syscalls
 
         if (!section_entry->file_name.empty())
         {
-            if (!utils::io::read_file(section_entry->file_name, &file_data))
+            if (!utils::io::read_file(c.win_emu.file_sys.translate(section_entry->file_name), &file_data))
             {
                 return STATUS_INVALID_PARAMETER;
             }
