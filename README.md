@@ -16,6 +16,11 @@ Built in C++ and powered by the [Unicorn Engine](https://github.com/unicorn-engi
 
 Try it out: <a href="https://sogen.dev">sogen.dev</a>
 
+<hr>
+
+> [!WARNING]  
+> Sogen tries to sandbox the execution. However, as it's still early in development, it's hard to guarantee perfect isolation. Caution is advised when analyzing malware.
+
 ## Key Features
 
 * 🔄 __Syscall-Level Emulation__
