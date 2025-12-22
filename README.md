@@ -19,7 +19,8 @@ Try it out: <a href="https://sogen.dev">sogen.dev</a>
 <hr>
 
 > [!WARNING]  
-> Sogen tries to sandbox the execution. However, as it's still early in development, it's hard to guarantee perfect isolation. Caution is advised when analyzing malware.
+> Caution is advised when analyzing malware in Sogen, as host isolation might not be perfect.  
+> To mitigate potential risk, use the <a href="https://sogen.dev/#/playground">web version</a> to benefit from the additional safety provided by your browser's sandbox.
 
 ## Key Features
 
