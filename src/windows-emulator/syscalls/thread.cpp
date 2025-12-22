@@ -50,7 +50,8 @@ namespace syscalls
             return STATUS_SUCCESS;
         }
 
-        if (info_class == ThreadSchedulerSharedDataSlot || info_class == ThreadBasePriority || info_class == ThreadAffinityMask)
+        if (info_class == ThreadSchedulerSharedDataSlot || info_class == ThreadBasePriority || info_class == ThreadAffinityMask ||
+            info_class == ThreadPriorityBoost)
         {
             return STATUS_SUCCESS;
         }
