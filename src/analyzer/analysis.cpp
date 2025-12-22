@@ -156,11 +156,16 @@ namespace
         print_string(log, u16_to_u8(str));
     }
 
+    bool is_int_resource(const uint64_t address)
+    {
+        return (address >> 0x10) == 0;
+    }
+
     template <typename CharType = char>
     void print_arg_as_string(windows_emulator& win_emu, const size_t index)
     {
         const auto var_ptr = get_function_argument(win_emu.emu(), index);
-        if (var_ptr)
+        if (var_ptr && !is_int_resource(var_ptr))
         {
             const auto str = read_string<CharType>(win_emu.memory, var_ptr);
             print_string(win_emu.log, str);
