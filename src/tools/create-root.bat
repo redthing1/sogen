@@ -44,8 +44,10 @@ CALL :collect d3d10core.dll
 CALL :collect d3d11.dll
 CALL :collect d3d12.dll
 CALL :collect d3d9.dll
+CALL :collect d3dcompiler_43.dll
 CALL :collect d3dcompiler_47.dll
 CALL :collect dbghelp.dll
+CALL :collect dbgcore.dll
 CALL :collect diagnosticdatasettings.dll
 CALL :collect dinput8.dll
 CALL :collect dsound.dll
