@@ -472,15 +472,18 @@ namespace
         }
         else if (mod->contains(previous_ip))
         {
-            const auto rsp = emu.read_stack_pointer();
+            if (!c.settings->skip_syscalls)
+            {
+                const auto rsp = emu.read_stack_pointer();
 
-            uint64_t return_address{};
-            emu.try_read_memory(rsp, &return_address, sizeof(return_address));
+                uint64_t return_address{};
+                emu.try_read_memory(rsp, &return_address, sizeof(return_address));
 
-            const auto* caller_mod_name = win_emu.mod_manager.find_name(return_address);
+                const auto* caller_mod_name = win_emu.mod_manager.find_name(return_address);
 
-            win_emu.log.print(color::dark_gray, "Executing syscall: %.*s (0x%X) at 0x%" PRIx64 " via 0x%" PRIx64 " (%s)\n",
-                              STR_VIEW_VA(syscall_name), syscall_id, address, return_address, caller_mod_name);
+                win_emu.log.print(color::dark_gray, "Executing syscall: %.*s (0x%X) at 0x%" PRIx64 " via 0x%" PRIx64 " (%s)\n",
+                                  STR_VIEW_VA(syscall_name), syscall_id, address, return_address, caller_mod_name);
+            }
         }
         else
         {

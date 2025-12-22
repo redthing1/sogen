@@ -650,6 +650,7 @@ namespace
         printf("  -p, --path <src> <dst>    Map Windows path to host path\n");
         printf("  -r, --registry <path>     Set registry path (default: ./registry)\n\n");
         printf("  -is, --inst-summary       Print a summary of executed instructions of the analyzed modules\n");
+        printf("  -ss, --skip-syscalls      Skip the logging of regular syscalls\n");
         printf("Examples:\n");
         printf("  analyzer -v -e path/to/root myapp.exe\n");
         printf("  analyzer -e path/to/root -p c:/analysis-sample.exe /path/to/sample.exe c:/analysis-sample.exe\n");
@@ -705,6 +706,10 @@ namespace
             else if (arg == "-is" || arg == "--inst-summary")
             {
                 options.instruction_summary = true;
+            }
+            else if (arg == "-ss" || arg == "--skip-syscalls")
+            {
+                options.skip_syscalls = true;
             }
             else if (arg == "-m" || arg == "--module")
             {
