@@ -82,7 +82,7 @@ namespace syscalls
             return STATUS_SUCCESS;
         }
 
-        if (key_information_class == KeyFullInformation)
+        if (key_information_class == KeyFullInformation || key_information_class == KeyCachedInformation)
         {
             return STATUS_NOT_SUPPORTED;
         }

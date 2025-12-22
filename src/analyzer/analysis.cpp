@@ -185,6 +185,10 @@ namespace
         {
             print_arg_as_string(*c.win_emu, 0);
         }
+        else if (function == "LoadLibraryW")
+        {
+            print_arg_as_string<char16_t>(*c.win_emu, 0);
+        }
         else if (function == "MessageBoxA")
         {
             print_arg_as_string(*c.win_emu, 2);
