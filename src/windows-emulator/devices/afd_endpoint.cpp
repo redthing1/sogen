@@ -552,6 +552,7 @@ namespace
             case AFD_SET_INFORMATION:
             case AFD_QUERY_HANDLES:
             case AFD_TRANSPORT_IOCTL:
+            case AFD_PARTIAL_DISCONNECT:
                 return STATUS_SUCCESS;
             default:
                 win_emu.log.error("Unsupported AFD IOCTL: 0x%X (%u)\n", static_cast<uint32_t>(c.io_control_code),
