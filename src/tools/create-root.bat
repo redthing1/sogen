@@ -29,6 +29,7 @@ COPY /B /Y C:\Users\Default\NTUSER.DAT "%EMU_REGDIR%\NTUSER.DAT"
 
 CALL :collect advapi32.dll
 CALL :collect bcrypt.dll
+CALL :collect bcryptprimitives.dll
 CALL :collect cabinet.dll
 CALL :collect cfgmgr32.dll
 CALL :collect ci.dll
@@ -74,6 +75,7 @@ CALL :collect mfplat.dll
 CALL :collect mobilenetworking.dll
 CALL :collect mpr.dll
 CALL :collect msacm32.dll
+CALL :collect msasn1.dll
 CALL :collect mscms.dll
 CALL :collect mscoree.dll
 CALL :collect msdmo.dll
@@ -102,6 +104,7 @@ CALL :collect psapi.dll
 CALL :collect resampledmo.dll
 CALL :collect rpcrt4.dll
 CALL :collect rstrtmgr.dll
+CALL :collect rsaenh.dll
 CALL :collect sechost.dll
 CALL :collect setupapi.dll
 CALL :collect shcore.dll
