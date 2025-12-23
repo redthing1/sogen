@@ -248,7 +248,7 @@ namespace syscalls
                                        const emulator_object<uint64_t> base_address,
                                        const EMULATOR_CAST(EmulatorTraits<Emu64>::ULONG_PTR, ULONG_PTR) /*zero_bits*/,
                                        const EMULATOR_CAST(EmulatorTraits<Emu64>::SIZE_T, SIZE_T) /*commit_size*/,
-                                       const emulator_object<LARGE_INTEGER> /*section_offset*/,
+                                       const emulator_object<LARGE_INTEGER> section_offset,
                                        const emulator_object<EMULATOR_CAST(EmulatorTraits<Emu64>::SIZE_T, SIZE_T)> view_size,
                                        const SECTION_INHERIT /*inherit_disposition*/, const ULONG /*allocation_type*/,
                                        const ULONG /*win32_protect*/)
@@ -350,8 +350,15 @@ namespace syscalls
             return STATUS_SUCCESS;
         }
 
-        uint64_t size = section_entry->maximum_size;
+        auto size = static_cast<size_t>(section_entry->maximum_size);
         std::vector<std::byte> file_data{};
+
+        int64_t offset = 0;
+        if (section_offset)
+        {
+            offset = section_offset.read().QuadPart;
+            offset = std::max<int64_t>(offset, 0);
+        }
 
         if (!section_entry->file_name.empty())
         {
@@ -360,21 +367,22 @@ namespace syscalls
                 return STATUS_INVALID_PARAMETER;
             }
 
-            size = page_align_up(file_data.size());
+            size = static_cast<size_t>(file_data.size() - offset);
         }
 
+        const auto aligned_size = static_cast<size_t>(page_align_up(size));
         const auto reserve_only = section_entry->allocation_attributes == SEC_RESERVE;
         const auto protection = map_nt_to_emulator_protection(section_entry->section_page_protection);
-        const auto address = c.win_emu.memory.allocate_memory(static_cast<size_t>(size), protection, reserve_only);
+        const auto address = c.win_emu.memory.allocate_memory(aligned_size, protection, reserve_only);
 
         if (!reserve_only && !file_data.empty())
         {
-            c.emu.write_memory(address, file_data.data(), file_data.size());
+            c.emu.write_memory(address, file_data.data() + offset, size);
         }
 
         if (view_size)
         {
-            view_size.write(size);
+            view_size.write(aligned_size);
         }
 
         base_address.write(address);

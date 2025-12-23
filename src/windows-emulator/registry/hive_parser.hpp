@@ -62,6 +62,18 @@ class hive_key
     const hive_value* get_value(std::ifstream& file, std::string_view name);
     const hive_value* get_value(std::ifstream& file, size_t index);
 
+    size_t get_sub_key_count(std::ifstream& file)
+    {
+        this->parse(file);
+        return this->sub_keys_.size();
+    }
+
+    size_t get_value_count(std::ifstream& file)
+    {
+        this->parse(file);
+        return this->values_.size();
+    }
+
   private:
     struct raw_hive_value : hive_value
     {
@@ -136,6 +148,11 @@ class hive_parser
         }
 
         return sub_key->get_value(this->file_, index);
+    }
+
+    std::ifstream& get_file()
+    {
+        return this->file_;
     }
 
   private:
