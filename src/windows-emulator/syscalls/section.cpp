@@ -350,7 +350,7 @@ namespace syscalls
             return STATUS_SUCCESS;
         }
 
-        uint64_t size = section_entry->maximum_size;
+        auto size = static_cast<size_t>(section_entry->maximum_size);
         std::vector<std::byte> file_data{};
 
         int64_t offset = 0;
@@ -367,13 +367,13 @@ namespace syscalls
                 return STATUS_INVALID_PARAMETER;
             }
 
-            size = file_data.size() - offset;
+            size = static_cast<size_t>(file_data.size() - offset);
         }
 
-        const auto aligned_size = page_align_up(size);
+        const auto aligned_size = static_cast<size_t>(page_align_up(size));
         const auto reserve_only = section_entry->allocation_attributes == SEC_RESERVE;
         const auto protection = map_nt_to_emulator_protection(section_entry->section_page_protection);
-        const auto address = c.win_emu.memory.allocate_memory(static_cast<size_t>(aligned_size), protection, reserve_only);
+        const auto address = c.win_emu.memory.allocate_memory(aligned_size, protection, reserve_only);
 
         if (!reserve_only && !file_data.empty())
         {
