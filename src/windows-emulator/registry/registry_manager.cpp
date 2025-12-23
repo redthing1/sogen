@@ -209,6 +209,26 @@ registry_manager::hive_map::iterator registry_manager::find_hive(const utils::pa
     return this->hives_.end();
 }
 
+std::optional<exposed_hive_key> registry_manager::get_hive_key(const registry_key& key)
+{
+    const auto iterator = this->hives_.find(key.hive);
+    if (iterator == this->hives_.end())
+    {
+        return std::nullopt;
+    }
+
+    auto* hive_key = iterator->second->get_sub_key(key.path.get());
+    if (!hive_key)
+    {
+        return std::nullopt;
+    }
+
+    return exposed_hive_key{
+        .key = *hive_key,
+        .file = iterator->second->get_file(),
+    };
+}
+
 std::optional<std::string_view> registry_manager::get_sub_key_name(const registry_key& key, const size_t index)
 {
     const auto iterator = this->hives_.find(key.hive);

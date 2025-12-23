@@ -82,9 +82,44 @@ namespace syscalls
             return STATUS_SUCCESS;
         }
 
-        if (key_information_class == KeyFullInformation || key_information_class == KeyCachedInformation)
+        if (key_information_class == KeyFullInformation)
         {
+            c.win_emu.log.warn("Unsupported registry class: %X\n", key_information_class);
             return STATUS_NOT_SUPPORTED;
+        }
+
+        if (key_information_class == KeyCachedInformation)
+        {
+            auto key_name = (key->hive.get() / key->path.get()).u16string();
+            while (key_name.ends_with(u'/') || key_name.ends_with(u'\\'))
+            {
+                key_name.pop_back();
+            }
+
+            const auto hive_key = c.win_emu.registry.get_hive_key(*key);
+            if (!hive_key.has_value())
+            {
+                return STATUS_OBJECT_NAME_NOT_FOUND;
+            }
+
+            constexpr auto required_size = sizeof(KEY_CACHED_INFORMATION);
+            result_length.write(required_size);
+
+            if (required_size > length)
+            {
+                return STATUS_BUFFER_TOO_SMALL;
+            }
+
+            KEY_CACHED_INFORMATION info{};
+            info.SubKeys = static_cast<ULONG>(hive_key->key.get_sub_key_count(hive_key->file));
+            info.Values = static_cast<ULONG>(hive_key->key.get_value_count(hive_key->file));
+            info.NameLength = static_cast<ULONG>(key_name.size() * 2);
+            info.MaxValueDataLen = 0x1000;
+            info.MaxValueNameLen = 0x1000;
+            info.MaxNameLen = 0x1000;
+
+            c.emu.write_memory(key_information, info);
+            return STATUS_SUCCESS;
         }
 
         if (key_information_class == KeyHandleTagsInformation)

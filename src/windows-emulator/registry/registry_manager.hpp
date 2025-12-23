@@ -54,6 +54,12 @@ struct registry_value
     std::span<const std::byte> data;
 };
 
+struct exposed_hive_key
+{
+    hive_key& key;
+    std::ifstream& file;
+};
+
 class registry_manager
 {
   public:
@@ -75,6 +81,8 @@ class registry_manager
     std::optional<registry_value> get_value(const registry_key& key, size_t index);
 
     std::optional<std::string_view> get_sub_key_name(const registry_key& key, size_t index);
+
+    std::optional<exposed_hive_key> get_hive_key(const registry_key& key);
 
   private:
     std::filesystem::path hive_path_{};
