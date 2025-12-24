@@ -93,12 +93,28 @@ namespace syscalls
                                                             c.PriorityClass = 32; // Normal
                                                         });
 
-        case ProcessBasicInformation:
-            return handle_query<PROCESS_BASIC_INFORMATION64>(c.emu, process_information, process_information_length, return_length,
-                                                             [&](PROCESS_BASIC_INFORMATION64& basic_info) {
-                                                                 basic_info.PebBaseAddress = c.proc.peb64.value();
-                                                                 basic_info.UniqueProcessId = 1;
-                                                             });
+        case ProcessBasicInformation: {
+            const auto init_basic_info = [&](PROCESS_BASIC_INFORMATION64& basic_info) {
+                basic_info.PebBaseAddress = c.proc.peb64.value();
+                basic_info.UniqueProcessId = 1;
+            };
+
+            switch (process_information_length)
+            {
+            case sizeof(PROCESS_BASIC_INFORMATION64):
+                return handle_query<PROCESS_BASIC_INFORMATION64>(c.emu, process_information, process_information_length, return_length,
+                                                                 init_basic_info);
+            case sizeof(PROCESS_EXTENDED_BASIC_INFORMATION):
+                return handle_query<PROCESS_EXTENDED_BASIC_INFORMATION>(
+                    c.emu, process_information, process_information_length, return_length,
+                    [&](PROCESS_EXTENDED_BASIC_INFORMATION& ext_basic_info) {
+                        ext_basic_info.Size = sizeof(PROCESS_EXTENDED_BASIC_INFORMATION);
+                        init_basic_info(ext_basic_info.BasicInfo);
+                    });
+            default:
+                return STATUS_INFO_LENGTH_MISMATCH;
+            }
+        }
 
         case ProcessImageInformation:
             return handle_query<SECTION_IMAGE_INFORMATION<EmulatorTraits<Emu64>>>(
