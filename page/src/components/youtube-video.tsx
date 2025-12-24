@@ -50,7 +50,7 @@ span {
       allowFullScreen
       srcDoc={`
         <style>${style}</style>
-        <a href="https://www.youtube.com/embed/${props.id}/?autoplay=1&rel=0">
+        <a href="https://www.youtube.com/embed/${props.id}/?autoplay=1&rel=0&hl=en">
             <img src="https://img.youtube.com/vi/${props.id}/maxresdefault.jpg">
             <div>
                 <span>&nbsp;▶</span>
