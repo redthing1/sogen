@@ -27,7 +27,7 @@ function generateButtons(additionalClasses: string = "") {
         <Button
           asChild
           size="lg"
-          className="rounded-lg bg-gradient-to-br from-white to-neutral-300 text-neutral-900 border-0 px-8 py-6 text-lg font-semibold group transition-all duration-100 w-full flex"
+          className="rounded-lg bg-linear-to-br from-white to-neutral-300 text-neutral-900 border-0 px-8 py-6 text-lg font-semibold group transition-all duration-100 w-full flex"
         >
           <span>
             <Play className="mr-2 h-5 w-5 transition-transform" />
@@ -120,7 +120,7 @@ export function LandingPage() {
         title="Sogen"
         description="A high-performance Windows user space emulator."
       />
-      <div className="flex flex-col min-h-screen bg-gradient-to-br from-zinc-900 via-neutral-900 to-black overflow-x-hidden">
+      <div className="flex flex-col min-h-screen bg-linear-to-br from-zinc-900 via-neutral-900 to-black overflow-x-hidden">
         {/* Hero Section with Animated Background */}
         <section className="relative overflow-visible">
           {/* Animated Background Elements */}
@@ -130,7 +130,7 @@ export function LandingPage() {
             <div className="absolute bottom-20 left-1/3 w-80 h-80 bg-cyan-500/15 rounded-full blur-3xl"></div>
           </div>
 
-          <div className="relative container mx-auto min-h-[100dvh] p-1 min-[340px]:p-4 flex items-center xl:min-h-0 xl:px-6 xl:py-32">
+          <div className="relative container mx-auto min-h-dvh p-1 min-[340px]:p-4 flex items-center xl:min-h-0 xl:px-6 xl:py-32">
             <div className="text-center space-y-8 max-w-4xl mx-auto">
               {/* Main Headline */}
               <h1 className="text-5xl md:text-7xl font-bold text-white leading-tight">
@@ -181,7 +181,7 @@ export function LandingPage() {
                 >
                   <CardHeader>
                     <div
-                      className={`w-12 h-12 rounded-[0.625rem] bg-gradient-to-br ${feature.accent} p-3 mb-4`}
+                      className={`w-12 h-12 rounded-[0.625rem] bg-linear-to-br ${feature.accent} p-3 mb-4`}
                     >
                       <div className="text-neutral-900">{feature.icon}</div>
                     </div>
@@ -219,7 +219,7 @@ export function LandingPage() {
                   key={index}
                   className="text-center p-8 rounded-2xl bg-neutral-800/50 border border-neutral-700 hover:border-neutral-600 hover:bg-neutral-800/80 cursor-default transition-all duration-150 group"
                 >
-                  <div className="w-12 h-12 mx-auto mb-4 rounded-[0.625rem] bg-gradient-to-br from-cyan-500 to-blue-500 p-3">
+                  <div className="w-12 h-12 mx-auto mb-4 rounded-[0.625rem] bg-linear-to-br from-cyan-500 to-blue-500 p-3">
                     <div className="text-neutral-800">{useCase.icon}</div>
                   </div>
                   <h3 className="text-xl font-semibold text-white mb-3">
@@ -245,19 +245,26 @@ export function LandingPage() {
               </p>
             </div>
 
-            <div className="max-w-3xl mx-auto">
-              <div className="relative group">
-                <div className="absolute -inset-4 bg-gradient-to-r from-neutral-500/10 to-neutral-500/10 rounded-3xl blur-xl group-hover:blur-2xl transition-all duration-300"></div>
-                <div className="relative aspect-video rounded-2xl overflow-hidden ">
-                  <YoutubeVideo id="wY9Q0DhodOQ" />
-                </div>
-              </div>
+            <div className="mx-auto w-full gap-12 flex items-center justify-center flex-col lg:flex-row">
+              {["wY9Q0DhodOQ", "RkodCUEmiuA"].map((id) => {
+                return (
+                  <div
+                    key={`video-${id}`}
+                    className="flex-1 w-full max-w-xl relative group"
+                  >
+                    <div className="absolute -inset-4 bg-linear-to-r from-neutral-500/15 to-neutral-500/15 rounded-3xl blur-md group-hover:blur-lg transition-all duration-300"></div>
+                    <div className="relative aspect-video rounded-2xl overflow-hidden ">
+                      <YoutubeVideo id={id} />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </section>
 
         {/* CTA Section */}
-        <section className="py-24 bg-gradient-to-r from-neutral-800/40 to-neutral-900">
+        <section className="py-24 bg-linear-to-r from-neutral-800/40 to-neutral-900">
           <div className="container mx-auto px-6 text-center">
             <h2 className="text-4xl font-bold text-white mb-6">
               Ready to Start Emulating?
