@@ -56,7 +56,6 @@ namespace syscalls
         {
             if (c.proc.devices.get(file_handle))
             {
-                c.win_emu.log.error("Unsupported set device info class: %X\n", info_class);
                 return STATUS_SUCCESS;
             }
 
