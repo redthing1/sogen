@@ -245,7 +245,8 @@ class emulator_allocator
         return uc_str.Buffer;
     }
 
-    void make_unicode_string(UNICODE_STRING<EmulatorTraits<Emu64>>& result, const std::u16string_view str,
+    template <typename EMU = Emu64>
+    void make_unicode_string(UNICODE_STRING<EmulatorTraits<EMU>>& result, const std::u16string_view str,
                              const std::optional<size_t> maximum_length = std::nullopt)
     {
         constexpr auto element_size = sizeof(str[0]);
@@ -262,13 +263,14 @@ class emulator_allocator
         constexpr std::array<char, element_size> nullbyte{};
         this->memory_->write_memory(string_buffer + total_length, nullbyte.data(), nullbyte.size());
 
-        result.Buffer = string_buffer;
+        result.Buffer = static_cast<EmulatorTraits<EMU>::PVOID>(string_buffer);
         result.Length = static_cast<USHORT>(total_length);
         result.MaximumLength = static_cast<USHORT>(max_length);
     }
 
-    emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>> make_unicode_string(const std::u16string_view str,
-                                                                               const std::optional<size_t> maximum_length = std::nullopt)
+    template <typename EMU = Emu64>
+    emulator_object<UNICODE_STRING<EmulatorTraits<EMU>>> make_unicode_string(const std::u16string_view str,
+                                                                             const std::optional<size_t> maximum_length = std::nullopt)
     {
         const auto unicode_string = this->reserve<UNICODE_STRING<EmulatorTraits<Emu64>>>();
 
@@ -391,36 +393,6 @@ inline std::u16string read_unicode_string(const emulator& emu, const emulator_ob
 inline std::u16string read_unicode_string(emulator& emu, const uint64_t uc_string)
 {
     return read_unicode_string(emu, emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>>{emu, uc_string});
-}
-
-inline void copy_unicode_string_64_to_32(memory_interface& memory, UNICODE_STRING<EmulatorTraits<Emu32>>& dest32,
-                                         const UNICODE_STRING<EmulatorTraits<Emu64>>& src64, const uint64_t dest_base_address,
-                                         uint32_t& offset, const uint32_t max_size)
-{
-    dest32.Length = static_cast<uint16_t>(src64.Length);
-    dest32.MaximumLength = static_cast<uint16_t>(src64.MaximumLength);
-
-    if (!src64.Buffer || src64.Length == 0)
-    {
-        dest32.Buffer = 0;
-        return;
-    }
-
-    offset = static_cast<uint32_t>(align_up(offset, 2));
-
-    if (offset + src64.Length > max_size)
-    {
-        dest32.Buffer = 0;
-        return;
-    }
-
-    dest32.Buffer = static_cast<uint32_t>(dest_base_address + offset);
-
-    std::vector<std::byte> string_data(src64.Length);
-    memory.read_memory(src64.Buffer, string_data.data(), src64.Length);
-    memory.write_memory(dest_base_address + offset, string_data.data(), src64.Length);
-
-    offset += src64.MaximumLength;
 }
 
 inline uint64_t get_function_argument(x86_64_emulator& emu, const size_t index, const bool is_syscall = false)

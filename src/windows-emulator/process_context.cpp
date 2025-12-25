@@ -191,12 +191,6 @@ void process_context::setup(x86_64_emulator& emu, memory_manager& memory, regist
 
     this->peb64 = allocator.reserve_page_aligned<PEB64>();
 
-    // Create PEB32 for WOW64 processes
-    if (this->is_wow64_process)
-    {
-        this->peb32 = allocator.reserve_page_aligned<PEB32>();
-    }
-
     /* Values of the following fields must be
      * allocated relative to the process_params themselves
      * and included in the length:
@@ -290,96 +284,72 @@ void process_context::setup(x86_64_emulator& emu, memory_manager& memory, regist
         p.UnicodeCaseTableData = allocator.reserve<NLSTABLEINFO>().value();
     });
 
-    if (this->is_wow64_process && this->peb32.has_value())
+    if (this->is_wow64_process)
     {
-        // peb32->ProcessParameters : 0x30000
-        if (!memory.allocate_memory(WOW64_PEB32_PROCESS_PARA_BASE, WOW64_PEB32_PROCESS_PARA_SIZE, memory_permission::read_write))
-        {
-            throw std::runtime_error("Failed to allocate 32-bit process parameters at 0x30000");
-        }
+        this->peb32 = allocator.reserve_page_aligned<PEB32>();
 
         // Initialize RTL_USER_PROCESS_PARAMETERS32 structure
-        RTL_USER_PROCESS_PARAMETERS32 params32{};
-        params32.MaximumLength = sizeof(RTL_USER_PROCESS_PARAMETERS32);
-        params32.Length = sizeof(RTL_USER_PROCESS_PARAMETERS32);
-        params32.Flags = RTL_USER_PROCESS_PARAMETERS_IMAGE_KEY_MISSING | RTL_USER_PROCESS_PARAMETERS_APP_MANIFEST_PRESENT |
-                         RTL_USER_PROCESS_PARAMETERS_NORMALIZED;
+        this->process_params32 = allocator.reserve<RTL_USER_PROCESS_PARAMETERS32>();
 
-        params32.ConsoleHandle = static_cast<uint32_t>(CONSOLE_HANDLE.h);
-        params32.StandardOutput = static_cast<uint32_t>(STDOUT_HANDLE.h);
-        params32.StandardInput = static_cast<uint32_t>(STDIN_HANDLE.h);
-        params32.StandardError = params32.StandardOutput;
+        this->process_params32->access([&](RTL_USER_PROCESS_PARAMETERS32& params32) {
+            params32.Flags = RTL_USER_PROCESS_PARAMETERS_IMAGE_KEY_MISSING | RTL_USER_PROCESS_PARAMETERS_APP_MANIFEST_PRESENT |
+                             RTL_USER_PROCESS_PARAMETERS_NORMALIZED;
 
-        this->process_params64.access([&](const RTL_USER_PROCESS_PARAMETERS64& params64) {
-            uint32_t string_offset = sizeof(RTL_USER_PROCESS_PARAMETERS32);
+            params32.ConsoleHandle = static_cast<uint32_t>(CONSOLE_HANDLE.h);
+            params32.StandardOutput = static_cast<uint32_t>(STDOUT_HANDLE.h);
+            params32.StandardInput = static_cast<uint32_t>(STDIN_HANDLE.h);
+            params32.StandardError = params32.StandardOutput;
 
-            copy_unicode_string_64_to_32(memory, params32.ImagePathName, params64.ImagePathName, WOW64_PEB32_PROCESS_PARA_BASE,
-                                         string_offset, WOW64_PEB32_PROCESS_PARA_SIZE);
-            copy_unicode_string_64_to_32(memory, params32.CommandLine, params64.CommandLine, WOW64_PEB32_PROCESS_PARA_BASE, string_offset,
-                                         WOW64_PEB32_PROCESS_PARA_SIZE);
-            copy_unicode_string_64_to_32(memory, params32.DllPath, params64.DllPath, WOW64_PEB32_PROCESS_PARA_BASE, string_offset,
-                                         WOW64_PEB32_PROCESS_PARA_SIZE);
-            copy_unicode_string_64_to_32(memory, params32.CurrentDirectory.DosPath, params64.CurrentDirectory.DosPath,
-                                         WOW64_PEB32_PROCESS_PARA_BASE, string_offset, WOW64_PEB32_PROCESS_PARA_SIZE);
-            copy_unicode_string_64_to_32(memory, params32.WindowTitle, params64.WindowTitle, WOW64_PEB32_PROCESS_PARA_BASE, string_offset,
-                                         WOW64_PEB32_PROCESS_PARA_SIZE);
-            copy_unicode_string_64_to_32(memory, params32.DesktopInfo, params64.DesktopInfo, WOW64_PEB32_PROCESS_PARA_BASE, string_offset,
-                                         WOW64_PEB32_PROCESS_PARA_SIZE);
-            copy_unicode_string_64_to_32(memory, params32.ShellInfo, params64.ShellInfo, WOW64_PEB32_PROCESS_PARA_BASE, string_offset,
-                                         WOW64_PEB32_PROCESS_PARA_SIZE);
-            copy_unicode_string_64_to_32(memory, params32.RuntimeData, params64.RuntimeData, WOW64_PEB32_PROCESS_PARA_BASE, string_offset,
-                                         WOW64_PEB32_PROCESS_PARA_SIZE);
+            this->process_params64.access([&](const RTL_USER_PROCESS_PARAMETERS64& params64) {
+                // Copy strings from params64
+                allocator.make_unicode_string(params32.ImagePathName, read_unicode_string(emu, params64.ImagePathName));
+                allocator.make_unicode_string(params32.CommandLine, read_unicode_string(emu, params64.CommandLine));
+                allocator.make_unicode_string(params32.DllPath, read_unicode_string(emu, params64.DllPath));
+                allocator.make_unicode_string(params32.CurrentDirectory.DosPath,
+                                              read_unicode_string(emu, params64.CurrentDirectory.DosPath));
+                allocator.make_unicode_string(params32.WindowTitle, read_unicode_string(emu, params64.WindowTitle));
+                allocator.make_unicode_string(params32.DesktopInfo, read_unicode_string(emu, params64.DesktopInfo));
+                allocator.make_unicode_string(params32.ShellInfo, read_unicode_string(emu, params64.ShellInfo));
+                allocator.make_unicode_string(params32.RuntimeData, read_unicode_string(emu, params64.RuntimeData));
+                allocator.make_unicode_string(params32.RedirectionDllName, read_unicode_string(emu, params64.RedirectionDllName));
 
-            // RedirectionDllName - Initialize to empty but valid string
-            params32.RedirectionDllName.Length = 0;
-            params32.RedirectionDllName.MaximumLength = 2;
-            // Align offset
-            string_offset = (string_offset + 1) & ~1;
-            if (string_offset + 2 <= WOW64_PEB32_PROCESS_PARA_SIZE)
-            {
-                params32.RedirectionDllName.Buffer = static_cast<uint32_t>(WOW64_PEB32_PROCESS_PARA_BASE + string_offset);
-                uint16_t null_terminator = 0;
-                memory.write_memory(WOW64_PEB32_PROCESS_PARA_BASE + string_offset, &null_terminator, sizeof(null_terminator));
-            }
-            else
-            {
-                params32.RedirectionDllName.Buffer = 0;
-            }
+                // Copy other fields
+                params32.CurrentDirectory.Handle = static_cast<uint32_t>(params64.CurrentDirectory.Handle);
+                params32.ShowWindowFlags = params64.ShowWindowFlags;
+                params32.ConsoleHandle = static_cast<uint32_t>(params64.ConsoleHandle);
+                params32.ConsoleFlags = params64.ConsoleFlags;
+                params32.StandardInput = static_cast<uint32_t>(params64.StandardInput);
+                params32.StandardOutput = static_cast<uint32_t>(params64.StandardOutput);
+                params32.StandardError = static_cast<uint32_t>(params64.StandardError);
+                params32.StartingX = params64.StartingX;
+                params32.StartingY = params64.StartingY;
+                params32.CountX = params64.CountX;
+                params32.CountY = params64.CountY;
+                params32.CountCharsX = params64.CountCharsX;
+                params32.CountCharsY = params64.CountCharsY;
+                params32.FillAttribute = params64.FillAttribute;
+                params32.WindowFlags = params64.WindowFlags;
+                params32.DebugFlags = params64.DebugFlags;
+                params32.ProcessGroupId = params64.ProcessGroupId;
+                params32.LoaderThreads = params64.LoaderThreads;
 
-            // Copy other fields
-            params32.CurrentDirectory.Handle = static_cast<uint32_t>(params64.CurrentDirectory.Handle);
-            params32.ShowWindowFlags = params64.ShowWindowFlags;
-            params32.ConsoleHandle = static_cast<uint32_t>(params64.ConsoleHandle);
-            params32.ConsoleFlags = params64.ConsoleFlags;
-            params32.StandardInput = static_cast<uint32_t>(params64.StandardInput);
-            params32.StandardOutput = static_cast<uint32_t>(params64.StandardOutput);
-            params32.StandardError = static_cast<uint32_t>(params64.StandardError);
-            params32.StartingX = params64.StartingX;
-            params32.StartingY = params64.StartingY;
-            params32.CountX = params64.CountX;
-            params32.CountY = params64.CountY;
-            params32.CountCharsX = params64.CountCharsX;
-            params32.CountCharsY = params64.CountCharsY;
-            params32.FillAttribute = params64.FillAttribute;
-            params32.WindowFlags = params64.WindowFlags;
-            params32.DebugFlags = params64.DebugFlags;
-            params32.ProcessGroupId = params64.ProcessGroupId;
-            params32.LoaderThreads = params64.LoaderThreads;
+                // Environment - copy the pointer value (both processes share the same environment)
+                params32.Environment = static_cast<uint32_t>(params64.Environment);
+                params32.EnvironmentSize = static_cast<uint32_t>(params64.EnvironmentSize);
+                params32.EnvironmentVersion = static_cast<uint32_t>(params64.EnvironmentVersion);
 
-            // Environment - copy the pointer value (both processes share the same environment)
-            params32.Environment = static_cast<uint32_t>(params64.Environment);
-            params32.EnvironmentSize = static_cast<uint32_t>(params64.EnvironmentSize);
-            params32.EnvironmentVersion = static_cast<uint32_t>(params64.EnvironmentVersion);
+                const auto total_length = allocator.get_next_address() - this->process_params32->value();
+
+                params32.Length = static_cast<uint32_t>(std::max(static_cast<uint64_t>(sizeof(params32)), total_length));
+                params32.MaximumLength = params32.Length;
+            });
         });
-
-        // Write the RTL_USER_PROCESS_PARAMETERS32 structure to the allocated memory
-        memory.write_memory(WOW64_PEB32_PROCESS_PARA_BASE, &params32, sizeof(params32));
 
         // Update PEB32 to point to the ProcessParameters32
         this->peb32->access([&](PEB32& p32) {
             p32.BeingDebugged = 0;
             p32.ImageBaseAddress = static_cast<uint32_t>(executable.image_base);
-            p32.ProcessParameters = WOW64_PEB32_PROCESS_PARA_BASE; // Fixed address on 0x30000
+            p32.ProcessParameters = static_cast<uint32_t>(this->process_params32->value());
 
             // Use the dedicated 32-bit ApiSetMap for PEB32
             p32.ApiSetMap = static_cast<uint32_t>(apiset_map_address_32);
