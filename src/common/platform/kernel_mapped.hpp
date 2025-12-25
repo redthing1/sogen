@@ -1640,6 +1640,29 @@ typedef struct _PROCESS_BASIC_INFORMATION64
     EMULATOR_CAST(std::uint64_t, HANDLE) InheritedFromUniqueProcessId;
 } PROCESS_BASIC_INFORMATION64, *PPROCESS_BASIC_INFORMATION64;
 
+typedef struct _PROCESS_EXTENDED_BASIC_INFORMATION
+{
+    EMULATOR_CAST(std::uint64_t, SIZE_T) Size; // Ignored as input, written with structure size on output
+    PROCESS_BASIC_INFORMATION64 BasicInfo;
+    union
+    {
+        ULONG Flags;
+        struct
+        {
+            ULONG IsProtectedProcess : 1;
+            ULONG IsWow64Process : 1;
+            ULONG IsProcessDeleting : 1;
+            ULONG IsCrossSessionCreate : 1;
+            ULONG IsFrozen : 1;
+            ULONG IsBackground : 1;
+            ULONG IsStronglyNamed : 1;
+            ULONG IsSecureProcess : 1;
+            ULONG IsSubsystemProcess : 1;
+            ULONG SpareBits : 23;
+        };
+    };
+} PROCESS_EXTENDED_BASIC_INFORMATION, *PPROCESS_EXTENDED_BASIC_INFORMATION;
+
 typedef struct _KERNEL_USER_TIMES
 {
     LARGE_INTEGER CreateTime;
