@@ -551,7 +551,7 @@ namespace unicorn
                 unicorn_hook hook{*this};
 
                 uce(uc_hook_add(*this, hook.make_reference(), UC_HOOK_CODE, wrapper.get_function(), wrapper.get_user_data(), address,
-                                address + size));
+                                calc_end_address(address, size)));
 
                 auto* container = this->create_hook_container();
                 container->add(std::move(wrapper), std::move(hook));
@@ -582,8 +582,9 @@ namespace unicorn
                 function_wrapper<void, uc_engine*, uc_mem_type, uint64_t, int, int64_t> wrapper(std::move(read_wrapper));
 
                 unicorn_hook hook{*this};
+
                 uce(uc_hook_add(*this, hook.make_reference(), UC_HOOK_MEM_READ_AFTER, wrapper.get_function(), wrapper.get_user_data(),
-                                address, address + size));
+                                address, calc_end_address(address, size)));
 
                 auto* container = this->create_hook_container();
                 container->add(std::move(wrapper), std::move(hook));
@@ -606,7 +607,7 @@ namespace unicorn
                 unicorn_hook hook{*this};
 
                 uce(uc_hook_add(*this, hook.make_reference(), UC_HOOK_MEM_WRITE, wrapper.get_function(), wrapper.get_user_data(), address,
-                                address + size));
+                                calc_end_address(address, size)));
 
                 auto* container = this->create_hook_container();
                 container->add(std::move(wrapper), std::move(hook));
@@ -710,6 +711,27 @@ namespace unicorn
             mutable uint64_t preserved_gs_base_{0};
             mutable uint64_t preserved_fs_base_{0};
             mutable uint16_t current_reg_cs_{0x33};
+
+            static uint64_t calc_end_address(const uint64_t address, uint64_t size)
+            {
+                if (size == 0)
+                {
+                    size = 1;
+                }
+                else if (size == std::numeric_limits<uint64_t>::max())
+                {
+                    size = 0;
+                }
+
+                auto end_address = address + size - 1;
+
+                if (end_address < address)
+                {
+                    end_address = std::numeric_limits<uint64_t>::max();
+                }
+
+                return end_address;
+            }
         };
     }
 
