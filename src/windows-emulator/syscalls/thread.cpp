@@ -135,6 +135,8 @@ namespace syscalls
             return STATUS_INVALID_HANDLE;
         }
 
+        emulator_thread& cur_emulator_thread = c.win_emu.current_thread();
+
         if (info_class == ThreadWow64Context)
         {
             // ThreadWow64Context is only valid for WOW64 processes
@@ -277,10 +279,8 @@ namespace syscalls
                 return STATUS_BUFFER_OVERFLOW;
             }
 
-            emulator_thread& thread = c.win_emu.current_thread();
-
             const emulator_object<BOOLEAN> info{c.emu, thread_information};
-            info.write(thread.debugger_hide);
+            info.write(cur_emulator_thread.debugger_hide);
 
             return STATUS_SUCCESS;
         }
