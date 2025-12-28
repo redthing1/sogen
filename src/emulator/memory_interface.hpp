@@ -19,6 +19,7 @@ class memory_interface
     virtual void read_memory(uint64_t address, void* data, size_t size) const = 0;
     virtual bool try_read_memory(uint64_t address, void* data, size_t size) const = 0;
     virtual void write_memory(uint64_t address, const void* data, size_t size) = 0;
+    virtual bool try_write_memory(uint64_t address, const void* data, size_t size) = 0;
 
   private:
     virtual void map_mmio(uint64_t address, size_t size, mmio_read_callback read_cb, mmio_write_callback write_cb) = 0;
