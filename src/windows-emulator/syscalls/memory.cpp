@@ -208,6 +208,16 @@ namespace syscalls
         {
             potential_base = c.win_emu.memory.find_free_allocation_base(static_cast<size_t>(allocation_bytes));
         }
+        else
+        {
+            // https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntallocatevirtualmemory
+            // BaseAddress
+            // A pointer to a variable that will receive the base address of the allocated region of pages. If the
+            // initial value of BaseAddress is non-NULL, the region is allocated starting at the specified virtual
+            // address rounded down to the next host page size address boundary. If the initial value of BaseAddress
+            // is NULL, the operating system will determine where to allocate the region.
+            potential_base = page_align_up(potential_base);
+        }
 
         if (!potential_base)
         {
