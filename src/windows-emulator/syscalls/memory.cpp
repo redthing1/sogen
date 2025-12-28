@@ -29,7 +29,9 @@ namespace syscalls
             return STATUS_INVALID_PARAMETER;
         }
 
-        if (info_class == MemoryBasicInformation)
+        // https://www.exploit-db.com/exploits/44464
+        // Both information classes appear to return the same output structure, MEMORY_BASIC_INFORMATION
+        if (info_class == MemoryBasicInformation || info_class == MemoryPrivilegedBasicInformation)
         {
             if (return_length)
             {
@@ -290,7 +292,7 @@ namespace syscalls
                                         const emulator_pointer buffer, const ULONG number_of_bytes_to_read,
                                         const emulator_object<ULONG> number_of_bytes_read)
     {
-        number_of_bytes_read.write(0);
+        number_of_bytes_read.try_write(0);
 
         if (process_handle != CURRENT_PROCESS)
         {
@@ -305,8 +307,39 @@ namespace syscalls
             return STATUS_INVALID_ADDRESS;
         }
 
-        c.emu.write_memory(buffer, memory.data(), memory.size());
-        number_of_bytes_read.write(number_of_bytes_to_read);
+        if (!c.emu.try_write_memory(buffer, memory.data(), memory.size()))
+        {
+            return STATUS_INVALID_ADDRESS;
+        }
+        number_of_bytes_read.try_write(number_of_bytes_to_read);
+        return STATUS_SUCCESS;
+    }
+
+    NTSTATUS handle_NtWriteVirtualMemory(const syscall_context& c, const handle process_handle, const emulator_pointer base_address,
+                                         const emulator_pointer buffer, const ULONG number_of_bytes_to_write,
+                                         const emulator_object<ULONG> number_of_bytes_write)
+    {
+        number_of_bytes_write.try_write(0);
+
+        if (process_handle != CURRENT_PROCESS)
+        {
+            return STATUS_NOT_SUPPORTED;
+        }
+
+        std::vector<uint8_t> memory{};
+        memory.resize(number_of_bytes_to_write);
+
+        if (!c.emu.try_read_memory(buffer, &memory, number_of_bytes_to_write))
+        {
+            return STATUS_INVALID_ADDRESS;
+        }
+
+        if (!c.emu.try_write_memory(base_address, memory.data(), memory.size()))
+        {
+            return STATUS_INVALID_ADDRESS;
+        }
+
+        number_of_bytes_write.try_write(number_of_bytes_to_write);
         return STATUS_SUCCESS;
     }
 
