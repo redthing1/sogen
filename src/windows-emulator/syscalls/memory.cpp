@@ -299,18 +299,20 @@ namespace syscalls
             return STATUS_NOT_SUPPORTED;
         }
 
-        std::vector<uint8_t> memory{};
-        memory.resize(number_of_bytes_to_read);
+        uint8_t* memory = new uint8_t[number_of_bytes_to_read];
 
-        if (!c.emu.try_read_memory(base_address, memory.data(), memory.size()))
+        if (!c.emu.try_read_memory(base_address, memory, number_of_bytes_to_read))
         {
             return STATUS_INVALID_ADDRESS;
         }
 
-        if (!c.emu.try_write_memory(buffer, memory.data(), memory.size()))
+        if (!c.emu.try_write_memory(buffer, memory, number_of_bytes_to_read))
         {
             return STATUS_INVALID_ADDRESS;
         }
+
+        delete[] memory;
+
         number_of_bytes_read.try_write(number_of_bytes_to_read);
         return STATUS_SUCCESS;
     }
@@ -326,18 +328,19 @@ namespace syscalls
             return STATUS_NOT_SUPPORTED;
         }
 
-        std::vector<uint8_t> memory{};
-        memory.resize(number_of_bytes_to_write);
+        uint8_t* memory = new uint8_t[number_of_bytes_to_write];
 
-        if (!c.emu.try_read_memory(buffer, &memory, number_of_bytes_to_write))
+        if (!c.emu.try_read_memory(buffer, memory, number_of_bytes_to_write))
         {
             return STATUS_INVALID_ADDRESS;
         }
 
-        if (!c.emu.try_write_memory(base_address, memory.data(), memory.size()))
+        if (!c.emu.try_write_memory(base_address, memory, number_of_bytes_to_write))
         {
             return STATUS_INVALID_ADDRESS;
         }
+
+        delete[] memory;
 
         number_of_bytes_write.try_write(number_of_bytes_to_write);
         return STATUS_SUCCESS;
