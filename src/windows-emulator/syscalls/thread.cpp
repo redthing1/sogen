@@ -58,6 +58,7 @@ namespace syscalls
 
         if (info_class == ThreadHideFromDebugger)
         {
+            c.win_emu.current_thread().debugger_hide = true;
             c.win_emu.callbacks.on_suspicious_activity("Hiding thread from debugger");
             return STATUS_SUCCESS;
         }
@@ -276,8 +277,10 @@ namespace syscalls
                 return STATUS_BUFFER_OVERFLOW;
             }
 
+            emulator_thread& thread = c.win_emu.current_thread();
+
             const emulator_object<BOOLEAN> info{c.emu, thread_information};
-            info.write(0);
+            info.write(thread.debugger_hide);
 
             return STATUS_SUCCESS;
         }
