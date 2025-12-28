@@ -1128,6 +1128,6 @@ struct PROCESS_INSTRUMENTATION_CALLBACK_INFORMATION
 {
     ULONG Version;
     ULONG Reserved;
-    PVOID Callback;
+    uint64_t Callback;
 };
 // NOLINTEND(modernize-use-using,cppcoreguidelines-avoid-c-arrays,hicpp-avoid-c-arrays,modernize-avoid-c-arrays)

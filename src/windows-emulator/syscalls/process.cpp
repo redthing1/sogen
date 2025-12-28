@@ -293,7 +293,7 @@ namespace syscalls
 
             c.emu.read_memory(process_information, &info, sizeof(PROCESS_INSTRUMENTATION_CALLBACK_INFORMATION));
 
-            c.proc.instrumentation_callback = (uint64_t)info.Callback;
+            c.proc.instrumentation_callback = info.Callback;
 
             return STATUS_SUCCESS;
         }
