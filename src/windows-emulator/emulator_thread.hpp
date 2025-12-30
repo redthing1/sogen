@@ -122,6 +122,7 @@ class emulator_thread : public ref_counted_object
     void restore(x86_64_emulator& emu) const
     {
         emu.restore_registers(this->last_registers);
+        this->refresh_execution_context(emu);
     }
 
     void setup_if_necessary(x86_64_emulator& emu, const process_context& context)
@@ -242,6 +243,7 @@ class emulator_thread : public ref_counted_object
 
   private:
     void setup_registers(x86_64_emulator& emu, const process_context& context) const;
+    void refresh_execution_context(x86_64_emulator& emu) const;
 
     void release()
     {

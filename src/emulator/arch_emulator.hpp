@@ -35,6 +35,7 @@ struct x86_emulator : arch_emulator<Traits>
     using pointer_type = typename Traits::pointer_type;
 
     virtual void set_segment_base(register_type base, pointer_type value) = 0;
+    virtual pointer_type get_segment_base(register_type base) = 0;
     virtual void load_gdt(pointer_type address, uint32_t limit) = 0;
 };
 

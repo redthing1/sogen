@@ -19,7 +19,7 @@ namespace
         descriptor |= ((base & 0xFF0000) << 16);                              // Base[23:16]
         descriptor |= (0xF3ULL << 40);                                        // P=1, DPL=3, S=1, Type=3 (Data RW Accessed)
         descriptor |= (static_cast<uint64_t>((limit & 0xF0000) >> 16) << 48); // Limit[19:16]
-        descriptor |= (0x40ULL << 52);                                        // G=0 (byte), D=1 (32-bit), L=0, AVL=0
+        descriptor |= (0x40ULL << 48);                                        // G=0 (byte), D=1 (32-bit), L=0, AVL=0
         descriptor |= ((base & 0xFF000000) << 32);                            // Base[31:24]
 
         // Write the updated descriptor to GDT index 10 (selector 0x53)
@@ -283,14 +283,10 @@ emulator_thread::emulator_thread(memory_manager& memory, const process_context& 
         // Note: CurrentLocale and other fields will be initialized by WOW64 runtime
     });
 
-    // CRITICAL: Setup FS segment (0x53) to point to 32-bit TEB for accurate WOW64 emulation
-    // This mimics what Windows kernel does during NtCreateUserProcess for WOW64 processes
-    // Without this, FS:0 won't correctly access the 32-bit TEB
-    //
-    // NOTE: We cannot use set_segment_base() here because that sets the FS_BASE MSR
-    // which is for 64-bit flat addressing. 32-bit code uses actual GDT-based segmentation
-    // with selector 0x53, so we must modify the GDT entry directly.
-    setup_wow64_fs_segment(memory, teb32_addr);
+    this->teb64->access([&](TEB64& teb_obj) {
+        // teb64.ExceptionList initially points to teb32
+        teb_obj.NtTib.ExceptionList = teb32_addr;
+    });
 
     // Use the allocator to reserve memory for CONTEXT64
     this->wow64_cpu_reserved = emulator_object<WOW64_CPURESERVED>{memory, wow64_cpureserved_base};
@@ -488,4 +484,15 @@ void emulator_thread::setup_registers(x86_64_emulator& emu, const process_contex
     emu.reg(x86_register::rcx, ctx_obj.value());
     emu.reg(x86_register::rdx, context.ntdll_image_base);
     emu.reg(x86_register::rip, context.ldr_initialize_thunk);
+}
+
+void emulator_thread::refresh_execution_context(x86_64_emulator& emu) const
+{
+    (void)emu;
+
+    if (this->teb32.has_value())
+    {
+        // Refresh GDT entry for FS selector on context switch
+        setup_wow64_fs_segment(*this->memory_ptr, this->teb32->value());
+    }
 }
