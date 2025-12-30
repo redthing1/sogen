@@ -178,6 +178,21 @@ namespace icicle
             }
         }
 
+        pointer_type get_segment_base(const x86_register base) override
+        {
+            switch (base)
+            {
+            case x86_register::fs:
+            case x86_register::fs_base:
+                return this->reg(x86_register::fs_base);
+            case x86_register::gs:
+            case x86_register::gs_base:
+                return this->reg(x86_register::gs_base);
+            default:
+                return 0;
+            }
+        }
+
         size_t write_raw_register(const int reg, const void* value, const size_t size) override
         {
             return icicle_write_register(this->emu_, reg, value, size);
@@ -348,7 +363,9 @@ namespace icicle
 
                 const auto& func = *static_cast<decltype(ptr)>(user);
                 const auto res = func(address, 1, static_cast<memory_operation>(operation), violation_type);
-                return res == memory_violation_continuation::resume ? 1 : 0;
+                const auto restart = res == memory_violation_continuation::restart;
+                const auto resume = res == memory_violation_continuation::resume || restart;
+                return resume ? 1 : 0;
             };
 
             const auto id = icicle_add_violation_hook(this->emu_, wrapper, ptr);

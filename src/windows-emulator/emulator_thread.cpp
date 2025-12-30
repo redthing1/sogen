@@ -19,7 +19,7 @@ namespace
         descriptor |= ((base & 0xFF0000) << 16);                              // Base[23:16]
         descriptor |= (0xF3ULL << 40);                                        // P=1, DPL=3, S=1, Type=3 (Data RW Accessed)
         descriptor |= (static_cast<uint64_t>((limit & 0xF0000) >> 16) << 48); // Limit[19:16]
-        descriptor |= (0x40ULL << 52);                                        // G=0 (byte), D=1 (32-bit), L=0, AVL=0
+        descriptor |= (0x40ULL << 48);                                        // G=0 (byte), D=1 (32-bit), L=0, AVL=0
         descriptor |= ((base & 0xFF000000) << 32);                            // Base[31:24]
 
         // Write the updated descriptor to GDT index 10 (selector 0x53)
@@ -116,15 +116,18 @@ namespace
 }
 
 emulator_thread::emulator_thread(memory_manager& memory, const process_context& context, const uint64_t start_address,
-                                 const uint64_t argument, const uint64_t stack_size, const bool suspended, const uint32_t id)
+                                 const uint64_t argument, const uint64_t stack_size, const uint32_t create_flags, const uint32_t id,
+                                 const bool initial_thread)
     : memory_ptr(&memory),
       // stack_size(page_align_up(std::max(stack_size, static_cast<uint64_t>(STACK_SIZE)))),
       start_address(start_address),
       argument(argument),
       id(id),
-      suspended(suspended),
+      create_flags(create_flags),
       last_registers(context.default_register_set)
 {
+    this->suspended = create_flags & THREAD_CREATE_FLAGS_CREATE_SUSPENDED;
+
     // native 64-bit
     if (!context.is_wow64_process)
     {
@@ -152,6 +155,10 @@ emulator_thread::emulator_thread(memory_manager& memory, const process_context& 
             teb_obj.NtTib.Self = this->teb64->value();
             teb_obj.CurrentLocale = 0x409;
             teb_obj.ProcessEnvironmentBlock = context.peb64.value();
+            teb_obj.SameTebFlags.InitialThread = initial_thread;
+            teb_obj.SameTebFlags.SkipThreadAttach = (create_flags & THREAD_CREATE_FLAGS_SKIP_THREAD_ATTACH) ? 1 : 0;
+            teb_obj.SameTebFlags.LoaderWorker = (create_flags & THREAD_CREATE_FLAGS_LOADER_WORKER) ? 1 : 0;
+            teb_obj.SameTebFlags.SkipLoaderInit = (create_flags & THREAD_CREATE_FLAGS_SKIP_LOADER_INIT) ? 1 : 0;
         });
 
         return;
@@ -209,6 +216,10 @@ emulator_thread::emulator_thread(memory_manager& memory, const process_context& 
         teb_obj.CurrentLocale = 0x409;
 
         teb_obj.ProcessEnvironmentBlock = context.peb64.value();
+        teb_obj.SameTebFlags.InitialThread = initial_thread;
+        teb_obj.SameTebFlags.SkipThreadAttach = (create_flags & THREAD_CREATE_FLAGS_SKIP_THREAD_ATTACH) ? 1 : 0;
+        teb_obj.SameTebFlags.LoaderWorker = (create_flags & THREAD_CREATE_FLAGS_LOADER_WORKER) ? 1 : 0;
+        teb_obj.SameTebFlags.SkipLoaderInit = (create_flags & THREAD_CREATE_FLAGS_SKIP_LOADER_INIT) ? 1 : 0;
         teb_obj.StaticUnicodeString.MaximumLength = sizeof(teb_obj.StaticUnicodeBuffer);
         teb_obj.StaticUnicodeString.Buffer = this->teb64->value() + offsetof(TEB64, StaticUnicodeBuffer);
 
@@ -264,18 +275,18 @@ emulator_thread::emulator_thread(memory_manager& memory, const process_context& 
         }
 
         teb32_obj.WowTebOffset = -0x2000;
+        teb32_obj.InitialThread = initial_thread;
+        teb32_obj.SkipThreadAttach = (create_flags & THREAD_CREATE_FLAGS_SKIP_THREAD_ATTACH) ? 1 : 0;
+        teb32_obj.LoaderWorker = (create_flags & THREAD_CREATE_FLAGS_LOADER_WORKER) ? 1 : 0;
+        teb32_obj.SkipLoaderInit = (create_flags & THREAD_CREATE_FLAGS_SKIP_LOADER_INIT) ? 1 : 0;
 
         // Note: CurrentLocale and other fields will be initialized by WOW64 runtime
     });
 
-    // CRITICAL: Setup FS segment (0x53) to point to 32-bit TEB for accurate WOW64 emulation
-    // This mimics what Windows kernel does during NtCreateUserProcess for WOW64 processes
-    // Without this, FS:0 won't correctly access the 32-bit TEB
-    //
-    // NOTE: We cannot use set_segment_base() here because that sets the FS_BASE MSR
-    // which is for 64-bit flat addressing. 32-bit code uses actual GDT-based segmentation
-    // with selector 0x53, so we must modify the GDT entry directly.
-    setup_wow64_fs_segment(memory, teb32_addr);
+    this->teb64->access([&](TEB64& teb_obj) {
+        // teb64.ExceptionList initially points to teb32
+        teb_obj.NtTib.ExceptionList = teb32_addr;
+    });
 
     // Use the allocator to reserve memory for CONTEXT64
     this->wow64_cpu_reserved = emulator_object<WOW64_CPURESERVED>{memory, wow64_cpureserved_base};
@@ -439,6 +450,7 @@ void emulator_thread::setup_registers(x86_64_emulator& emu, const process_contex
             if (context.rtl_user_thread_start32.has_value())
             {
                 ctx.Context.Eip = static_cast<uint32_t>(context.rtl_user_thread_start32.value());
+                ctx.Context.Ebx = static_cast<uint32_t>(this->argument);
             }
         });
 
@@ -472,4 +484,15 @@ void emulator_thread::setup_registers(x86_64_emulator& emu, const process_contex
     emu.reg(x86_register::rcx, ctx_obj.value());
     emu.reg(x86_register::rdx, context.ntdll_image_base);
     emu.reg(x86_register::rip, context.ldr_initialize_thunk);
+}
+
+void emulator_thread::refresh_execution_context(x86_64_emulator& emu) const
+{
+    (void)emu;
+
+    if (this->teb32.has_value())
+    {
+        // Refresh GDT entry for FS selector on context switch
+        setup_wow64_fs_segment(*this->memory_ptr, this->teb32->value());
+    }
 }

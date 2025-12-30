@@ -49,7 +49,7 @@ class emulator_thread : public ref_counted_object
     }
 
     emulator_thread(memory_manager& memory, const process_context& context, uint64_t start_address, uint64_t argument, uint64_t stack_size,
-                    bool suspended, uint32_t id);
+                    uint32_t create_flags, uint32_t id, bool initial_thread);
 
     emulator_thread(const emulator_thread&) = delete;
     emulator_thread& operator=(const emulator_thread&) = delete;
@@ -86,6 +86,7 @@ class emulator_thread : public ref_counted_object
     bool await_any{false};
     bool waiting_for_alert{false};
     bool alerted{false};
+    uint32_t create_flags{0};
     uint32_t suspended{0};
     std::optional<std::chrono::steady_clock::time_point> await_time{};
 
@@ -123,6 +124,7 @@ class emulator_thread : public ref_counted_object
     void restore(x86_64_emulator& emu) const
     {
         emu.restore_registers(this->last_registers);
+        this->refresh_execution_context(emu);
     }
 
     void setup_if_necessary(x86_64_emulator& emu, const process_context& context)
@@ -166,6 +168,7 @@ class emulator_thread : public ref_counted_object
         buffer.write(this->waiting_for_alert);
         buffer.write(this->alerted);
 
+        buffer.write(this->create_flags);
         buffer.write(this->suspended);
         buffer.write_optional(this->await_time);
 
@@ -213,6 +216,7 @@ class emulator_thread : public ref_counted_object
         buffer.read(this->waiting_for_alert);
         buffer.read(this->alerted);
 
+        buffer.read(this->create_flags);
         buffer.read(this->suspended);
         buffer.read_optional(this->await_time);
 
@@ -245,6 +249,7 @@ class emulator_thread : public ref_counted_object
 
   private:
     void setup_registers(x86_64_emulator& emu, const process_context& context) const;
+    void refresh_execution_context(x86_64_emulator& emu) const;
 
     void release()
     {

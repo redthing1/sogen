@@ -16,10 +16,11 @@ enum class instruction_hook_continuation : bool
     skip_instruction = true,
 };
 
-enum class memory_violation_continuation : bool
+enum class memory_violation_continuation : uint8_t
 {
-    stop = false,
-    resume = true,
+    stop,
+    resume,
+    restart,
 };
 
 enum class memory_violation_type : uint8_t

@@ -371,7 +371,7 @@ void windows_emulator::setup_process(const application_settings& app_settings)
     this->dispatcher.setup(ntdll->exports, ntdll_data, win32u->exports, win32u_data);
 
     const auto main_thread_id = context.create_thread(this->memory, this->mod_manager.executable->entry_point, 0,
-                                                      this->mod_manager.executable->size_of_stack_commit, false);
+                                                      this->mod_manager.executable->size_of_stack_commit, 0, true);
 
     switch_to_thread(*this, main_thread_id);
 }
@@ -517,6 +517,18 @@ void windows_emulator::setup_hooks()
 
     this->emu().hook_memory_violation(
         [&](const uint64_t address, const size_t size, const memory_operation operation, const memory_violation_type type) {
+            if (this->emu().reg<uint16_t>(x86_register::cs) == 0x33)
+            {
+                // loading gs selector only works in 64-bit mode
+                const auto required_gs_base = this->current_thread().gs_segment->get_base();
+                const auto actual_gs_base = this->emu().get_segment_base(x86_register::gs);
+                if (actual_gs_base != required_gs_base)
+                {
+                    this->emu().set_segment_base(x86_register::gs, required_gs_base);
+                    return memory_violation_continuation::restart;
+                }
+            }
+
             auto region = this->memory.get_region_info(address);
             if (region.permissions.is_guarded())
             {

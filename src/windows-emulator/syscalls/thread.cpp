@@ -103,17 +103,44 @@ namespace syscalls
 
             for (const auto& t : c.proc.threads | std::views::values)
             {
-                t.teb64->access([&](TEB64& teb) {
-                    if (tls_cell < TLS_MINIMUM_AVAILABLE)
+                if (tls_cell < TLS_MINIMUM_AVAILABLE)
+                {
+                    if (c.proc.is_wow64_process)
                     {
-                        teb.TlsSlots.arr[tls_cell] = 0;
+                        if (t.teb32.has_value())
+                        {
+                            t.teb32->access([&](TEB32& teb32) { teb32.TlsSlots.arr[tls_cell] = 0; });
+                        }
                     }
-                    else if (teb.TlsExpansionSlots)
+                    else
                     {
-                        const emulator_object<emulator_pointer> expansion_slots(c.emu, teb.TlsExpansionSlots);
-                        expansion_slots.write(0, tls_cell - TLS_MINIMUM_AVAILABLE);
+                        t.teb64->access([&](TEB64& teb64) { teb64.TlsSlots.arr[tls_cell] = 0; });
                     }
-                });
+                }
+                else if (tls_cell < TLS_MINIMUM_AVAILABLE + TLS_EXPANSION_SLOTS)
+                {
+                    if (c.proc.is_wow64_process)
+                    {
+                        if (t.teb32.has_value())
+                        {
+                            t.teb32->access([&](TEB32& teb32) {
+                                if (teb32.TlsExpansionSlots)
+                                {
+                                    c.emu.write_memory<uint32_t>(teb32.TlsExpansionSlots + (4 * tls_cell) - TLS_MINIMUM_AVAILABLE, 0);
+                                }
+                            });
+                        }
+                    }
+                    else
+                    {
+                        t.teb64->access([&](TEB64& teb64) {
+                            if (teb64.TlsExpansionSlots)
+                            {
+                                c.emu.write_memory<uint64_t>(teb64.TlsExpansionSlots + (8 * tls_cell) - TLS_MINIMUM_AVAILABLE, 0);
+                            }
+                        });
+                    }
+                }
             }
 
             return STATUS_SUCCESS;
@@ -601,7 +628,7 @@ namespace syscalls
             return STATUS_NOT_SUPPORTED;
         }
 
-        const auto h = c.proc.create_thread(c.win_emu.memory, start_routine, argument, stack_size, create_flags & CREATE_SUSPENDED);
+        const auto h = c.proc.create_thread(c.win_emu.memory, start_routine, argument, stack_size, create_flags);
         thread_handle.write(h);
 
         if (!attribute_list)

@@ -21,6 +21,15 @@ namespace unicorn
 
         static_assert(static_cast<uint32_t>(x86_register::end) == UC_X86_REG_ENDING);
 
+        constexpr auto IA32_FS_BASE_MSR = 0xC0000100;
+        constexpr auto IA32_GS_BASE_MSR = 0xC0000101;
+
+        struct msr_value
+        {
+            uint64_t id{};
+            uint64_t value{};
+        };
+
         uc_x86_insn map_hookable_instruction(const x86_hookable_instructions instruction)
         {
             switch (instruction)
@@ -253,15 +262,6 @@ namespace unicorn
 
             void set_segment_base(const x86_register base, const pointer_type value) override
             {
-                constexpr auto IA32_FS_BASE_MSR = 0xC0000100;
-                constexpr auto IA32_GS_BASE_MSR = 0xC0000101;
-
-                struct msr_value
-                {
-                    uint64_t id{};
-                    uint64_t value{};
-                };
-
                 msr_value msr_val{
                     .id = 0,
                     .value = value,
@@ -272,18 +272,40 @@ namespace unicorn
                 case x86_register::fs:
                 case x86_register::fs_base:
                     msr_val.id = IA32_FS_BASE_MSR;
-                    preserved_fs_base_ = static_cast<uint64_t>(value);
                     break;
                 case x86_register::gs:
                 case x86_register::gs_base:
                     msr_val.id = IA32_GS_BASE_MSR;
-                    preserved_gs_base_ = static_cast<uint64_t>(value);
                     break;
                 default:
                     return;
                 }
 
                 this->write_register(x86_register::msr, &msr_val, sizeof(msr_val));
+            }
+
+            pointer_type get_segment_base(const x86_register base) override
+            {
+                msr_value msr_val{};
+
+                switch (base)
+                {
+                case x86_register::fs:
+                case x86_register::fs_base:
+                    msr_val.id = IA32_FS_BASE_MSR;
+                    break;
+                case x86_register::gs:
+                case x86_register::gs_base:
+                    msr_val.id = IA32_GS_BASE_MSR;
+                    break;
+                default:
+                    return 0;
+                }
+
+                size_t result_size = sizeof(msr_value);
+                uce(uc_reg_read2(*this, (int)x86_register::msr, &msr_val, &result_size));
+
+                return msr_val.value;
             }
 
             size_t write_raw_register(const int reg, const void* value, const size_t size) override
@@ -495,18 +517,19 @@ namespace unicorn
                         const auto operation = map_memory_operation(type);
                         const auto violation = map_memory_violation_type(type);
 
-                        const auto resume =
-                            c(address, static_cast<uint64_t>(size), operation, violation) == memory_violation_continuation::resume;
+                        const auto result = c(address, static_cast<uint64_t>(size), operation, violation);
+                        const auto restart = result == memory_violation_continuation::restart;
+                        const auto resume = result == memory_violation_continuation::resume || restart;
 
                         const auto new_ip = this->read_instruction_pointer();
-                        const auto has_ip_changed = ip != new_ip;
+                        const auto set_ip = ip != new_ip || restart;
 
                         if (!resume)
                         {
                             return false;
                         }
 
-                        if (resume && has_ip_changed)
+                        if (resume && set_ip)
                         {
                             this->violation_ip_ = new_ip;
                         }
@@ -515,7 +538,7 @@ namespace unicorn
                             this->violation_ip_ = std::nullopt;
                         }
 
-                        if (has_ip_changed)
+                        if (set_ip)
                         {
                             return false;
                         }
@@ -538,17 +561,8 @@ namespace unicorn
 
             emulator_hook* hook_memory_execution(const uint64_t address, const uint64_t size, memory_execution_hook_callback callback)
             {
-                auto exec_wrapper = [c = std::move(callback), this](uc_engine*, const uint64_t address, const uint32_t /*size*/) {
+                auto exec_wrapper = [c = std::move(callback)](uc_engine*, const uint64_t address, const uint32_t /*size*/) {
                     c(address); //
-
-                    // Fix unicorn bug?
-                    const auto cs_current = this->reg<uint16_t>(x86_register::cs);
-                    if (this->current_reg_cs_ != cs_current)
-                    {
-                        this->set_segment_base(x86_register::gs, preserved_gs_base_);
-                        this->set_segment_base(x86_register::fs, preserved_fs_base_);
-                        this->current_reg_cs_ = cs_current;
-                    }
                 };
 
                 function_wrapper<void, uc_engine*, uint64_t, uint32_t> wrapper(std::move(exec_wrapper));
@@ -657,11 +671,6 @@ namespace unicorn
 
                 const uc_context_serializer serializer(this->uc_, is_snapshot);
                 serializer.serialize(buffer);
-
-                // Serialize unicorn bug workaround state
-                buffer.write(this->preserved_gs_base_);
-                buffer.write(this->preserved_fs_base_);
-                buffer.write(this->current_reg_cs_);
             }
 
             void deserialize_state(utils::buffer_deserializer& buffer, const bool is_snapshot) override
@@ -674,10 +683,6 @@ namespace unicorn
 
                 const uc_context_serializer serializer(this->uc_, is_snapshot);
                 serializer.deserialize(buffer);
-                // Deserialize unicorn bug workaround state
-                buffer.read(this->preserved_gs_base_);
-                buffer.read(this->preserved_fs_base_);
-                buffer.read(this->current_reg_cs_);
             }
 
             std::vector<std::byte> save_registers() const override
@@ -711,11 +716,6 @@ namespace unicorn
             std::optional<uint64_t> violation_ip_{};
             std::vector<std::unique_ptr<hook_object>> hooks_{};
             std::unordered_map<uint64_t, mmio_callbacks> mmio_{};
-
-            // gs & fs base (Fix unicorn Bug?)
-            mutable uint64_t preserved_gs_base_{0};
-            mutable uint64_t preserved_fs_base_{0};
-            mutable uint16_t current_reg_cs_{0x33};
 
             static uint64_t calc_end_address(const uint64_t address, uint64_t size)
             {
