@@ -16,7 +16,7 @@ namespace syscalls
 
         if (error_status & STATUS_SERVICE_NOTIFICATION && number_of_parameters >= 3)
         {
-            uint64_t params[3] = {0, 0, 0};
+            std::array<uint64_t, 3> params = {0, 0, 0};
 
             if (c.emu.try_read_memory(parameters, &params, sizeof(params)))
             {

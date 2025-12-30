@@ -118,14 +118,14 @@ void syscall_dispatcher::dispatch(windows_emulator& win_emu)
     }
 }
 
-void syscall_dispatcher::dispatch_callback(windows_emulator& win_emu, std::string syscall_name)
+void syscall_dispatcher::dispatch_callback(windows_emulator& win_emu, std::string& syscall_name)
 {
     auto& emu = win_emu.emu();
     auto& context = win_emu.process;
 
     if (context.instrumentation_callback != 0 && syscall_name != "NtContinue")
     {
-        uint64_t rip_old = emu.reg<uint64_t>(x86_register::rip);
+        auto rip_old = emu.reg<uint64_t>(x86_register::rip);
 
         // The increase in RIP caused by executing the syscall here has not yet occurred.
         // If RIP is set directly, it will lead to an incorrect address, so the length of

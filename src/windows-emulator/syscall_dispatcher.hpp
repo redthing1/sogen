@@ -21,7 +21,7 @@ class syscall_dispatcher
                        std::span<const std::byte> win32u_data);
 
     void dispatch(windows_emulator& win_emu);
-    void dispatch_callback(windows_emulator& win_emu, std::string syscall_name);
+    static void dispatch_callback(windows_emulator& win_emu, std::string& syscall_name);
 
     void serialize(utils::buffer_serializer& buffer) const;
     void deserialize(utils::buffer_deserializer& buffer);
