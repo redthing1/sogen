@@ -21,6 +21,7 @@
 #define WIN32_CLIENT_INFO_LENGTH                                        62
 #define STATIC_UNICODE_BUFFER_LENGTH                                    261
 #define TLS_MINIMUM_AVAILABLE                                           64
+#define TLS_EXPANSION_SLOTS                                             1024
 
 #ifndef OS_WINDOWS
 #define PF_FLOATING_POINT_PRECISION_ERRATA         0
