@@ -283,7 +283,6 @@ namespace syscalls
 
         if (info_class == ProcessInstrumentationCallback)
         {
-
             if (process_information_length != sizeof(PROCESS_INSTRUMENTATION_CALLBACK_INFORMATION))
             {
                 return STATUS_BUFFER_OVERFLOW;

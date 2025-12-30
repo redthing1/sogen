@@ -6,7 +6,6 @@ namespace syscalls
 {
     NTSTATUS handle_NtClose(const syscall_context& c, const handle h)
     {
-
         const auto value = h.value;
 
         if (h.h == 0xDEADC0DE)

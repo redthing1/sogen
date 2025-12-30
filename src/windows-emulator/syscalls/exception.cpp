@@ -5,8 +5,7 @@
 namespace syscalls
 {
     NTSTATUS handle_NtRaiseHardError(const syscall_context& c, const NTSTATUS error_status, const ULONG number_of_parameters,
-                                     const emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>>
-                                         /*unicode_string_parameter_mask*/,
+                                     const emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>> /*unicode_string_parameter_mask*/,
                                      const uint64_t parameters, const HARDERROR_RESPONSE_OPTION /*valid_response_option*/,
                                      const emulator_object<HARDERROR_RESPONSE> response)
     {
@@ -17,7 +16,7 @@ namespace syscalls
 
         if (error_status & STATUS_SERVICE_NOTIFICATION && number_of_parameters >= 3)
         {
-            ULONG_PTR params[3] = {0, 0, 0};
+            uint64_t params[3] = {0, 0, 0};
 
             if (c.emu.try_read_memory(parameters, &params, sizeof(params)))
             {
