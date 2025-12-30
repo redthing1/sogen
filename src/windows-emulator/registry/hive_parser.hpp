@@ -5,6 +5,7 @@
 #include <algorithm>
 
 #include <utils/container.hpp>
+#include <platform/unicode.hpp>
 
 struct hive_value
 {
@@ -111,7 +112,7 @@ class hive_parser
                 return nullptr;
             }
 
-            current_key = current_key->get_sub_key(this->file_, key_part.string());
+            current_key = current_key->get_sub_key(this->file_, u16_to_u8(key_part.u16string()));
         }
 
         return current_key;
