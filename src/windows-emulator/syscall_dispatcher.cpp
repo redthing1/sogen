@@ -68,6 +68,9 @@ void syscall_dispatcher::dispatch(windows_emulator& win_emu)
     const auto raw_syscall_id = emu.reg<uint32_t>(x86_register::eax);
     const auto syscall_id = raw_syscall_id & 0xFFFF; // Only take low bits for WOW64 compatibility
 
+    const auto entry = this->handlers_.find(syscall_id);
+    const auto* syscall_name = (entry != this->handlers_.end()) ? entry->second.name.c_str() : "<unknown>";
+
     const syscall_context c{
         .win_emu = win_emu,
         .emu = emu,
@@ -77,7 +80,6 @@ void syscall_dispatcher::dispatch(windows_emulator& win_emu)
 
     try
     {
-        const auto entry = this->handlers_.find(syscall_id);
         if (entry == this->handlers_.end())
         {
             win_emu.log.error("Unknown syscall: 0x%X (raw: 0x%X)\n", syscall_id, raw_syscall_id);
@@ -104,13 +106,15 @@ void syscall_dispatcher::dispatch(windows_emulator& win_emu)
     }
     catch (std::exception& e)
     {
-        win_emu.log.error("Syscall threw an exception: %X (raw: %X) (0x%" PRIx64 ") - %s\n", syscall_id, raw_syscall_id, address, e.what());
+        win_emu.log.error("Syscall %s threw an exception: 0x%X (raw: 0x%X) (0x%" PRIx64 ") - %s\n", syscall_name, syscall_id,
+                          raw_syscall_id, address, e.what());
         emu.reg<uint64_t>(x86_register::rax, STATUS_UNSUCCESSFUL);
         emu.stop();
     }
     catch (...)
     {
-        win_emu.log.error("Syscall threw an unknown exception: %X (raw: %X) (0x%" PRIx64 ")\n", syscall_id, raw_syscall_id, address);
+        win_emu.log.error("Syscall %s threw an unknown exception: 0x%X (raw: 0x%X) (0x%" PRIx64 ")\n", syscall_name, syscall_id,
+                          raw_syscall_id, address);
         emu.reg<uint64_t>(x86_register::rax, STATUS_UNSUCCESSFUL);
         emu.stop();
     }
