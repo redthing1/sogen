@@ -104,11 +104,26 @@ class emulator_object
         return this->address_ != 0;
     }
 
+    std::optional<T> try_read(const size_t index = 0) const
+    {
+        T obj{};
+        if (this->memory_->try_read_memory(this->address_ + index * this->size(), &obj, sizeof(obj)))
+        {
+            return obj;
+        }
+        return std::nullopt;
+    }
+
     T read(const size_t index = 0) const
     {
         T obj{};
         this->memory_->read_memory(this->address_ + index * this->size(), &obj, sizeof(obj));
         return obj;
+    }
+
+    bool try_write(const T& value, const size_t index = 0) const
+    {
+        return this->memory_->try_write_memory(this->address_ + index * this->size(), &value, sizeof(value));
     }
 
     void write(const T& value, const size_t index = 0) const

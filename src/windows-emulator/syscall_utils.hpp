@@ -232,7 +232,7 @@ NTSTATUS handle_query(x86_64_emulator& emu, const uint64_t buffer, const uint32_
     const auto length_setter = [&](const size_t required_size) {
         if (return_length)
         {
-            return_length.write(static_cast<LengthType>(required_size));
+            return_length.try_write(static_cast<LengthType>(required_size));
         }
     };
 

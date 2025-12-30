@@ -641,12 +641,31 @@ void memory_manager::read_memory(const uint64_t address, void* data, const size_
 
 bool memory_manager::try_read_memory(const uint64_t address, void* data, const size_t size) const
 {
-    return this->memory_->try_read_memory(address, data, size);
+    try
+    {
+        return this->memory_->try_read_memory(address, data, size);
+    }
+    catch (...)
+    {
+        return false;
+    }
 }
 
 void memory_manager::write_memory(const uint64_t address, const void* data, const size_t size)
 {
     this->memory_->write_memory(address, data, size);
+}
+
+bool memory_manager::try_write_memory(const uint64_t address, const void* data, const size_t size)
+{
+    try
+    {
+        return this->memory_->try_write_memory(address, data, size);
+    }
+    catch (...)
+    {
+        return false;
+    }
 }
 
 void memory_manager::map_mmio(const uint64_t address, const size_t size, mmio_read_callback read_cb, mmio_write_callback write_cb)

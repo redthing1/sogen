@@ -29,7 +29,9 @@ namespace syscalls
             return STATUS_INVALID_PARAMETER;
         }
 
-        if (info_class == MemoryBasicInformation)
+        // https://www.exploit-db.com/exploits/44464
+        // Both information classes appear to return the same output structure, MEMORY_BASIC_INFORMATION
+        if (info_class == MemoryBasicInformation || info_class == MemoryPrivilegedBasicInformation)
         {
             if (return_length)
             {
@@ -208,6 +210,16 @@ namespace syscalls
         {
             potential_base = c.win_emu.memory.find_free_allocation_base(static_cast<size_t>(allocation_bytes));
         }
+        else
+        {
+            // https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntallocatevirtualmemory
+            // BaseAddress
+            // A pointer to a variable that will receive the base address of the allocated region of pages. If the
+            // initial value of BaseAddress is non-NULL, the region is allocated starting at the specified virtual
+            // address rounded down to the next host page size address boundary. If the initial value of BaseAddress
+            // is NULL, the operating system will determine where to allocate the region.
+            potential_base = page_align_up(potential_base);
+        }
 
         if (!potential_base)
         {
@@ -280,23 +292,53 @@ namespace syscalls
                                         const emulator_pointer buffer, const ULONG number_of_bytes_to_read,
                                         const emulator_object<ULONG> number_of_bytes_read)
     {
-        number_of_bytes_read.write(0);
+        number_of_bytes_read.try_write(0);
 
         if (process_handle != CURRENT_PROCESS)
         {
             return STATUS_NOT_SUPPORTED;
         }
 
-        std::vector<uint8_t> memory{};
-        memory.resize(number_of_bytes_to_read);
+        std::vector<uint8_t> memory(number_of_bytes_to_read, 0);
 
-        if (!c.emu.try_read_memory(base_address, memory.data(), memory.size()))
+        if (!c.emu.try_read_memory(base_address, memory.data(), number_of_bytes_to_read))
         {
             return STATUS_INVALID_ADDRESS;
         }
 
-        c.emu.write_memory(buffer, memory.data(), memory.size());
-        number_of_bytes_read.write(number_of_bytes_to_read);
+        if (!c.emu.try_write_memory(buffer, memory.data(), number_of_bytes_to_read))
+        {
+            return STATUS_INVALID_ADDRESS;
+        }
+
+        number_of_bytes_read.try_write(number_of_bytes_to_read);
+        return STATUS_SUCCESS;
+    }
+
+    NTSTATUS handle_NtWriteVirtualMemory(const syscall_context& c, const handle process_handle, const emulator_pointer base_address,
+                                         const emulator_pointer buffer, const ULONG number_of_bytes_to_write,
+                                         const emulator_object<ULONG> number_of_bytes_write)
+    {
+        number_of_bytes_write.try_write(0);
+
+        if (process_handle != CURRENT_PROCESS)
+        {
+            return STATUS_NOT_SUPPORTED;
+        }
+
+        std::vector<uint8_t> memory(number_of_bytes_to_write, 0);
+
+        if (!c.emu.try_read_memory(buffer, memory.data(), number_of_bytes_to_write))
+        {
+            return STATUS_INVALID_ADDRESS;
+        }
+
+        if (!c.emu.try_write_memory(base_address, memory.data(), number_of_bytes_to_write))
+        {
+            return STATUS_INVALID_ADDRESS;
+        }
+
+        number_of_bytes_write.try_write(number_of_bytes_to_write);
         return STATUS_SUCCESS;
     }
 

@@ -264,9 +264,14 @@ namespace icicle
             ice(res, "Failed to read memory");
         }
 
+        bool try_write_memory(const uint64_t address, const void* data, const size_t size) override
+        {
+            return icicle_write_memory(this->emu_, address, data, size);
+        }
+
         void write_memory(const uint64_t address, const void* data, const size_t size) override
         {
-            const auto res = icicle_write_memory(this->emu_, address, data, size);
+            const auto res = try_write_memory(address, data, size);
             ice(res, "Failed to write memory");
         }
 

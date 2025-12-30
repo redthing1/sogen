@@ -102,6 +102,8 @@ class emulator_thread : public ref_counted_object
 
     std::vector<std::byte> last_registers{};
 
+    bool debugger_hide{false};
+
     void mark_as_ready(NTSTATUS status);
 
     bool is_await_time_over(utils::clock& clock) const
@@ -180,6 +182,8 @@ class emulator_thread : public ref_counted_object
         buffer.write_optional(this->wow64_cpu_reserved);
 
         buffer.write_vector(this->last_registers);
+
+        buffer.write(this->debugger_hide);
     }
 
     void deserialize_object(utils::buffer_deserializer& buffer) override
@@ -225,6 +229,8 @@ class emulator_thread : public ref_counted_object
         buffer.read_optional(this->wow64_cpu_reserved, [this] { return emulator_object<WOW64_CPURESERVED>(*this->memory_ptr); });
 
         buffer.read_vector(this->last_registers);
+
+        buffer.read(this->debugger_hide);
     }
 
     void leak_memory()

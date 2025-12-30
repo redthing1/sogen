@@ -27,7 +27,7 @@ namespace syscalls
     // syscalls/exception.cpp
     NTSTATUS handle_NtRaiseHardError(const syscall_context& c, NTSTATUS error_status, ULONG number_of_parameters,
                                      emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>> unicode_string_parameter_mask,
-                                     emulator_object<DWORD> parameters, HARDERROR_RESPONSE_OPTION valid_response_option,
+                                     uint64_t parameters, HARDERROR_RESPONSE_OPTION valid_response_option,
                                      emulator_object<HARDERROR_RESPONSE> response);
     NTSTATUS handle_NtRaiseException(const syscall_context& c,
                                      emulator_object<EMU_EXCEPTION_RECORD<EmulatorTraits<Emu64>>> exception_record,
@@ -131,6 +131,9 @@ namespace syscalls
     NTSTATUS handle_NtReadVirtualMemory(const syscall_context& c, handle process_handle, emulator_pointer base_address,
                                         emulator_pointer buffer, ULONG number_of_bytes_to_read,
                                         emulator_object<ULONG> number_of_bytes_read);
+    NTSTATUS handle_NtWriteVirtualMemory(const syscall_context& c, handle process_handle, emulator_pointer base_address,
+                                         emulator_pointer buffer, ULONG number_of_bytes_to_write,
+                                         emulator_object<ULONG> number_of_bytes_write);
     NTSTATUS handle_NtSetInformationVirtualMemory();
     BOOL handle_NtLockVirtualMemory();
 
@@ -1094,6 +1097,7 @@ void syscall_dispatcher::add_handlers(std::map<std::string, syscall_handler>& ha
     add_handler(NtCreateSemaphore);
     add_handler(NtOpenSemaphore);
     add_handler(NtReadVirtualMemory);
+    add_handler(NtWriteVirtualMemory);
     add_handler(NtQueryInformationToken);
     add_handler(NtDxgkIsFeatureEnabled);
     add_handler(NtAddAtomEx);
