@@ -107,6 +107,11 @@ class hive_parser
 
         for (const auto& key_part : key)
         {
+            if (key_part.empty())
+            {
+                continue;
+            }
+
             if (!current_key)
             {
                 return nullptr;
