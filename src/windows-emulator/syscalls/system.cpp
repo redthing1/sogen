@@ -199,12 +199,14 @@ namespace syscalls
                                                                   });
 
         case SystemProcessorInformation:
-            return handle_query<SYSTEM_PROCESSOR_INFORMATION64>(c.emu, system_information, system_information_length, return_length,
-                                                                [&](SYSTEM_PROCESSOR_INFORMATION64& info) {
-                                                                    memset(&info, 0, sizeof(info));
-                                                                    info.MaximumProcessors = 2;
-                                                                    info.ProcessorArchitecture = PROCESSOR_ARCHITECTURE_AMD64;
-                                                                });
+        case SystemEmulationProcessorInformation:
+            return handle_query<SYSTEM_PROCESSOR_INFORMATION64>(
+                c.emu, system_information, system_information_length, return_length, [&](SYSTEM_PROCESSOR_INFORMATION64& info) {
+                    memset(&info, 0, sizeof(info));
+                    info.MaximumProcessors = 2;
+                    info.ProcessorArchitecture =
+                        (info_class == SystemProcessorInformation ? PROCESSOR_ARCHITECTURE_AMD64 : PROCESSOR_ARCHITECTURE_INTEL);
+                });
 
         case SystemNumaProcessorMap:
             return handle_query<SYSTEM_NUMA_INFORMATION64>(c.emu, system_information, system_information_length, return_length,

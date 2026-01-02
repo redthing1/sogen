@@ -94,6 +94,7 @@
 #define IMAGE_FILE_MACHINE_CEE         0xC0EE
 #endif
 
+#define PROCESSOR_ARCHITECTURE_INTEL 0
 #define PROCESSOR_ARCHITECTURE_AMD64 9
 
 enum class PEMachineType : std::uint16_t
