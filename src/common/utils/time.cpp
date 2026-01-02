@@ -3,8 +3,14 @@
 
 namespace utils
 {
-    std::chrono::steady_clock::time_point convert_delay_interval_to_time_point(clock& c, const LARGE_INTEGER delay_interval)
+    std::chrono::steady_clock::time_point convert_delay_interval_to_time_point(clock& c, const LARGE_INTEGER delay_interval,
+                                                                               const LARGE_INTEGER infinite_value)
     {
+        if (delay_interval.QuadPart == infinite_value.QuadPart)
+        {
+            return std::chrono::steady_clock::time_point::min();
+        }
+
         if (delay_interval.QuadPart <= 0)
         {
             const auto relative_time = -delay_interval.QuadPart;

@@ -109,7 +109,8 @@ class emulator_thread : public ref_counted_object
 
     bool is_await_time_over(utils::clock& clock) const
     {
-        return this->await_time.has_value() && this->await_time.value() < clock.steady_now();
+        constexpr auto infinite = std::chrono::steady_clock::time_point::min();
+        return this->await_time.has_value() && this->await_time.value() != infinite && this->await_time.value() < clock.steady_now();
     }
 
     bool is_terminated() const;

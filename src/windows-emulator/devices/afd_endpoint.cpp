@@ -1006,7 +1006,8 @@ namespace
                 std::optional<std::chrono::steady_clock::time_point> timeout{};
                 if (info.Timeout.QuadPart != std::numeric_limits<int64_t>::max())
                 {
-                    timeout = utils::convert_delay_interval_to_time_point(win_emu.clock(), info.Timeout);
+                    timeout = utils::convert_delay_interval_to_time_point(win_emu.clock(), info.Timeout,
+                                                                          {.QuadPart = std::numeric_limits<int64_t>::max()});
                 }
 
                 this->delay_ioctrl(c, {}, timeout, timeout_callback);
