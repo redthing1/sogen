@@ -403,7 +403,10 @@ namespace syscalls
     NTSTATUS handle_NtDelayExecution(const syscall_context& c, const BOOLEAN alertable, const emulator_object<LARGE_INTEGER> delay_interval)
     {
         auto& t = c.win_emu.current_thread();
-        t.await_time = utils::convert_delay_interval_to_time_point(c.win_emu.clock(), delay_interval.read());
+        if (delay_interval.value())
+        {
+            t.await_time = utils::convert_delay_interval_to_time_point(c.win_emu.clock(), delay_interval.read());
+        }
         c.win_emu.yield_thread(alertable);
 
         return STATUS_SUCCESS;

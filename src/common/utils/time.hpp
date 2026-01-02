@@ -102,7 +102,9 @@ namespace utils
         }
     };
 
-    std::chrono::steady_clock::time_point convert_delay_interval_to_time_point(clock& c, LARGE_INTEGER delay_interval);
+    std::chrono::steady_clock::time_point convert_delay_interval_to_time_point(clock& c, LARGE_INTEGER delay_interval,
+                                                                               LARGE_INTEGER infinite_value = {.LowPart = 0,
+                                                                                                               .HighPart = -2147483648});
 
     KSYSTEM_TIME convert_to_ksystem_time(const std::chrono::system_clock::time_point& tp);
     void convert_to_ksystem_time(volatile KSYSTEM_TIME* dest, const std::chrono::system_clock::time_point& tp);
