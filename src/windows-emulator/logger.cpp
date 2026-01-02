@@ -124,6 +124,19 @@ namespace
     }
 }
 
+#ifdef OS_WINDOWS
+logger::logger()
+{
+    old_cp = GetConsoleOutputCP();
+    SetConsoleOutputCP(CP_UTF8);
+}
+
+logger::~logger()
+{
+    SetConsoleOutputCP(old_cp);
+}
+#endif
+
 void logger::print_message(const color c, const std::string_view message, const bool force) const
 {
     if (!force && this->disable_output_)

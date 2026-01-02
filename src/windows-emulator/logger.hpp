@@ -4,6 +4,10 @@
 class logger : public generic_logger
 {
   public:
+#ifdef OS_WINDOWS
+    logger();
+    ~logger() override;
+#endif
     void print(color c, std::string_view message) override;
     void print(color c, const char* message, ...) override FORMAT_ATTRIBUTE(3, 4);
     void force_print(color c, const char* message, ...) FORMAT_ATTRIBUTE(3, 4);
@@ -24,6 +28,9 @@ class logger : public generic_logger
     }
 
   private:
+#ifdef OS_WINDOWS
+    UINT old_cp{};
+#endif
     bool disable_output_{false};
     void print_message(color c, std::string_view message, bool force = false) const;
 };
