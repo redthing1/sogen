@@ -440,3 +440,48 @@ inline uint64_t get_function_argument(x86_64_emulator& emu, const size_t index, 
         return emu.read_stack(index + 1);
     }
 }
+
+inline void set_function_argument(x86_64_emulator& emu, const size_t index, const uint64_t value, const bool is_syscall = false)
+{
+    bool use_32bit_stack = false;
+    if (!is_syscall)
+    {
+        const auto cs_selector = emu.reg<uint16_t>(x86_register::cs);
+        const auto bitness = segment_utils::get_segment_bitness(emu, cs_selector);
+        use_32bit_stack = bitness && *bitness == segment_utils::segment_bitness::bit32;
+    }
+
+    if (use_32bit_stack)
+    {
+        const auto esp = emu.reg<uint32_t>(x86_register::esp);
+        const auto address = static_cast<uint64_t>(esp) + static_cast<uint64_t>((index + 1) * sizeof(uint32_t));
+        emu.write_memory<uint32_t>(address, static_cast<uint32_t>(value));
+        return;
+    }
+
+    switch (index)
+    {
+    case 0:
+        emu.reg(is_syscall ? x86_register::r10 : x86_register::rcx, value);
+        break;
+    case 1:
+        emu.reg(x86_register::rdx, value);
+        break;
+    case 2:
+        emu.reg(x86_register::r8, value);
+        break;
+    case 3:
+        emu.reg(x86_register::r9, value);
+        break;
+    default:
+        emu.write_stack(index + 1, value);
+        break;
+    }
+}
+
+constexpr size_t aligned_stack_space(const size_t arg_count)
+{
+    const size_t slots = (arg_count < 4) ? 4 : arg_count;
+    const size_t bytes = slots * sizeof(uint64_t);
+    return (bytes + 15) & ~15;
+}

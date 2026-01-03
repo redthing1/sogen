@@ -59,6 +59,12 @@ class typed_emulator : public emulator
         return result;
     }
 
+    void write_stack(const size_t index, const pointer_type& value)
+    {
+        const auto sp = this->read_stack_pointer();
+        this->write_memory(sp + (index * pointer_size), &value, sizeof(value));
+    }
+
     void push_stack(const pointer_type& value)
     {
         const auto sp = this->read_stack_pointer() - pointer_size;

@@ -35,6 +35,48 @@ struct pending_apc
     }
 };
 
+enum class callback_id : uint32_t
+{
+    Invalid = 0,
+    NtUserEnumDisplayMonitors,
+};
+
+struct callback_frame
+{
+    callback_id handler_id;
+    uint64_t rip;
+    uint64_t rsp;
+    uint64_t r10;
+    uint64_t rcx;
+    uint64_t rdx;
+    uint64_t r8;
+    uint64_t r9;
+
+    void serialize(utils::buffer_serializer& buffer) const
+    {
+        buffer.write(this->handler_id);
+        buffer.write(this->rip);
+        buffer.write(this->rsp);
+        buffer.write(this->r10);
+        buffer.write(this->rcx);
+        buffer.write(this->rdx);
+        buffer.write(this->r8);
+        buffer.write(this->r9);
+    }
+
+    void deserialize(utils::buffer_deserializer& buffer)
+    {
+        buffer.read(this->handler_id);
+        buffer.read(this->rip);
+        buffer.read(this->rsp);
+        buffer.read(this->r10);
+        buffer.read(this->rcx);
+        buffer.read(this->rdx);
+        buffer.read(this->r8);
+        buffer.read(this->r9);
+    }
+};
+
 class emulator_thread : public ref_counted_object
 {
   public:
@@ -104,6 +146,8 @@ class emulator_thread : public ref_counted_object
     std::vector<std::byte> last_registers{};
 
     bool debugger_hide{false};
+
+    std::vector<callback_frame> callback_stack;
 
     void mark_as_ready(NTSTATUS status);
 
@@ -188,6 +232,8 @@ class emulator_thread : public ref_counted_object
         buffer.write_vector(this->last_registers);
 
         buffer.write(this->debugger_hide);
+
+        buffer.write_vector(this->callback_stack);
     }
 
     void deserialize_object(utils::buffer_deserializer& buffer) override
@@ -236,6 +282,8 @@ class emulator_thread : public ref_counted_object
         buffer.read_vector(this->last_registers);
 
         buffer.read(this->debugger_hide);
+
+        buffer.read_vector(this->callback_stack);
     }
 
     void leak_memory()

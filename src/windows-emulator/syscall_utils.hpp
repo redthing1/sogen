@@ -12,6 +12,7 @@ struct syscall_context
     process_context& proc;
     mutable bool write_status{true};
     mutable bool retrigger_syscall{false};
+    mutable bool run_callback{false};
 };
 
 inline uint64_t get_syscall_argument(x86_64_emulator& emu, const size_t index)
@@ -132,15 +133,16 @@ T resolve_indexed_argument(x86_64_emulator& emu, size_t& index)
     return resolve_argument<T>(emu, index++);
 }
 
-inline void write_syscall_result(const syscall_context& c, const uint64_t result, const uint64_t initial_ip)
+inline void write_syscall_result(const syscall_context& c, const uint64_t result, const uint64_t initial_ip,
+                                 const bool is_callback_completion = false)
 {
-    if (c.write_status && !c.retrigger_syscall)
+    if (c.write_status && !c.retrigger_syscall && !c.run_callback)
     {
         c.emu.reg<uint64_t>(x86_register::rax, result);
     }
 
     const auto new_ip = c.emu.read_instruction_pointer();
-    if (initial_ip != new_ip || c.retrigger_syscall)
+    if ((initial_ip != new_ip || c.retrigger_syscall || c.run_callback) && !is_callback_completion)
     {
         c.emu.reg(x86_register::rip, new_ip - 2);
     }
@@ -174,6 +176,36 @@ template <auto Handler>
 syscall_handler make_syscall_handler()
 {
     return +[](const syscall_context& c) { forward_syscall(c, Handler); };
+}
+
+template <typename Result>
+void forward_callback_completion(const syscall_context& c, const uint64_t /*guest_result*/, Result (*handler)())
+{
+    const auto ip = c.emu.read_instruction_pointer();
+
+    const auto ret = handler();
+    write_syscall_result(c, static_cast<uint64_t>(ret), ip, true);
+}
+
+template <typename Result, typename GuestResult, typename... Args>
+void forward_callback_completion(const syscall_context& c, const uint64_t guest_result,
+                                 Result (*handler)(const syscall_context&, GuestResult, Args...))
+{
+    const auto ip = c.emu.read_instruction_pointer();
+
+    size_t index = 0;
+    std::tuple<const syscall_context&, GuestResult, Args...> func_args{
+        c, static_cast<GuestResult>(guest_result),
+        resolve_indexed_argument<std::remove_cv_t<std::remove_reference_t<Args>>>(c.emu, index)...};
+
+    const auto ret = std::apply(handler, std::move(func_args));
+    write_syscall_result(c, ret, ip, true);
+}
+
+template <auto Handler>
+callback_completion_handler make_callback_completion_handler()
+{
+    return +[](const syscall_context& c, const uint64_t guest_result) { forward_callback_completion(c, guest_result, Handler); };
 }
 
 template <typename T, typename Traits>
