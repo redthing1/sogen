@@ -176,12 +176,36 @@ namespace
 
         return env_map;
     }
+
+    uint32_t read_windows_build(registry_manager& registry)
+    {
+        const auto key = registry.get_key({R"(\Registry\Machine\Software\Microsoft\Windows NT\CurrentVersion)"});
+
+        if (!key)
+            return 0;
+
+        for (size_t i = 0; const auto value = registry.get_value(*key, i); ++i)
+        {
+            if (value->type != REG_SZ)
+                continue;
+
+            if (value->name == "CurrentBuildNumber" || value->name == "CurrentBuild")
+            {
+                const auto* s = reinterpret_cast<const char16_t*>(value->data.data());
+                return static_cast<uint32_t>(std::wcstoul(reinterpret_cast<const wchar_t*>(s), nullptr, 10));
+            }
+        }
+
+        return 0;
+    }
 }
 
 void process_context::setup(x86_64_emulator& emu, memory_manager& memory, registry_manager& registry,
                             const application_settings& app_settings, const mapped_module& executable, const mapped_module& ntdll,
                             const apiset::container& apiset_container, const mapped_module* ntdll32)
 {
+    this->windows_build_number = read_windows_build(registry);
+
     setup_gdt(emu, memory);
 
     this->kusd.setup();
@@ -398,10 +422,20 @@ void process_context::setup(x86_64_emulator& emu, memory_manager& memory, regist
     this->default_monitor_handle = h;
     monitor_obj.access([&](USER_MONITOR& monitor) {
         monitor.hmon = h.bits;
-        monitor.monitorRect = {.left = 0, .top = 0, .right = 1920, .bottom = 1080};
-        monitor.workRect = monitor.monitorRect;
-        monitor.monitorDpi = 96;
-        monitor.nativeDpi = monitor.monitorDpi;
+        monitor.rcMonitor = {.left = 0, .top = 0, .right = 1920, .bottom = 1080};
+        monitor.rcWork = monitor.rcMonitor;
+        if (this->is_older_windows_build())
+        {
+            monitor.b20.monitorDpi = 96;
+            monitor.b20.nativeDpi = monitor.b20.monitorDpi;
+            monitor.b20.cachedDpi = monitor.b20.monitorDpi;
+            monitor.b20.rcMonitorDpiAware = monitor.rcMonitor;
+        }
+        else
+        {
+            monitor.b26.monitorDpi = 96;
+            monitor.b26.nativeDpi = monitor.b26.monitorDpi;
+        }
     });
 
     const auto user_display_info = this->user_handles.get_display_info();

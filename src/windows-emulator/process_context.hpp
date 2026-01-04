@@ -87,10 +87,17 @@ struct process_context
     void serialize(utils::buffer_serializer& buffer) const;
     void deserialize(utils::buffer_deserializer& buffer);
 
+    generic_handle_store* get_handle_store(handle handle);
+
     // WOW64 support flag - set during process setup based on executable architecture
     bool is_wow64_process{false};
 
-    generic_handle_store* get_handle_store(handle handle);
+    uint32_t windows_build_number{0};
+
+    bool is_older_windows_build() const
+    {
+        return windows_build_number < 26040;
+    }
 
     callbacks* callbacks_{};
 

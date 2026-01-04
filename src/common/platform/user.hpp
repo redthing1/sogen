@@ -87,11 +87,26 @@ struct USER_MONITOR
 {
     EMULATOR_CAST(uint64_t, HMONITOR) hmon;
     uint8_t unknown1[0x14];
-    RECT monitorRect;
-    RECT workRect;
-    uint16_t monitorDpi;
-    uint16_t nativeDpi;
-    uint8_t unknown2[0xFF];
+    RECT rcMonitor;
+    RECT rcWork;
+    union
+    {
+        struct
+        {
+            uint16_t monitorDpi;
+            uint16_t nativeDpi;
+        } b26;
+        struct
+        {
+            uint32_t unknown1;
+            uint16_t monitorDpi;
+            uint16_t nativeDpi;
+            uint16_t cachedDpi;
+            uint16_t unknown2;
+            RECT rcMonitorDpiAware;
+        } b20;
+    };
+    uint8_t unknown4[0xFF];
 };
 
 struct USER_WINDOW
