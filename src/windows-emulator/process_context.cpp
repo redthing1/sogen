@@ -182,17 +182,21 @@ namespace
         const auto key = registry.get_key({R"(\Registry\Machine\Software\Microsoft\Windows NT\CurrentVersion)"});
 
         if (!key)
+        {
             return 0;
+        }
 
         for (size_t i = 0; const auto value = registry.get_value(*key, i); ++i)
         {
             if (value->type != REG_SZ)
+            {
                 continue;
+            }
 
             if (value->name == "CurrentBuildNumber" || value->name == "CurrentBuild")
             {
                 const auto* s = reinterpret_cast<const char16_t*>(value->data.data());
-                return static_cast<uint32_t>(std::wcstoul(reinterpret_cast<const wchar_t*>(s), nullptr, 10));
+                return utils::string::parse_number<uint32_t>(std::u16string_view(s));
             }
         }
 

@@ -181,4 +181,23 @@ namespace utils::string
     {
         return std::ranges::equal(lhs, rhs, [](const auto c1, const auto c2) { return char_to_lower(c1) == char_to_lower(c2); });
     }
+
+    template <typename Integer, class Elem, class Traits>
+        requires(std::is_integral_v<Integer>)
+    Integer parse_number(const std::basic_string_view<Elem, Traits> str)
+    {
+        Integer result = 0;
+
+        for (const auto ch : str)
+        {
+            if (ch < u'0' || ch > u'9')
+            {
+                break;
+            }
+
+            result = result * 10 + static_cast<Integer>(ch - u'0');
+        }
+
+        return result;
+    }
 }
