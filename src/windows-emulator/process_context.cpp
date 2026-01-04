@@ -357,8 +357,8 @@ void process_context::setup(x86_64_emulator& emu, memory_manager& memory, regist
             // Copy similar settings from PEB64
             p32.ProcessHeap = 0;
             p32.ProcessHeaps = 0;
-            p32.HeapSegmentReserve = executable.size_of_heap_reserve;
-            p32.HeapSegmentCommit = executable.size_of_heap_commit;
+            p32.HeapSegmentReserve = static_cast<uint32_t>(executable.size_of_heap_reserve);
+            p32.HeapSegmentCommit = static_cast<uint32_t>(executable.size_of_heap_commit);
             p32.HeapDeCommitTotalFreeThreshold = 0x00010000;
             p32.HeapDeCommitFreeBlockThreshold = 0x00001000;
             p32.NumberOfHeaps = 0;
