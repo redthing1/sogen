@@ -586,10 +586,10 @@ typedef struct _PEB64
     ULONG NtGlobalFlag;
 
     ULARGE_INTEGER CriticalSectionTimeout;
-    EMULATOR_CAST(std::int64_t, SIZE_T) HeapSegmentReserve;
-    EMULATOR_CAST(std::int64_t, SIZE_T) HeapSegmentCommit;
-    EMULATOR_CAST(std::int64_t, SIZE_T) HeapDeCommitTotalFreeThreshold;
-    EMULATOR_CAST(std::int64_t, SIZE_T) HeapDeCommitFreeBlockThreshold;
+    EMULATOR_CAST(std::uint64_t, SIZE_T) HeapSegmentReserve;
+    EMULATOR_CAST(std::uint64_t, SIZE_T) HeapSegmentCommit;
+    EMULATOR_CAST(std::uint64_t, SIZE_T) HeapDeCommitTotalFreeThreshold;
+    EMULATOR_CAST(std::uint64_t, SIZE_T) HeapDeCommitFreeBlockThreshold;
 
     ULONG NumberOfHeaps;
     ULONG MaximumNumberOfHeaps;
