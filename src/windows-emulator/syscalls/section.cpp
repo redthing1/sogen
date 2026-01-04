@@ -589,7 +589,7 @@ namespace syscalls
             return STATUS_SUCCESS;
         }
 
-        if (c.proc.dbwin_buffer && base_address >= c.proc.dbwin_buffer && base_address < c.proc.dbwin_buffer + c.proc.dbwin_buffer_size)
+        if (c.proc.dbwin_buffer && is_within_start_and_length(base_address, c.proc.dbwin_buffer, c.proc.dbwin_buffer_size))
         {
             const auto address = c.proc.dbwin_buffer;
             c.proc.dbwin_buffer = 0;
