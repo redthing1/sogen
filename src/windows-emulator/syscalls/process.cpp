@@ -71,12 +71,12 @@ namespace syscalls
             {
                 return STATUS_DATATYPE_MISALIGNMENT;
             }
-            
+
             if (return_length.value() == 0)
             {
                 return STATUS_PORT_NOT_SET;
             }
-            
+
             if (!return_length_info.is_reserved)
             {
                 return STATUS_ACCESS_VIOLATION;
@@ -229,8 +229,7 @@ namespace syscalls
             || info_class == ProcessDynamicFunctionTableInformation      //
             || info_class == ProcessPriorityBoost                        //
             || info_class == ProcessPriorityClassEx                      //
-            || info_class == ProcessPriorityClass
-            || info_class == ProcessAffinityMask)
+            || info_class == ProcessPriorityClass || info_class == ProcessAffinityMask)
         {
             return STATUS_SUCCESS;
         }
