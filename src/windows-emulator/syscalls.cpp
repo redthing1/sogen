@@ -83,6 +83,9 @@ namespace syscalls
     NTSTATUS handle_NtOpenDirectoryObject(const syscall_context& c, emulator_object<handle> directory_handle,
                                           ACCESS_MASK /*desired_access*/,
                                           emulator_object<OBJECT_ATTRIBUTES<EmulatorTraits<Emu64>>> object_attributes);
+    NTSTATUS handle_NtCreateDirectoryObject(const syscall_context& /*c*/, emulator_object<handle> /*directory_handle*/,
+                                            ACCESS_MASK /*desired_access*/,
+                                            emulator_object<OBJECT_ATTRIBUTES<EmulatorTraits<Emu64>>> object_attributes);
     NTSTATUS handle_NtOpenSymbolicLinkObject(const syscall_context& c, emulator_object<handle> link_handle, ACCESS_MASK /*desired_access*/,
                                              emulator_object<OBJECT_ATTRIBUTES<EmulatorTraits<Emu64>>> object_attributes);
     NTSTATUS handle_NtQuerySymbolicLinkObject(const syscall_context& c, handle link_handle,
@@ -1056,6 +1059,7 @@ void syscall_dispatcher::add_handlers(std::map<std::string, syscall_handler>& ha
     add_handler(NtProtectVirtualMemory);
     add_handler(NtLockVirtualMemory);
     add_handler(NtOpenDirectoryObject);
+    add_handler(NtCreateDirectoryObject);
     add_handler(NtTraceEvent);
     add_handler(NtAllocateVirtualMemoryEx);
     add_handler(NtCreateIoCompletion);

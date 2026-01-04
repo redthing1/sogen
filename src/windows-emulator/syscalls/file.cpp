@@ -1220,6 +1220,20 @@ namespace syscalls
         return STATUS_NOT_SUPPORTED;
     }
 
+    NTSTATUS handle_NtCreateDirectoryObject(const syscall_context& /*c*/, const emulator_object<handle> /*directory_handle*/,
+                                            const ACCESS_MASK /*desired_access*/,
+                                            const emulator_object<OBJECT_ATTRIBUTES<EmulatorTraits<Emu64>>> object_attributes)
+    {
+        const auto attributes = object_attributes.read();
+
+        if (attributes.ObjectName == 0)
+        {
+            return STATUS_INVALID_PARAMETER;
+        }
+
+        return STATUS_NOT_SUPPORTED;
+    }
+
     NTSTATUS handle_NtOpenSymbolicLinkObject(const syscall_context& c, const emulator_object<handle> link_handle,
                                              ACCESS_MASK /*desired_access*/,
                                              const emulator_object<OBJECT_ATTRIBUTES<EmulatorTraits<Emu64>>> object_attributes)
