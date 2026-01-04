@@ -479,15 +479,15 @@ bool memory_manager::release_memory(const uint64_t address, size_t size)
     committed_region_map left_committed{};
     committed_region_map right_committed{};
 
-    for (auto& sub_region : committed_regions)
+    for (const auto& sub_region : committed_regions)
     {
         if (sub_region.first < aligned_start)
         {
-            left_committed.emplace(sub_region.first, std::move(sub_region.second));
+            left_committed.emplace(sub_region.first, sub_region.second);
         }
         else if (sub_region.first >= aligned_end)
         {
-            right_committed.emplace(sub_region.first, std::move(sub_region.second));
+            right_committed.emplace(sub_region.first, sub_region.second);
         }
     }
 
