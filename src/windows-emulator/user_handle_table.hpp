@@ -10,6 +10,7 @@ class user_handle_table
     void setup(memory_manager& memory)
     {
         memory_ = &memory;
+        used_indices_.resize(MAX_HANDLES, false);
 
         const auto server_info_size = static_cast<size_t>(page_align_up(sizeof(USER_SERVERINFO)));
         server_info_addr_ = memory.allocate_memory(server_info_size, memory_permission::read);
@@ -87,7 +88,7 @@ class user_handle_table
         buffer.write(server_info_addr_);
         buffer.write(handle_table_addr_);
         buffer.write(display_info_addr_);
-        buffer.write(used_indices_);
+        buffer.write_vector(used_indices_);
     }
 
     void deserialize(utils::buffer_deserializer& buffer)
@@ -95,7 +96,7 @@ class user_handle_table
         buffer.read(server_info_addr_);
         buffer.read(handle_table_addr_);
         buffer.read(display_info_addr_);
-        buffer.read(used_indices_);
+        buffer.read_vector(used_indices_);
     }
 
   private:
@@ -127,7 +128,7 @@ class user_handle_table
     uint64_t server_info_addr_{};
     uint64_t handle_table_addr_{};
     uint64_t display_info_addr_{};
-    std::array<bool, MAX_HANDLES> used_indices_{};
+    std::vector<bool> used_indices_{};
     memory_manager* memory_{};
 };
 
