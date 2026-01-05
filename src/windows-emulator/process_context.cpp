@@ -196,7 +196,7 @@ namespace
             if (value->name == "CurrentBuildNumber" || value->name == "CurrentBuild")
             {
                 const auto* s = reinterpret_cast<const char16_t*>(value->data.data());
-                return utils::string::parse_number<uint32_t>(std::u16string_view(s));
+                return static_cast<uint32_t>(std::strtoul(u16_to_u8(s).c_str(), nullptr, 10));
             }
         }
 
