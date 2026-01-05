@@ -40,8 +40,7 @@ namespace utils
         /// TODO: find better solution for ARM and Figure out better CPU base frequency heuristics
         virtual uint64_t timestamp_counter()
         {
-#if defined(_M_X64) || defined(_M_AMD64) || defined(_M_IX86) || defined(__x86_64__) || defined(__i386__) || \
-    defined(__amd64__)
+#if defined(_M_X64) || defined(_M_AMD64) || defined(_M_IX86) || defined(__x86_64__) || defined(__i386__) || defined(__amd64__)
             return __rdtsc(); // any x86 system will have this instrinsic
 #else
             const auto count = std::chrono::high_resolution_clock::now().time_since_epoch().count();
@@ -53,8 +52,7 @@ namespace utils
     class tick_clock : public clock
     {
       public:
-        tick_clock(const uint64_t frequency = 1, const system_time_point system_start = {},
-                   const steady_time_point steady_start = {})
+        tick_clock(const uint64_t frequency = 1, const system_time_point system_start = {}, const steady_time_point steady_start = {})
             : frequency_(frequency),
               system_start_(system_start),
               steady_start_(steady_start)
@@ -104,7 +102,9 @@ namespace utils
         }
     };
 
-    std::chrono::steady_clock::time_point convert_delay_interval_to_time_point(clock& c, LARGE_INTEGER delay_interval);
+    std::chrono::steady_clock::time_point convert_delay_interval_to_time_point(clock& c, LARGE_INTEGER delay_interval,
+                                                                               LARGE_INTEGER infinite_value = {.LowPart = 0,
+                                                                                                               .HighPart = -2147483648});
 
     KSYSTEM_TIME convert_to_ksystem_time(const std::chrono::system_clock::time_point& tp);
     void convert_to_ksystem_time(volatile KSYSTEM_TIME* dest, const std::chrono::system_clock::time_point& tp);

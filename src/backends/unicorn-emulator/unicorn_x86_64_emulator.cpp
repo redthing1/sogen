@@ -2,12 +2,13 @@
 #include "unicorn_x86_64_emulator.hpp"
 
 #include <array>
+#include <ranges>
+#include <optional>
 
 #include "unicorn_memory_regions.hpp"
 #include "unicorn_hook.hpp"
 
 #include "function_wrapper.hpp"
-#include <ranges>
 
 namespace unicorn
 {
@@ -19,6 +20,15 @@ namespace unicorn
         static_assert(static_cast<uint32_t>(memory_permission::all) == UC_PROT_ALL);
 
         static_assert(static_cast<uint32_t>(x86_register::end) == UC_X86_REG_ENDING);
+
+        constexpr auto IA32_FS_BASE_MSR = 0xC0000100;
+        constexpr auto IA32_GS_BASE_MSR = 0xC0000101;
+
+        struct msr_value
+        {
+            uint64_t id{};
+            uint64_t value{};
+        };
 
         uc_x86_insn map_hookable_instruction(const x86_hookable_instructions instruction)
         {
@@ -190,7 +200,7 @@ namespace unicorn
             unicorn_x86_64_emulator()
             {
                 uce(uc_open(UC_ARCH_X86, UC_MODE_64, &this->uc_));
-                uce(uc_ctl_set_cpu_model(this->uc_, UC_CPU_X86_EPYC_ROME));
+                // uce(uc_ctl_set_cpu_model(this->uc_, UC_CPU_X86_EPYC_ROME));
 
 #ifndef OS_WINDOWS
 #pragma GCC diagnostic push
@@ -206,14 +216,15 @@ namespace unicorn
 
             ~unicorn_x86_64_emulator() override
             {
-                this->hooks_.clear();
+                reset_object_with_delayed_destruction(this->hooks_);
                 uc_close(this->uc_);
             }
 
             void start(const size_t count) override
             {
-                this->has_violation_ = false;
-                const auto start = this->read_instruction_pointer();
+                const auto start = this->violation_ip_.value_or(this->read_instruction_pointer());
+                this->violation_ip_ = std::nullopt;
+
                 constexpr auto end = std::numeric_limits<uint64_t>::max();
                 const auto res = uc_emu_start(*this, start, end, 0, count);
                 if (res == UC_ERR_OK)
@@ -229,7 +240,7 @@ namespace unicorn
                     res == UC_ERR_WRITE_PROT ||     //
                     res == UC_ERR_FETCH_PROT;
 
-                if (!is_violation || !this->has_violation_)
+                if (!is_violation || !this->has_violation())
                 {
                     uce(res);
                 }
@@ -242,21 +253,15 @@ namespace unicorn
 
             void load_gdt(const pointer_type address, const uint32_t limit) override
             {
-                const std::array<uint64_t, 4> gdtr = {0, address, limit, 0};
-                this->write_register(x86_register::gdtr, gdtr.data(), gdtr.size() * sizeof(uint64_t));
+                uc_x86_mmr gdt{};
+                gdt.base = address;
+                gdt.limit = limit;
+
+                this->write_register(x86_register::gdtr, &gdt, sizeof(gdt));
             }
 
             void set_segment_base(const x86_register base, const pointer_type value) override
             {
-                constexpr auto IA32_FS_BASE_MSR = 0xC0000100;
-                constexpr auto IA32_GS_BASE_MSR = 0xC0000101;
-
-                struct msr_value
-                {
-                    uint64_t id{};
-                    uint64_t value{};
-                };
-
                 msr_value msr_val{
                     .id = 0,
                     .value = value,
@@ -279,6 +284,30 @@ namespace unicorn
                 this->write_register(x86_register::msr, &msr_val, sizeof(msr_val));
             }
 
+            pointer_type get_segment_base(const x86_register base) override
+            {
+                msr_value msr_val{};
+
+                switch (base)
+                {
+                case x86_register::fs:
+                case x86_register::fs_base:
+                    msr_val.id = IA32_FS_BASE_MSR;
+                    break;
+                case x86_register::gs:
+                case x86_register::gs_base:
+                    msr_val.id = IA32_GS_BASE_MSR;
+                    break;
+                default:
+                    return 0;
+                }
+
+                size_t result_size = sizeof(msr_value);
+                uce(uc_reg_read2(*this, (int)x86_register::msr, &msr_val, &result_size));
+
+                return msr_val.value;
+            }
+
             size_t write_raw_register(const int reg, const void* value, const size_t size) override
             {
                 auto result_size = size;
@@ -286,8 +315,7 @@ namespace unicorn
 
                 if (size < result_size)
                 {
-                    throw std::runtime_error("Register size mismatch: " + std::to_string(size) +
-                                             " != " + std::to_string(result_size));
+                    throw std::runtime_error("Register size mismatch: " + std::to_string(size) + " != " + std::to_string(result_size));
                 }
 
                 return result_size;
@@ -301,15 +329,29 @@ namespace unicorn
 
                 if (size < result_size)
                 {
-                    throw std::runtime_error("Register size mismatch: " + std::to_string(size) +
-                                             " != " + std::to_string(result_size));
+                    throw std::runtime_error("Register size mismatch: " + std::to_string(size) + " != " + std::to_string(result_size));
                 }
 
                 return result_size;
             }
 
-            void map_mmio(const uint64_t address, const size_t size, mmio_read_callback read_cb,
-                          mmio_write_callback write_cb) override
+            bool read_descriptor_table(const int reg, descriptor_table_register& table) override
+            {
+                if (reg != static_cast<int>(x86_register::gdtr) && reg != static_cast<int>(x86_register::idtr))
+                {
+                    return false;
+                }
+
+                uc_x86_mmr gdt{};
+
+                this->read_register(x86_register::gdtr, &gdt, sizeof(gdt));
+
+                table.base = gdt.base;
+                table.limit = gdt.limit;
+                return true;
+            }
+
+            void map_mmio(const uint64_t address, const size_t size, mmio_read_callback read_cb, mmio_write_callback write_cb) override
             {
                 auto read_wrapper = [c = std::move(read_cb)](uc_engine*, const uint64_t addr, const uint32_t s) {
                     assert_64bit_limit(s);
@@ -318,8 +360,7 @@ namespace unicorn
                     return value;
                 };
 
-                auto write_wrapper = [c = std::move(write_cb)](uc_engine*, const uint64_t addr, const uint32_t s,
-                                                               const uint64_t value) {
+                auto write_wrapper = [c = std::move(write_cb)](uc_engine*, const uint64_t addr, const uint32_t s, const uint64_t value) {
                     assert_64bit_limit(s);
                     c(addr, &value, s);
                 };
@@ -329,8 +370,8 @@ namespace unicorn
                     .write = mmio_callbacks::write_wrapper(std::move(write_wrapper)),
                 };
 
-                uce(uc_mmio_map(*this, address, size, cb.read.get_c_function(), cb.read.get_user_data(),
-                                cb.write.get_c_function(), cb.write.get_user_data()));
+                uce(uc_mmio_map(*this, address, size, cb.read.get_c_function(), cb.read.get_user_data(), cb.write.get_c_function(),
+                                cb.write.get_user_data()));
 
                 this->mmio_[address] = std::move(cb);
             }
@@ -361,13 +402,17 @@ namespace unicorn
                 uce(uc_mem_read(*this, address, data, size));
             }
 
+            bool try_write_memory(const uint64_t address, const void* data, const size_t size) override
+            {
+                return uc_mem_write(*this, address, data, size) == UC_ERR_OK;
+            }
+
             void write_memory(const uint64_t address, const void* data, const size_t size) override
             {
                 uce(uc_mem_write(*this, address, data, size));
             }
 
-            void apply_memory_protection(const uint64_t address, const size_t size,
-                                         memory_permission permissions) override
+            void apply_memory_protection(const uint64_t address, const size_t size, memory_permission permissions) override
             {
                 uce(uc_mem_protect(*this, address, size, static_cast<uint32_t>(permissions)));
             }
@@ -382,34 +427,32 @@ namespace unicorn
                 if (inst_type == x86_hookable_instructions::invalid)
                 {
                     function_wrapper<int, uc_engine*> wrapper([c = std::move(callback)](uc_engine*) {
-                        return (c() == instruction_hook_continuation::skip_instruction) ? 1 : 0;
+                        return (c(0) == instruction_hook_continuation::skip_instruction) ? 1 : 0;
                     });
 
-                    uce(uc_hook_add(*this, hook.make_reference(), UC_HOOK_INSN_INVALID, wrapper.get_function(),
-                                    wrapper.get_user_data(), 0, std::numeric_limits<pointer_type>::max()));
+                    uce(uc_hook_add(*this, hook.make_reference(), UC_HOOK_INSN_INVALID, wrapper.get_function(), wrapper.get_user_data(), 0,
+                                    std::numeric_limits<pointer_type>::max()));
                     container->add(std::move(wrapper), std::move(hook));
                 }
                 else if (inst_type == x86_hookable_instructions::syscall)
                 {
-                    function_wrapper<void, uc_engine*> wrapper([c = std::move(callback)](uc_engine*) { c(); });
+                    function_wrapper<void, uc_engine*> wrapper([c = std::move(callback)](uc_engine*) { (void)c(0); });
 
                     const auto uc_instruction = map_hookable_instruction(inst_type);
-                    uce(uc_hook_add(*this, hook.make_reference(), UC_HOOK_INSN, wrapper.get_function(),
-                                    wrapper.get_user_data(), 0, std::numeric_limits<pointer_type>::max(),
-                                    uc_instruction));
+                    uce(uc_hook_add(*this, hook.make_reference(), UC_HOOK_INSN, wrapper.get_function(), wrapper.get_user_data(), 0,
+                                    std::numeric_limits<pointer_type>::max(), uc_instruction));
 
                     container->add(std::move(wrapper), std::move(hook));
                 }
                 else
                 {
                     function_wrapper<int, uc_engine*> wrapper([c = std::move(callback)](uc_engine*) {
-                        return (c() == instruction_hook_continuation::skip_instruction) ? 1 : 0;
+                        return (c(0) == instruction_hook_continuation::skip_instruction) ? 1 : 0;
                     });
 
                     const auto uc_instruction = map_hookable_instruction(inst_type);
-                    uce(uc_hook_add(*this, hook.make_reference(), UC_HOOK_INSN, wrapper.get_function(),
-                                    wrapper.get_user_data(), 0, std::numeric_limits<pointer_type>::max(),
-                                    uc_instruction));
+                    uce(uc_hook_add(*this, hook.make_reference(), UC_HOOK_INSN, wrapper.get_function(), wrapper.get_user_data(), 0,
+                                    std::numeric_limits<pointer_type>::max(), uc_instruction));
 
                     container->add(std::move(wrapper), std::move(hook));
                 }
@@ -435,8 +478,8 @@ namespace unicorn
                 unicorn_hook hook{*this};
                 auto container = std::make_unique<hook_container>();
 
-                uce(uc_hook_add(*this, hook.make_reference(), UC_HOOK_BLOCK, wrapper.get_function(),
-                                wrapper.get_user_data(), 0, std::numeric_limits<pointer_type>::max()));
+                uce(uc_hook_add(*this, hook.make_reference(), UC_HOOK_BLOCK, wrapper.get_function(), wrapper.get_user_data(), 0,
+                                std::numeric_limits<pointer_type>::max()));
 
                 container->add(std::move(wrapper), std::move(hook));
 
@@ -453,8 +496,8 @@ namespace unicorn
                 unicorn_hook hook{*this};
                 auto container = std::make_unique<hook_container>();
 
-                uce(uc_hook_add(*this, hook.make_reference(), UC_HOOK_INTR, wrapper.get_function(),
-                                wrapper.get_user_data(), 0, std::numeric_limits<pointer_type>::max()));
+                uce(uc_hook_add(*this, hook.make_reference(), UC_HOOK_INTR, wrapper.get_function(), wrapper.get_user_data(), 0,
+                                std::numeric_limits<pointer_type>::max()));
 
                 container->add(std::move(wrapper), std::move(hook));
 
@@ -466,27 +509,36 @@ namespace unicorn
             emulator_hook* hook_memory_violation(memory_violation_hook_callback callback) override
             {
                 function_wrapper<bool, uc_engine*, uc_mem_type, uint64_t, int, int64_t> wrapper(
-                    [c = std::move(callback), this](uc_engine*, const uc_mem_type type, const uint64_t address,
-                                                    const int size, const int64_t) {
+                    [c = std::move(callback), this](uc_engine*, const uc_mem_type type, const uint64_t address, const int size,
+                                                    const int64_t) {
                         const auto ip = this->read_instruction_pointer();
 
                         assert(size >= 0);
                         const auto operation = map_memory_operation(type);
                         const auto violation = map_memory_violation_type(type);
 
-                        const auto resume = c(address, static_cast<uint64_t>(size), operation, violation) ==
-                                            memory_violation_continuation::resume;
+                        const auto result = c(address, static_cast<uint64_t>(size), operation, violation);
+                        const auto restart = result == memory_violation_continuation::restart;
+                        const auto resume = result == memory_violation_continuation::resume || restart;
 
-                        const auto has_ip_changed = ip != this->read_instruction_pointer();
+                        const auto new_ip = this->read_instruction_pointer();
+                        const auto set_ip = ip != new_ip || restart;
 
                         if (!resume)
                         {
                             return false;
                         }
 
-                        this->has_violation_ = resume && has_ip_changed;
+                        if (resume && set_ip)
+                        {
+                            this->violation_ip_ = new_ip;
+                        }
+                        else
+                        {
+                            this->violation_ip_ = std::nullopt;
+                        }
 
-                        if (has_ip_changed)
+                        if (set_ip)
                         {
                             return false;
                         }
@@ -497,8 +549,8 @@ namespace unicorn
                 unicorn_hook hook{*this};
                 auto container = std::make_unique<hook_container>();
 
-                uce(uc_hook_add(*this, hook.make_reference(), UC_HOOK_MEM_INVALID, wrapper.get_function(),
-                                wrapper.get_user_data(), 0, std::numeric_limits<uint64_t>::max()));
+                uce(uc_hook_add(*this, hook.make_reference(), UC_HOOK_MEM_INVALID, wrapper.get_function(), wrapper.get_user_data(), 0,
+                                std::numeric_limits<uint64_t>::max()));
 
                 container->add(std::move(wrapper), std::move(hook));
 
@@ -507,11 +559,9 @@ namespace unicorn
                 return result;
             }
 
-            emulator_hook* hook_memory_execution(const uint64_t address, const uint64_t size,
-                                                 memory_execution_hook_callback callback)
+            emulator_hook* hook_memory_execution(const uint64_t address, const uint64_t size, memory_execution_hook_callback callback)
             {
-                auto exec_wrapper = [c = std::move(callback)](uc_engine*, const uint64_t address,
-                                                              const uint32_t /*size*/) {
+                auto exec_wrapper = [c = std::move(callback)](uc_engine*, const uint64_t address, const uint32_t /*size*/) {
                     c(address); //
                 };
 
@@ -519,8 +569,8 @@ namespace unicorn
 
                 unicorn_hook hook{*this};
 
-                uce(uc_hook_add(*this, hook.make_reference(), UC_HOOK_CODE, wrapper.get_function(),
-                                wrapper.get_user_data(), address, address + size));
+                uce(uc_hook_add(*this, hook.make_reference(), UC_HOOK_CODE, wrapper.get_function(), wrapper.get_user_data(), address,
+                                calc_end_address(address, size)));
 
                 auto* container = this->create_hook_container();
                 container->add(std::move(wrapper), std::move(hook));
@@ -532,17 +582,14 @@ namespace unicorn
                 return this->hook_memory_execution(0, std::numeric_limits<uint64_t>::max(), std::move(callback));
             }
 
-            emulator_hook* hook_memory_execution(const uint64_t address,
-                                                 memory_execution_hook_callback callback) override
+            emulator_hook* hook_memory_execution(const uint64_t address, memory_execution_hook_callback callback) override
             {
                 return this->hook_memory_execution(address, 1, std::move(callback));
             }
 
-            emulator_hook* hook_memory_read(const uint64_t address, const uint64_t size,
-                                            memory_access_hook_callback callback) override
+            emulator_hook* hook_memory_read(const uint64_t address, const uint64_t size, memory_access_hook_callback callback) override
             {
-                auto read_wrapper = [c = std::move(callback)](uc_engine*, const uc_mem_type type,
-                                                              const uint64_t address, const int length,
+                auto read_wrapper = [c = std::move(callback)](uc_engine*, const uc_mem_type type, const uint64_t address, const int length,
                                                               const uint64_t value) {
                     const auto operation = map_memory_operation(type);
                     if (operation == memory_operation::read && length > 0)
@@ -551,23 +598,22 @@ namespace unicorn
                     }
                 };
 
-                function_wrapper<void, uc_engine*, uc_mem_type, uint64_t, int, int64_t> wrapper(
-                    std::move(read_wrapper));
+                function_wrapper<void, uc_engine*, uc_mem_type, uint64_t, int, int64_t> wrapper(std::move(read_wrapper));
 
                 unicorn_hook hook{*this};
-                uce(uc_hook_add(*this, hook.make_reference(), UC_HOOK_MEM_READ_AFTER, wrapper.get_function(),
-                                wrapper.get_user_data(), address, address + size));
+
+                uce(uc_hook_add(*this, hook.make_reference(), UC_HOOK_MEM_READ_AFTER, wrapper.get_function(), wrapper.get_user_data(),
+                                address, calc_end_address(address, size)));
 
                 auto* container = this->create_hook_container();
                 container->add(std::move(wrapper), std::move(hook));
                 return container->as_opaque_hook();
             }
 
-            emulator_hook* hook_memory_write(const uint64_t address, const uint64_t size,
-                                             memory_access_hook_callback callback) override
+            emulator_hook* hook_memory_write(const uint64_t address, const uint64_t size, memory_access_hook_callback callback) override
             {
-                auto write_wrapper = [c = std::move(callback)](uc_engine*, const uc_mem_type type, const uint64_t addr,
-                                                               const int length, const uint64_t value) {
+                auto write_wrapper = [c = std::move(callback)](uc_engine*, const uc_mem_type type, const uint64_t addr, const int length,
+                                                               const uint64_t value) {
                     const auto operation = map_memory_operation(type);
                     if (operation == memory_operation::write && length > 0)
                     {
@@ -575,13 +621,12 @@ namespace unicorn
                     }
                 };
 
-                function_wrapper<void, uc_engine*, uc_mem_type, uint64_t, int, int64_t> wrapper(
-                    std::move(write_wrapper));
+                function_wrapper<void, uc_engine*, uc_mem_type, uint64_t, int, int64_t> wrapper(std::move(write_wrapper));
 
                 unicorn_hook hook{*this};
 
-                uce(uc_hook_add(*this, hook.make_reference(), UC_HOOK_MEM_WRITE, wrapper.get_function(),
-                                wrapper.get_user_data(), address, address + size));
+                uce(uc_hook_add(*this, hook.make_reference(), UC_HOOK_MEM_WRITE, wrapper.get_function(), wrapper.get_user_data(), address,
+                                calc_end_address(address, size)));
 
                 auto* container = this->create_hook_container();
                 container->add(std::move(wrapper), std::move(hook));
@@ -598,14 +643,14 @@ namespace unicorn
 
             void delete_hook(emulator_hook* hook) override
             {
-                const auto entry =
-                    std::ranges::find_if(this->hooks_, [&](const std::unique_ptr<hook_object>& hook_ptr) {
-                        return hook_ptr->as_opaque_hook() == hook;
-                    });
+                const auto entry = std::ranges::find_if(
+                    this->hooks_, [&](const std::unique_ptr<hook_object>& hook_ptr) { return hook_ptr->as_opaque_hook() == hook; });
 
                 if (entry != this->hooks_.end())
                 {
+                    const auto obj = std::move(*entry);
                     this->hooks_.erase(entry);
+                    (void)obj;
                 }
             }
 
@@ -657,7 +702,7 @@ namespace unicorn
 
             bool has_violation() const override
             {
-                return this->has_violation_;
+                return this->violation_ip_.has_value();
             }
 
             std::string get_name() const override
@@ -668,9 +713,30 @@ namespace unicorn
           private:
             mutable bool has_snapshots_{false};
             uc_engine* uc_{};
-            bool has_violation_{false};
+            std::optional<uint64_t> violation_ip_{};
             std::vector<std::unique_ptr<hook_object>> hooks_{};
             std::unordered_map<uint64_t, mmio_callbacks> mmio_{};
+
+            static uint64_t calc_end_address(const uint64_t address, uint64_t size)
+            {
+                if (size == 0)
+                {
+                    size = 1;
+                }
+                else if (size == std::numeric_limits<uint64_t>::max())
+                {
+                    size = 0;
+                }
+
+                auto end_address = address + size - 1;
+
+                if (end_address < address)
+                {
+                    end_address = std::numeric_limits<uint64_t>::max();
+                }
+
+                return end_address;
+            }
         };
     }
 

@@ -1,11 +1,9 @@
 name: Build
 
 on:
-  schedule:
-    - cron: "0 0 * * *"
   push:
     branches:
-      - "**"
+      - "main"
   pull_request:
     branches:
       - "**"
@@ -34,10 +32,10 @@ jobs:
     name: Run Clang Tidy
     runs-on: ubuntu-24.04
     env:
-      LLVM_VERSION: 20
+      LLVM_VERSION: 21
     steps:
       - name: Checkout Source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -45,16 +43,21 @@ jobs:
         uses: seanmiddleditch/gha-setup-ninja@v6
 
       - name: Install Clang
-        run: |
-          wget https://apt.llvm.org/llvm.sh
-          chmod +x llvm.sh
-          sudo ./llvm.sh ${{ env.LLVM_VERSION }}
-          sudo apt install -y clang-tidy-${{ env.LLVM_VERSION }}
-          sudo apt install -y clang-${{ env.LLVM_VERSION }} lld-${{ env.LLVM_VERSION }}
-          sudo update-alternatives --install /usr/bin/cc cc /usr/bin/clang-${{ env.LLVM_VERSION }} 100
-          sudo update-alternatives --install /usr/bin/c++ c++ /usr/bin/clang++-${{ env.LLVM_VERSION }} 100
-          sudo update-alternatives --set cc /usr/bin/clang-${{ env.LLVM_VERSION }}
-          sudo update-alternatives --set c++ /usr/bin/clang++-${{ env.LLVM_VERSION }}
+        uses: nick-fields/retry@v3.0.2
+        with:
+          max_attempts: 5
+          timeout_minutes: 15
+          retry_wait_seconds: 60
+          command: |
+            wget https://apt.llvm.org/llvm.sh
+            chmod +x llvm.sh
+            sudo ./llvm.sh ${{ env.LLVM_VERSION }}
+            sudo apt install -y clang-tidy-${{ env.LLVM_VERSION }}
+            sudo apt install -y clang-${{ env.LLVM_VERSION }} lld-${{ env.LLVM_VERSION }}
+            sudo update-alternatives --install /usr/bin/cc cc /usr/bin/clang-${{ env.LLVM_VERSION }} 100
+            sudo update-alternatives --install /usr/bin/c++ c++ /usr/bin/clang++-${{ env.LLVM_VERSION }} 100
+            sudo update-alternatives --set cc /usr/bin/clang-${{ env.LLVM_VERSION }}
+            sudo update-alternatives --set c++ /usr/bin/clang++-${{ env.LLVM_VERSION }}
 
       - name: CMake Build
         run: cmake --preset=release -DMOMO_ENABLE_CLANG_TIDY=On && cmake --build --preset=release
@@ -64,13 +67,12 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout Source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Verify Formatting
-        uses: jidicula/clang-format-action@v4.15.0
+        uses: jidicula/clang-format-action@v4.16.0
         with:
-          clang-format-version: "20"
-          check-path: "src"
+          clang-format-version: "21"
 
       - name: Verify Page Formatting
         run: cd page && npx --yes prettier . --check
@@ -80,7 +82,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout Source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -94,7 +96,7 @@ jobs:
         run: cmake --preset=release && cmake --build --preset=release -t dump-apiset
 
       - name: Upload Artifacts
-        uses: pyTooling/upload-artifact@v4
+        uses: pyTooling/upload-artifact@v6
         with:
           name: Temp API Set Dumper
           working-directory: build/release/artifacts/
@@ -121,7 +123,7 @@ jobs:
           #  runner: windows-2019
     steps:
       - name: Checkout Source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download DirectX Runtime
         run: curl --connect-timeout 20 --max-time 200 --retry 5 --retry-delay 2 --retry-max-time 200 -L -o directx_Jun2010_redist.exe https://download.microsoft.com/download/8/4/A/84A35BF1-DAFE-4AE8-82AF-AD2AE20B6B14/directx_Jun2010_redist.exe
@@ -133,7 +135,7 @@ jobs:
         run: "cmd /c \"start /wait .\\dxrt\\dxsetup.exe /silent\""
 
       - name: Download API Set Dumper
-        uses: pyTooling/download-artifact@v4
+        uses: pyTooling/download-artifact@v7
         with:
           name: Temp API Set Dumper
           path: build/release/artifacts
@@ -145,7 +147,7 @@ jobs:
         run: cd root && ../build/release/artifacts/dump-apiset.exe
 
       - name: Upload Artifacts
-        uses: pyTooling/upload-artifact@v4
+        uses: pyTooling/upload-artifact@v6
         with:
           name: ${{ matrix.platform }} Emulation Root
           path: "*"
@@ -171,13 +173,14 @@ jobs:
           - Android x86_64
           - Android arm64-v8a
           - Emscripten Web
+          - Emscripten Web Memory 64
           - Emscripten Node.js
         configuration:
-          - Debug
+          #- Debug
           - Release
         include:
-          - configuration: Debug
-            preset: debug
+          #- configuration: Debug
+          #  preset: debug
           - configuration: Release
             preset: release
           - platform: Windows x86
@@ -197,7 +200,7 @@ jobs:
             runner: ubuntu-24.04
           - platform: Linux x86_64 Clang
             runner: ubuntu-24.04
-            clang-version: 20
+            clang-version: 21
           - platform: iOS arm64
             runner: macos-latest
             rust-target: aarch64-apple-ios
@@ -205,7 +208,7 @@ jobs:
           - platform: macOS arm64
             runner: macos-latest
           - platform: macOS x86_64
-            runner: macos-13
+            runner: macos-15-intel
           - platform: Android x86_64
             runner: ubuntu-24.04
             abi: x86_64
@@ -219,12 +222,15 @@ jobs:
           - platform: Emscripten Web
             runner: ubuntu-24.04
             cmake-options: "-DMOMO_ENABLE_RUST_CODE=Off -DCMAKE_TOOLCHAIN_FILE=$(dirname $(which emcc))/cmake/Modules/Platform/Emscripten.cmake"
+          - platform: Emscripten Web Memory 64
+            runner: ubuntu-24.04
+            cmake-options: "-DMOMO_ENABLE_RUST_CODE=Off -DMOMO_EMSCRIPTEN_MEMORY64=On -DCMAKE_TOOLCHAIN_FILE=$(dirname $(which emcc))/cmake/Modules/Platform/Emscripten.cmake"
           - platform: Emscripten Node.js
             runner: ubuntu-24.04
             cmake-options: "-DMOMO_EMSCRIPTEN_SUPPORT_NODEJS=On -DMOMO_ENABLE_RUST_CODE=Off -DCMAKE_TOOLCHAIN_FILE=$(dirname $(which emcc))/cmake/Modules/Platform/Emscripten.cmake"
     steps:
       - name: Checkout Source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -240,19 +246,24 @@ jobs:
         uses: mymindstorm/setup-emsdk@v14
 
       - name: Install Clang
+        uses: nick-fields/retry@v3.0.2
         if: "${{ matrix.platform == 'Linux x86_64 Clang' }}"
-        run: |
-          wget https://apt.llvm.org/llvm.sh
-          chmod +x llvm.sh
-          sudo ./llvm.sh ${{ matrix.clang-version }}
-          sudo apt install -y clang-${{ matrix.clang-version }} lld-${{ matrix.clang-version }}
-          sudo update-alternatives --install /usr/bin/cc cc /usr/bin/clang-${{ matrix.clang-version }} 100
-          sudo update-alternatives --install /usr/bin/c++ c++ /usr/bin/clang++-${{ matrix.clang-version }} 100
-          sudo update-alternatives --set cc /usr/bin/clang-${{ matrix.clang-version }}
-          sudo update-alternatives --set c++ /usr/bin/clang++-${{ matrix.clang-version }}
+        with:
+          max_attempts: 5
+          timeout_minutes: 15
+          retry_wait_seconds: 60
+          command: |
+            wget https://apt.llvm.org/llvm.sh
+            chmod +x llvm.sh
+            sudo ./llvm.sh ${{ matrix.clang-version }}
+            sudo apt install -y clang-${{ matrix.clang-version }} lld-${{ matrix.clang-version }}
+            sudo update-alternatives --install /usr/bin/cc cc /usr/bin/clang-${{ matrix.clang-version }} 100
+            sudo update-alternatives --install /usr/bin/c++ c++ /usr/bin/clang++-${{ matrix.clang-version }} 100
+            sudo update-alternatives --set cc /usr/bin/clang-${{ matrix.clang-version }}
+            sudo update-alternatives --set c++ /usr/bin/clang++-${{ matrix.clang-version }}
 
       - name: Set up MinGW
-        uses: egor-tensin/setup-mingw@v2
+        uses: egor-tensin/setup-mingw@v3
         if: "${{ startsWith(matrix.platform, 'MinGW') }}"
         with:
           platform: x64
@@ -281,7 +292,7 @@ jobs:
         run: cmake --preset=${{matrix.preset}} ${{matrix.cmake-options}} && cmake --build --preset=${{matrix.preset}}
 
       - name: Upload Artifacts
-        uses: pyTooling/upload-artifact@v4
+        uses: pyTooling/upload-artifact@v6
         with:
           name: ${{ matrix.platform }} ${{matrix.configuration}} Artifacts
           working-directory: build/${{matrix.preset}}/artifacts/
@@ -289,9 +300,64 @@ jobs:
           retention-days: 1
 
       - name: Upload Test Configuration
-        uses: actions/upload-artifact@v4.6.2
+        uses: actions/upload-artifact@v6.0.0
         with:
           name: Temp ${{ matrix.platform }} ${{matrix.configuration}} Test Config
+          path: "build/${{matrix.preset}}/**/CTestTestfile.cmake"
+          retention-days: 1
+
+  # Release is the same as Release from build step
+  # However, that way the win tests can start without
+  # waiting for other platforms
+  build-isolate:
+    name: Build Isolate
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - Windows x86_64
+        configuration:
+          - Debug
+          - Release
+        include:
+          - configuration: Debug
+            preset: debug
+          - configuration: Release
+            preset: release
+          - platform: Windows x86_64
+            runner: windows-latest
+            devcmd_arch: x64
+    steps:
+      - name: Checkout Source
+        uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Install Ninja
+        uses: seanmiddleditch/gha-setup-ninja@v6
+
+      - name: Enable Developer Command Prompt
+        uses: ilammy/msvc-dev-cmd@v1.13.0
+        if: ${{ startsWith(matrix.platform, 'Windows') }}
+        with:
+          arch: ${{ matrix.devcmd_arch }}
+
+      - name: CMake Build
+        run: cmake --preset=${{matrix.preset}} ${{matrix.cmake-options}} && cmake --build --preset=${{matrix.preset}}
+
+      - name: Upload Artifacts
+        uses: pyTooling/upload-artifact@v6
+        with:
+          name: Temp Isolate ${{ matrix.platform }} ${{matrix.configuration}} Artifacts
+          working-directory: build/${{matrix.preset}}/artifacts/
+          path: "*"
+          retention-days: 1
+
+      - name: Upload Test Configuration
+        uses: actions/upload-artifact@v6.0.0
+        with:
+          name: Temp Isolate ${{ matrix.platform }} ${{matrix.configuration}} Test Config
           path: "build/${{matrix.preset}}/**/CTestTestfile.cmake"
           retention-days: 1
 
@@ -318,11 +384,11 @@ jobs:
           - Windows 2022
           #- Windows 2019
         configuration:
-          - Debug
+          #- Debug
           - Release
         include:
-          - configuration: Debug
-            preset: debug
+          #- configuration: Debug
+          #  preset: debug
           - configuration: Release
             preset: release
           - platform: Windows x86
@@ -338,10 +404,10 @@ jobs:
           - platform: macOS arm64
             runner: macos-latest
           - platform: macOS x86_64
-            runner: macos-13
+            runner: macos-15-intel
     steps:
       - name: Checkout Source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -353,26 +419,26 @@ jobs:
           echo "EMULATOR_ICICLE=${{ matrix.emulator == 'Icicle' }}" >> $GITHUB_ENV
 
       - name: Download Test Configuration
-        uses: actions/download-artifact@v4.3.0
+        uses: actions/download-artifact@v7.0.0
         with:
           name: Temp ${{ matrix.platform }} ${{matrix.configuration}} Test Config
           path: build/${{matrix.preset}}
 
       - name: Download Artifacts
-        uses: pyTooling/download-artifact@v4
+        uses: pyTooling/download-artifact@v7
         with:
           name: ${{ matrix.platform }} ${{matrix.configuration}} Artifacts
           path: build/${{matrix.preset}}/artifacts
 
       - name: Download Windows Artifacts
-        uses: pyTooling/download-artifact@v4
+        uses: pyTooling/download-artifact@v7
         if: "${{ matrix.platform != 'Windows x86_64' }}"
         with:
           name: Windows x86_64 Release Artifacts
           path: build/${{matrix.preset}}/artifacts
 
       - name: Download Emulation Root
-        uses: pyTooling/download-artifact@v4
+        uses: pyTooling/download-artifact@v7
         with:
           name: ${{ matrix.emulation-root }} Emulation Root
           path: build/${{matrix.preset}}/artifacts/root
@@ -391,10 +457,13 @@ jobs:
   win-test:
     name: Windows Test
     runs-on: windows-latest
-    needs: [create-emulation-root, build]
+    needs: [create-emulation-root, build-isolate]
     strategy:
       fail-fast: false
       matrix:
+        configuration:
+          - Debug
+          - Release
         emulator:
           - Unicorn
           - Icicle
@@ -402,9 +471,14 @@ jobs:
           - Windows 2025
           - Windows 2022
           #- Windows 2019
+        include:
+          - configuration: Debug
+            preset: debug
+          - configuration: Release
+            preset: release
     steps:
       - name: Checkout Source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -416,32 +490,32 @@ jobs:
           echo "EMULATOR_ICICLE=${{ matrix.emulator == 'Icicle' }}" >> $GITHUB_ENV
 
       - name: Download Test Configuration
-        uses: actions/download-artifact@v4.3.0
+        uses: actions/download-artifact@v7.0.0
         with:
-          name: Temp Windows x86_64 Release Test Config
-          path: build/release
+          name: Temp Isolate Windows x86_64 ${{ matrix.configuration}} Test Config
+          path: build/${{ matrix.preset }}
 
       - name: Download Artifacts
-        uses: pyTooling/download-artifact@v4
+        uses: pyTooling/download-artifact@v7
         with:
-          name: Windows x86_64 Release Artifacts
-          path: build/release/artifacts
+          name: Temp Isolate Windows x86_64 ${{ matrix.configuration}} Artifacts
+          path: build/${{ matrix.preset }}/artifacts
 
       - name: Download Emulation Root
-        uses: pyTooling/download-artifact@v4
+        uses: pyTooling/download-artifact@v7
         with:
           name: ${{ matrix.emulation-root }} Emulation Root
-          path: build/release/artifacts/root
+          path: build/${{ matrix.preset }}/artifacts/root
 
       - name: Copy Test Sample
-        run: cp build/release/artifacts/test-sample.exe build/release/artifacts/root/filesys/c/
+        run: cp build/${{ matrix.preset }}/artifacts/test-sample.exe build/${{ matrix.preset }}/artifacts/root/filesys/c/
 
       - name: CMake Test
-        run: cd build/release && ctest --verbose -j
+        run: cd build/${{ matrix.preset }} && ctest --verbose -j
         env:
-          EMULATOR_ROOT: ${{github.workspace}}/build/release/artifacts/root
+          EMULATOR_ROOT: ${{github.workspace}}/build/${{ matrix.preset }}/artifacts/root
           EMULATOR_VERBOSE: ${{ github.event.inputs.verbose }}
-          ANALYSIS_SAMPLE: ${{github.workspace}}/build/release/artifacts/test-sample.exe
+          ANALYSIS_SAMPLE: ${{github.workspace}}/build/${{ matrix.preset }}/artifacts/test-sample.exe
 
   smoke-test-node:
     name: Smoke Test Node.js
@@ -449,19 +523,19 @@ jobs:
     needs: [create-emulation-root, build]
     steps:
       - name: Download Artifacts
-        uses: pyTooling/download-artifact@v4
+        uses: pyTooling/download-artifact@v7
         with:
           name: Emscripten Node.js Release Artifacts
           path: build/release/artifacts
 
       - name: Download Windows Artifacts
-        uses: pyTooling/download-artifact@v4
+        uses: pyTooling/download-artifact@v7
         with:
           name: Windows x86_64 Release Artifacts
           path: build/release/artifacts
 
       - name: Download Emulation Root
-        uses: pyTooling/download-artifact@v4
+        uses: pyTooling/download-artifact@v7
         with:
           name: Windows 2022 Emulation Root
           path: build/release/artifacts/root
@@ -481,13 +555,13 @@ jobs:
     needs: [create-emulation-root, build]
     steps:
       - name: Download Artifacts
-        uses: pyTooling/download-artifact@v4
+        uses: pyTooling/download-artifact@v7
         with:
           name: MinGW x86_64 Release Artifacts
           path: build/release/artifacts
 
       - name: Download Emulation Root
-        uses: pyTooling/download-artifact@v4
+        uses: pyTooling/download-artifact@v7
         with:
           name: Windows 2022 Emulation Root
           path: build/release/artifacts/root
@@ -519,11 +593,11 @@ jobs:
           - Windows 2022
           #- Windows 2019
         configuration:
-          - Debug
+          #- Debug
           - Release
         include:
-          - configuration: Debug
-            preset: debug
+          #- configuration: Debug
+          #  preset: debug
           - configuration: Release
             preset: release
           - architecture: x86_64
@@ -539,19 +613,19 @@ jobs:
           sudo udevadm trigger --name-match=kvm
 
       - name: Download Artifacts
-        uses: pyTooling/download-artifact@v4
+        uses: pyTooling/download-artifact@v7
         with:
           name: Android ${{matrix.architecture}} ${{matrix.configuration}} Artifacts
           path: build/${{matrix.preset}}/artifacts
 
       - name: Download Windows Artifacts
-        uses: pyTooling/download-artifact@v4
+        uses: pyTooling/download-artifact@v7
         with:
           name: Windows x86_64 Release Artifacts
           path: build/${{matrix.preset}}/artifacts
 
       - name: Download Emulation Root
-        uses: pyTooling/download-artifact@v4
+        uses: pyTooling/download-artifact@v7
         with:
           name: ${{ matrix.emulation-root }} Emulation Root
           path: build/${{matrix.preset}}/artifacts/root
@@ -560,7 +634,7 @@ jobs:
         run: cp build/${{matrix.preset}}/artifacts/test-sample.exe build/${{matrix.preset}}/artifacts/root/filesys/c/
 
       - name: Run Test
-        uses: reactivecircus/android-emulator-runner@v2.34.0
+        uses: reactivecircus/android-emulator-runner@v2.35.0
         with:
           api-level: 29
           arch: ${{matrix.architecture}}
@@ -572,24 +646,30 @@ jobs:
     needs: [create-emulation-root, build]
     steps:
       - name: Checkout Source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
       - name: Download Emscripten Web Artifacts
-        uses: pyTooling/download-artifact@v4
+        uses: pyTooling/download-artifact@v7
         with:
           name: Emscripten Web Release Artifacts
-          path: build/release/artifacts
+          path: build/release/artifacts/32
+
+      - name: Download Emscripten Web Memory 64 Artifacts
+        uses: pyTooling/download-artifact@v7
+        with:
+          name: Emscripten Web Memory 64 Release Artifacts
+          path: build/release/artifacts/64
 
       - name: Download Windows Artifacts
-        uses: pyTooling/download-artifact@v4
+        uses: pyTooling/download-artifact@v7
         with:
           name: Windows x86_64 Release Artifacts
           path: build/release/artifacts
 
       - name: Download Emulation Root
-        uses: pyTooling/download-artifact@v4
+        uses: pyTooling/download-artifact@v7
         with:
           name: Windows 2022 Emulation Root
           path: build/release/artifacts/root
@@ -602,14 +682,18 @@ jobs:
 
       - name: Copy Files
         run: |
-          cp ./build/release/artifacts/analyzer.js ./page/public/
-          cp ./build/release/artifacts/analyzer.wasm ./page/public/
+          mkdir -p ./page/public/32/
+          mkdir -p ./page/public/64/
+          cp ./build/release/artifacts/32/analyzer.js ./page/public/32/
+          cp ./build/release/artifacts/32/analyzer.wasm ./page/public/32/
+          cp ./build/release/artifacts/64/analyzer.js ./page/public/64/
+          cp ./build/release/artifacts/64/analyzer.wasm ./page/public/64/
 
       - name: Build Page
         run: cd ./page && npm i && npm run build
 
       - name: Upload Page Artifacts
-        uses: pyTooling/upload-artifact@v4
+        uses: pyTooling/upload-artifact@v6
         with:
           name: Page Artifacts
           working-directory: page/dist/
@@ -627,7 +711,7 @@ jobs:
       id-token: write
     steps:
       - name: Download Page Artifacts
-        uses: pyTooling/download-artifact@v4
+        uses: pyTooling/download-artifact@v7
         with:
           name: Page Artifacts
           path: ./page/dist/
@@ -636,7 +720,7 @@ jobs:
         uses: actions/configure-pages@v5
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: ./page/dist
 
@@ -657,6 +741,7 @@ jobs:
         smoke-test-android,
         create-emulation-root,
         build,
+        build-isolate,
         test,
         win-test,
         verify-formatting,
@@ -664,6 +749,7 @@ jobs:
     if: always()
     steps:
       - uses: geekyeggo/delete-artifact@v5
+        continue-on-error: true
         with:
           name: "Temp *"
 

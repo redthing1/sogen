@@ -5,6 +5,8 @@
 #include "memory_manager.hpp"
 #include "memory_utils.hpp"
 #include "address_utils.hpp"
+#include "x86_register.hpp"
+#include "common/segment_utils.hpp"
 
 #include <utils/time.hpp>
 
@@ -80,6 +82,11 @@ class emulator_object
     {
     }
 
+    emulator_object(utils::buffer_deserializer& buffer)
+        : emulator_object(buffer.read<memory_manager_wrapper>().get())
+    {
+    }
+
     uint64_t value() const
     {
         return this->address_;
@@ -100,11 +107,26 @@ class emulator_object
         return this->address_ != 0;
     }
 
+    std::optional<T> try_read(const size_t index = 0) const
+    {
+        T obj{};
+        if (this->memory_->try_read_memory(this->address_ + index * this->size(), &obj, sizeof(obj)))
+        {
+            return obj;
+        }
+        return std::nullopt;
+    }
+
     T read(const size_t index = 0) const
     {
         T obj{};
         this->memory_->read_memory(this->address_ + index * this->size(), &obj, sizeof(obj));
         return obj;
+    }
+
+    bool try_write(const T& value, const size_t index = 0) const
+    {
+        return this->memory_->try_write_memory(this->address_ + index * this->size(), &value, sizeof(value));
     }
 
     void write(const T& value, const size_t index = 0) const
@@ -221,6 +243,14 @@ class emulator_allocator
         return emulator_object<T>(*this->memory_, potential_start);
     }
 
+    template <typename T>
+    emulator_object<T> reserve_page_aligned(const size_t count = 1)
+    {
+        constexpr auto page_aligned_size = page_align_up(sizeof(T));
+        const auto potential_start = this->reserve(page_aligned_size * count, 0x1000);
+        return emulator_object<T>(*this->memory_, potential_start);
+    }
+
     uint64_t copy_string(const std::u16string_view str)
     {
         UNICODE_STRING<EmulatorTraits<Emu64>> uc_str{};
@@ -228,7 +258,8 @@ class emulator_allocator
         return uc_str.Buffer;
     }
 
-    void make_unicode_string(UNICODE_STRING<EmulatorTraits<Emu64>>& result, const std::u16string_view str,
+    template <typename EMU = Emu64>
+    void make_unicode_string(UNICODE_STRING<EmulatorTraits<EMU>>& result, const std::u16string_view str,
                              const std::optional<size_t> maximum_length = std::nullopt)
     {
         constexpr auto element_size = sizeof(str[0]);
@@ -245,13 +276,14 @@ class emulator_allocator
         constexpr std::array<char, element_size> nullbyte{};
         this->memory_->write_memory(string_buffer + total_length, nullbyte.data(), nullbyte.size());
 
-        result.Buffer = string_buffer;
+        result.Buffer = static_cast<EmulatorTraits<EMU>::PVOID>(string_buffer);
         result.Length = static_cast<USHORT>(total_length);
         result.MaximumLength = static_cast<USHORT>(max_length);
     }
 
-    emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>> make_unicode_string(
-        const std::u16string_view str, const std::optional<size_t> maximum_length = std::nullopt)
+    template <typename EMU = Emu64>
+    emulator_object<UNICODE_STRING<EmulatorTraits<EMU>>> make_unicode_string(const std::u16string_view str,
+                                                                             const std::optional<size_t> maximum_length = std::nullopt)
     {
         const auto unicode_string = this->reserve<UNICODE_STRING<EmulatorTraits<Emu64>>>();
 
@@ -307,6 +339,16 @@ class emulator_allocator
         }
     }
 
+    void skip(const uint64_t bytes)
+    {
+        this->active_address_ += bytes;
+    }
+
+    void skip_until(const uint64_t offset)
+    {
+        this->active_address_ = this->address_ + offset;
+    }
+
   private:
     memory_interface* memory_{};
     uint64_t address_{};
@@ -315,8 +357,7 @@ class emulator_allocator
 };
 
 template <typename Element>
-std::basic_string<Element> read_string(memory_interface& mem, const uint64_t address,
-                                       const std::optional<size_t> size = {})
+std::basic_string<Element> read_string(memory_interface& mem, const uint64_t address, const std::optional<size_t> size = {})
 {
     std::basic_string<Element> result{};
 
@@ -356,8 +397,7 @@ inline std::u16string read_unicode_string(const emulator& emu, const UNICODE_STR
     return result;
 }
 
-inline std::u16string read_unicode_string(const emulator& emu,
-                                          const emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>> uc_string)
+inline std::u16string read_unicode_string(const emulator& emu, const emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>> uc_string)
 {
     const auto ucs = uc_string.read();
     return read_unicode_string(emu, ucs);
@@ -366,4 +406,37 @@ inline std::u16string read_unicode_string(const emulator& emu,
 inline std::u16string read_unicode_string(emulator& emu, const uint64_t uc_string)
 {
     return read_unicode_string(emu, emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>>{emu, uc_string});
+}
+
+inline uint64_t get_function_argument(x86_64_emulator& emu, const size_t index, const bool is_syscall = false)
+{
+    bool use_32bit_stack = false;
+
+    if (!is_syscall)
+    {
+        const auto cs_selector = emu.reg<uint16_t>(x86_register::cs);
+        const auto bitness = segment_utils::get_segment_bitness(emu, cs_selector);
+        use_32bit_stack = bitness && *bitness == segment_utils::segment_bitness::bit32;
+    }
+
+    if (use_32bit_stack)
+    {
+        const auto esp = emu.reg<uint32_t>(x86_register::esp);
+        const auto address = static_cast<uint64_t>(esp) + static_cast<uint64_t>((index + 1) * sizeof(uint32_t));
+        return static_cast<uint64_t>(emu.read_memory<uint32_t>(address));
+    }
+
+    switch (index)
+    {
+    case 0:
+        return emu.reg(is_syscall ? x86_register::r10 : x86_register::rcx);
+    case 1:
+        return emu.reg(x86_register::rdx);
+    case 2:
+        return emu.reg(x86_register::r8);
+    case 3:
+        return emu.reg(x86_register::r9);
+    default:
+        return emu.read_stack(index + 1);
+    }
 }

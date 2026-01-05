@@ -27,16 +27,16 @@ namespace
         kusd.TimeZoneBias.High2Time = -17;
         kusd.TimeZoneId = 0x00000002;
         kusd.LargePageMinimum = 0x00200000;
-        kusd.RNGSeedVersion = 0x0000000000000013;
+        kusd.RNGSeedVersion = 0;
         kusd.TimeZoneBiasStamp = 0x00000004;
-        kusd.NtBuildNumber = 0x00006c51;
+        kusd.NtBuildNumber = 19045;
         kusd.NtProductType = NtProductWinNt;
         kusd.ProductTypeIsValid = 0x01;
         kusd.NativeProcessorArchitecture = 0x0009;
         kusd.NtMajorVersion = 0x0000000a;
-        kusd.BootId = 0x0000000b;
-        kusd.SystemExpirationDate.QuadPart = 0x01dc26860a9ff300;
-        kusd.SuiteMask = 0x00000110;
+        kusd.BootId = 0;
+        kusd.SystemExpirationDate.QuadPart = 0;
+        kusd.SuiteMask = 0;
         kusd.MitigationPolicies.MitigationPolicies = 0x0a;
         kusd.MitigationPolicies.NXSupportPolicy = 0x02;
         kusd.MitigationPolicies.SEHValidationPolicy = 0x02;
@@ -48,11 +48,13 @@ namespace
         kusd.FullNumberOfPhysicalPages = 0x0000000000bf0958;
         kusd.TickCount.TickCount.LowPart = 0x001f7f05;
         kusd.TickCount.TickCountQuad = 0x00000000001f7f05;
-        kusd.Cookie = 0x1c3471da;
+        kusd.Cookie = 0;
         kusd.ConsoleSessionForegroundProcessId = 0x00000000000028f4;
         kusd.TimeUpdateLock = 0x0000000002b28586;
-        kusd.BaselineSystemTimeQpc = 0x0000004b17cd596c;
-        kusd.BaselineInterruptTimeQpc = 0x0000004b17cd596c;
+        // This is the QPC time when `SystemTime` is set
+        // We set it to UINT64_MAX, so `SystemTime` won't get adjusted in `RtlGetSystemTimePrecise`
+        kusd.BaselineSystemTimeQpc = 0xFFFFFFFFFFFFFFFF;
+        kusd.BaselineInterruptTimeQpc = 0xFFFFFFFFFFFFFFFF;
         kusd.QpcSystemTimeIncrement = 0x8000000000000000;
         kusd.QpcInterruptTimeIncrement = 0x8000000000000000;
         kusd.QpcSystemTimeIncrementShift = 0x01;
@@ -61,7 +63,7 @@ namespace
         kusd.TelemetryCoverageRound = 0x00000001;
         kusd.LangGenerationCount = 0x00000003;
         kusd.InterruptTimeBias = 0x00000015a5d56406;
-        kusd.ActiveProcessorCount = 0x0000000c;
+        kusd.ActiveProcessorCount = 0x00000004;
         kusd.ActiveGroupCount = 0x01;
         kusd.TimeZoneBiasEffectiveStart.QuadPart = 0x01db276e654cb2ff;
         kusd.TimeZoneBiasEffectiveEnd.QuadPart = 0x01db280b8c3b2800;
@@ -72,11 +74,16 @@ namespace
         kusd.QpcData.QpcBypassEnabled = 0x83;
         kusd.QpcBias = 0x000000159530c4af;
         kusd.QpcFrequency = utils::clock::steady_duration::period::den;
+        kusd.Reserved1 = 0x7ffeffff;
+        kusd.Reserved3 = 0x80000000;
+        kusd.ProcessorFeatures.arr[PF_RDTSC_INSTRUCTION_AVAILABLE] = 1;
+        kusd.ProcessorFeatures.arr[PF_RDTSCP_INSTRUCTION_AVAILABLE] = 1;
+        kusd.ProcessorFeatures.arr[PF_RDPID_INSTRUCTION_AVAILABLE] = 0;
 
-        constexpr std::u16string_view root_dir{u"C:\\WINDOWS"};
+        constexpr std::u16string_view root_dir{u"C:\\Windows"};
         memcpy(&kusd.NtSystemRoot.arr[0], root_dir.data(), root_dir.size() * 2);
 
-        kusd.ImageNumberLow = IMAGE_FILE_MACHINE_I386;
+        kusd.ImageNumberLow = IMAGE_FILE_MACHINE_AMD64;
         kusd.ImageNumberHigh = IMAGE_FILE_MACHINE_AMD64;
     }
 }
@@ -156,6 +163,13 @@ void kusd_mmio::update()
 {
     const auto time = this->clock_->system_now();
     utils::convert_to_ksystem_time(&this->kusd_.SystemTime, time);
+
+    const auto ticks = this->clock_->steady_now();
+    const auto duration_100ns =
+        std::chrono::duration_cast<std::chrono::duration<uint64_t, std::ratio<1, 10000000>>>(ticks.time_since_epoch()).count();
+
+    this->kusd_.TickCount.TickCountQuad = (duration_100ns << 24) / this->kusd_.TickCountMultiplier;
+    this->kusd_.TickCount.TickCount.High2Time = this->kusd_.TickCount.TickCount.High1Time;
 }
 
 void kusd_mmio::register_mmio()

@@ -3,6 +3,7 @@
 #include "windows_emulator.hpp"
 #include <ctime>
 #include <platform/primitives.hpp>
+#include "devices/named_pipe.hpp"
 
 struct syscall_context
 {
@@ -15,19 +16,7 @@ struct syscall_context
 
 inline uint64_t get_syscall_argument(x86_64_emulator& emu, const size_t index)
 {
-    switch (index)
-    {
-    case 0:
-        return emu.reg(x86_register::r10);
-    case 1:
-        return emu.reg(x86_register::rdx);
-    case 2:
-        return emu.reg(x86_register::r8);
-    case 3:
-        return emu.reg(x86_register::r9);
-    default:
-        return emu.read_stack(index + 1);
-    }
+    return get_function_argument(emu, index, true);
 }
 
 inline bool is_uppercase(const char character)
@@ -38,6 +27,11 @@ inline bool is_uppercase(const char character)
 inline bool is_syscall(const std::string_view name)
 {
     return name.starts_with("Nt") && name.size() > 3 && is_uppercase(name[2]);
+}
+
+inline bool is_named_pipe_path(const std::u16string_view& filename)
+{
+    return filename == u"\\Device\\NamedPipe\\" || filename.starts_with(u"\\Device\\NamedPipe\\") || filename.starts_with(u"\\??\\pipe\\");
 }
 
 inline std::optional<uint32_t> extract_syscall_id(const exported_symbol& symbol, std::span<const std::byte> data)
@@ -54,8 +48,7 @@ inline std::optional<uint32_t> extract_syscall_id(const exported_symbol& symbol,
 
     const auto instruction_rva = symbol.rva + instruction_offset;
 
-    if (data.size() < (instruction_rva + instruction_size) ||
-        data[static_cast<size_t>(instruction_rva)] != instruction_opcode)
+    if (data.size() < (instruction_rva + instruction_size) || data[static_cast<size_t>(instruction_rva)] != instruction_opcode)
     {
         return std::nullopt;
     }
@@ -80,8 +73,8 @@ inline std::map<uint64_t, std::string> find_syscalls(const exported_symbols& exp
 
             if (!entry.empty())
             {
-                throw std::runtime_error("Syscall with id " + std::to_string(*id) + ", which is mapping to " +
-                                         symbol.name + ", was already mapped to " + entry);
+                throw std::runtime_error("Syscall with id " + std::to_string(*id) + ", which is mapping to " + symbol.name +
+                                         ", was already mapped to " + entry);
             }
 
             entry = symbol.name;
@@ -223,20 +216,23 @@ NTSTATUS handle_query_internal(x86_64_emulator& emu, const uint64_t buffer, cons
         action(obj);
     }
 
-    emu.write_memory(buffer, obj);
+    if (result == STATUS_SUCCESS)
+    {
+        emu.write_memory(buffer, obj);
+    }
 
     return result;
 }
 
 template <typename ResponseType, typename Action, typename LengthType>
     requires(std::is_integral_v<LengthType>)
-NTSTATUS handle_query(x86_64_emulator& emu, const uint64_t buffer, const uint32_t length,
-                      const emulator_object<LengthType> return_length, const Action& action)
+NTSTATUS handle_query(x86_64_emulator& emu, const uint64_t buffer, const uint32_t length, const emulator_object<LengthType> return_length,
+                      const Action& action)
 {
     const auto length_setter = [&](const size_t required_size) {
         if (return_length)
         {
-            return_length.write(static_cast<LengthType>(required_size));
+            return_length.try_write(static_cast<LengthType>(required_size));
         }
     };
 
@@ -245,8 +241,7 @@ NTSTATUS handle_query(x86_64_emulator& emu, const uint64_t buffer, const uint32_
 
 template <typename ResponseType, typename Action>
 NTSTATUS handle_query(x86_64_emulator& emu, const uint64_t buffer, const uint32_t length,
-                      const emulator_object<IO_STATUS_BLOCK<EmulatorTraits<Emu64>>> io_status_block,
-                      const Action& action)
+                      const emulator_object<IO_STATUS_BLOCK<EmulatorTraits<Emu64>>> io_status_block, const Action& action)
 {
     IO_STATUS_BLOCK<EmulatorTraits<Emu64>> status_block{};
 

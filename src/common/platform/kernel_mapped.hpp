@@ -4,7 +4,12 @@
 
 // NOLINTBEGIN(modernize-use-using,cppcoreguidelines-avoid-c-arrays,hicpp-avoid-c-arrays,modernize-avoid-c-arrays)
 
+#ifndef NT_SUCCESS
+#define NT_SUCCESS(Status) (((NTSTATUS)(Status)) >= 0)
+#endif
+
 #define PROCESSOR_FEATURE_MAX                                           64
+#define GDI_HANDLE_BUFFER_SIZE32                                        34
 #define GDI_HANDLE_BUFFER_SIZE64                                        60
 #define RTL_ACTIVATION_CONTEXT_STACK_FRAME_FLAG_RELEASE_ON_DEACTIVATION 0x00000001
 #define RTL_ACTIVATION_CONTEXT_STACK_FRAME_FLAG_NO_DEACTIVATE           0x00000002
@@ -16,6 +21,99 @@
 #define WIN32_CLIENT_INFO_LENGTH                                        62
 #define STATIC_UNICODE_BUFFER_LENGTH                                    261
 #define TLS_MINIMUM_AVAILABLE                                           64
+#define TLS_EXPANSION_SLOTS                                             1024
+
+#ifndef OS_WINDOWS
+#define PF_FLOATING_POINT_PRECISION_ERRATA         0
+#define PF_FLOATING_POINT_EMULATED                 1
+#define PF_COMPARE_EXCHANGE_DOUBLE                 2
+#define PF_MMX_INSTRUCTIONS_AVAILABLE              3
+#define PF_PPC_MOVEMEM_64BIT_OK                    4
+#define PF_ALPHA_BYTE_INSTRUCTIONS                 5
+#define PF_XMMI_INSTRUCTIONS_AVAILABLE             6
+#define PF_3DNOW_INSTRUCTIONS_AVAILABLE            7
+#define PF_RDTSC_INSTRUCTION_AVAILABLE             8
+#define PF_PAE_ENABLED                             9
+#define PF_XMMI64_INSTRUCTIONS_AVAILABLE           10
+#define PF_SSE_DAZ_MODE_AVAILABLE                  11
+#define PF_NX_ENABLED                              12
+#define PF_SSE3_INSTRUCTIONS_AVAILABLE             13
+#define PF_COMPARE_EXCHANGE128                     14
+#define PF_COMPARE64_EXCHANGE128                   15
+#define PF_CHANNELS_ENABLED                        16
+#define PF_XSAVE_ENABLED                           17
+#define PF_ARM_VFP_32_REGISTERS_AVAILABLE          18
+#define PF_ARM_NEON_INSTRUCTIONS_AVAILABLE         19
+#define PF_SECOND_LEVEL_ADDRESS_TRANSLATION        20
+#define PF_VIRT_FIRMWARE_ENABLED                   21
+#define PF_RDWRFSGSBASE_AVAILABLE                  22
+#define PF_FASTFAIL_AVAILABLE                      23
+#define PF_ARM_DIVIDE_INSTRUCTION_AVAILABLE        24
+#define PF_ARM_64BIT_LOADSTORE_ATOMIC              25
+#define PF_ARM_EXTERNAL_CACHE_AVAILABLE            26
+#define PF_ARM_FMAC_INSTRUCTIONS_AVAILABLE         27
+#define PF_RDRAND_INSTRUCTION_AVAILABLE            28
+#define PF_ARM_V8_INSTRUCTIONS_AVAILABLE           29
+#define PF_ARM_V8_CRYPTO_INSTRUCTIONS_AVAILABLE    30
+#define PF_ARM_V8_CRC32_INSTRUCTIONS_AVAILABLE     31
+#define PF_RDTSCP_INSTRUCTION_AVAILABLE            32
+#define PF_RDPID_INSTRUCTION_AVAILABLE             33
+#define PF_ARM_V81_ATOMIC_INSTRUCTIONS_AVAILABLE   34
+#define PF_MONITORX_INSTRUCTION_AVAILABLE          35
+#define PF_SSSE3_INSTRUCTIONS_AVAILABLE            36
+#define PF_SSE4_1_INSTRUCTIONS_AVAILABLE           37
+#define PF_SSE4_2_INSTRUCTIONS_AVAILABLE           38
+#define PF_AVX_INSTRUCTIONS_AVAILABLE              39
+#define PF_AVX2_INSTRUCTIONS_AVAILABLE             40
+#define PF_AVX512F_INSTRUCTIONS_AVAILABLE          41
+#define PF_ERMS_AVAILABLE                          42
+#define PF_ARM_V82_DP_INSTRUCTIONS_AVAILABLE       43
+#define PF_ARM_V83_JSCVT_INSTRUCTIONS_AVAILABLE    44
+#define PF_ARM_V83_LRCPC_INSTRUCTIONS_AVAILABLE    45
+#define PF_ARM_SVE_INSTRUCTIONS_AVAILABLE          46
+#define PF_ARM_SVE2_INSTRUCTIONS_AVAILABLE         47
+#define PF_ARM_SVE2_1_INSTRUCTIONS_AVAILABLE       48
+#define PF_ARM_SVE_AES_INSTRUCTIONS_AVAILABLE      49
+#define PF_ARM_SVE_PMULL128_INSTRUCTIONS_AVAILABLE 50
+#define PF_ARM_SVE_BITPERM_INSTRUCTIONS_AVAILABLE  51
+#define PF_ARM_SVE_BF16_INSTRUCTIONS_AVAILABLE     52
+#define PF_ARM_SVE_EBF16_INSTRUCTIONS_AVAILABLE    53
+#define PF_ARM_SVE_B16B16_INSTRUCTIONS_AVAILABLE   54
+#define PF_ARM_SVE_SHA3_INSTRUCTIONS_AVAILABLE     55
+#define PF_ARM_SVE_SM4_INSTRUCTIONS_AVAILABLE      56
+#define PF_ARM_SVE_I8MM_INSTRUCTIONS_AVAILABLE     57
+#define PF_ARM_SVE_F32MM_INSTRUCTIONS_AVAILABLE    58
+#define PF_ARM_SVE_F64MM_INSTRUCTIONS_AVAILABLE    59
+#define PF_BMI2_INSTRUCTIONS_AVAILABLE             60
+#define PF_MOVDIR64B_INSTRUCTION_AVAILABLE         61
+#define PF_ARM_LSE2_AVAILABLE                      62
+#define PF_RESERVED_FEATURE                        63
+#define PF_ARM_SHA3_INSTRUCTIONS_AVAILABLE         64
+#define PF_ARM_SHA512_INSTRUCTIONS_AVAILABLE       65
+#define PF_ARM_V82_I8MM_INSTRUCTIONS_AVAILABLE     66
+#define PF_ARM_V82_FP16_INSTRUCTIONS_AVAILABLE     67
+#define PF_ARM_V86_BF16_INSTRUCTIONS_AVAILABLE     68
+#define PF_ARM_V86_EBF16_INSTRUCTIONS_AVAILABLE    69
+#define PF_ARM_SME_INSTRUCTIONS_AVAILABLE          70
+#define PF_ARM_SME2_INSTRUCTIONS_AVAILABLE         71
+#define PF_ARM_SME2_1_INSTRUCTIONS_AVAILABLE       72
+#define PF_ARM_SME2_2_INSTRUCTIONS_AVAILABLE       73
+#define PF_ARM_SME_AES_INSTRUCTIONS_AVAILABLE      74
+#define PF_ARM_SME_SBITPERM_INSTRUCTIONS_AVAILABLE 75
+#define PF_ARM_SME_SF8MM4_INSTRUCTIONS_AVAILABLE   76
+#define PF_ARM_SME_SF8MM8_INSTRUCTIONS_AVAILABLE   77
+#define PF_ARM_SME_SF8DP2_INSTRUCTIONS_AVAILABLE   78
+#define PF_ARM_SME_SF8DP4_INSTRUCTIONS_AVAILABLE   79
+#define PF_ARM_SME_SF8FMA_INSTRUCTIONS_AVAILABLE   80
+#define PF_ARM_SME_F8F32_INSTRUCTIONS_AVAILABLE    81
+#define PF_ARM_SME_F8F16_INSTRUCTIONS_AVAILABLE    82
+#define PF_ARM_SME_F16F16_INSTRUCTIONS_AVAILABLE   83
+#define PF_ARM_SME_B16B16_INSTRUCTIONS_AVAILABLE   84
+#define PF_ARM_SME_F64F64_INSTRUCTIONS_AVAILABLE   85
+#define PF_ARM_SME_I16I64_INSTRUCTIONS_AVAILABLE   86
+#define PF_ARM_SME_LUTv2_INSTRUCTIONS_AVAILABLE    87
+#define PF_ARM_SME_FA64_INSTRUCTIONS_AVAILABLE     88
+#endif
 
 typedef struct _EMU_NT_TIB64
 {
@@ -23,12 +121,21 @@ typedef struct _EMU_NT_TIB64
     std::uint64_t StackBase;
     std::uint64_t StackLimit;
     std::uint64_t SubSystemTib;
-    std::uint64_t FibreData;
+    std::uint64_t FiberData;
     std::uint64_t ArbitraryUserPointer;
     EMULATOR_CAST(std::uint64_t, struct _EMU_NT_TIB64*) Self;
-} EMU_NT_TIB64;
+} EMU_NT_TIB64, *PEMU_NT_TIB64;
 
-typedef EMU_NT_TIB64* PEMU_NT_TIB64;
+typedef struct _EMU_NT_TIB32
+{
+    EMULATOR_CAST(std::uint32_t, struct _EXCEPTION_REGISTRATION_RECORD*) ExceptionList;
+    std::uint32_t StackBase;
+    std::uint32_t StackLimit;
+    std::uint32_t SubSystemTib;
+    std::uint32_t FiberData;
+    std::uint32_t ArbitraryUserPointer;
+    EMULATOR_CAST(std::uint32_t, struct _EMU_NT_TIB32*) Self;
+} EMU_NT_TIB32, *PEMU_NT_TIB32;
 
 union PEB_BITFIELD_UNION
 {
@@ -55,6 +162,105 @@ typedef struct _LIST_ENTRY64
     ULONGLONG Blink;
 } LIST_ENTRY64, *PLIST_ENTRY64, *RESTRICTED_POINTER PRLIST_ENTRY64;
 
+typedef struct _LIST_ENTRY32
+{
+    ULONG Flink;
+    ULONG Blink;
+} LIST_ENTRY32, *PLIST_ENTRY32, *RESTRICTED_POINTER PRLIST_ENTRY32;
+
+typedef enum _PROCESS_MITIGATION_POLICY
+{
+    ProcessDEPPolicy,
+    ProcessASLRPolicy,
+    ProcessDynamicCodePolicy,
+    ProcessStrictHandleCheckPolicy,
+    ProcessSystemCallDisablePolicy,
+    ProcessMitigationOptionsMask,
+    ProcessExtensionPointDisablePolicy,
+    ProcessControlFlowGuardPolicy,
+    ProcessSignaturePolicy,
+    ProcessFontDisablePolicy,
+    ProcessImageLoadPolicy,
+    ProcessSystemCallFilterPolicy,
+    ProcessPayloadRestrictionPolicy,
+    ProcessChildProcessPolicy,
+    ProcessSideChannelIsolationPolicy,
+    ProcessUserShadowStackPolicy,
+    ProcessRedirectionTrustPolicy,
+    ProcessUserPointerAuthPolicy,
+    ProcessSEHOPPolicy,
+    ProcessActivationContextTrustPolicy,
+    MaxProcessMitigationPolicy
+} PROCESS_MITIGATION_POLICY, *PPROCESS_MITIGATION_POLICY;
+
+#define WOW64_SIZE_OF_80387_REGISTERS     80
+
+#define WOW64_MAXIMUM_SUPPORTED_EXTENSION 512
+
+typedef struct _WOW64_FLOATING_SAVE_AREA
+{
+    DWORD ControlWord;
+    DWORD StatusWord;
+    DWORD TagWord;
+    DWORD ErrorOffset;
+    DWORD ErrorSelector;
+    DWORD DataOffset;
+    DWORD DataSelector;
+    BYTE RegisterArea[WOW64_SIZE_OF_80387_REGISTERS];
+    DWORD Cr0NpxState;
+} WOW64_FLOATING_SAVE_AREA;
+
+typedef struct _WOW64_CONTEXT
+{
+    DWORD ContextFlags;
+    DWORD Dr0;
+    DWORD Dr1;
+    DWORD Dr2;
+    DWORD Dr3;
+    DWORD Dr6;
+    DWORD Dr7;
+    WOW64_FLOATING_SAVE_AREA FloatSave;
+    DWORD SegGs;
+    DWORD SegFs;
+    DWORD SegEs;
+    DWORD SegDs;
+    DWORD Edi;
+    DWORD Esi;
+    DWORD Ebx;
+    DWORD Edx;
+    DWORD Ecx;
+    DWORD Eax;
+    DWORD Ebp;
+    DWORD Eip;
+    DWORD SegCs;
+    DWORD EFlags;
+    DWORD Esp;
+    DWORD SegSs;
+    BYTE ExtendedRegisters[WOW64_MAXIMUM_SUPPORTED_EXTENSION];
+
+} WOW64_CONTEXT;
+
+#define MEM_EXTENDED_PARAMETER_GRAPHICS            0x00000001
+#define MEM_EXTENDED_PARAMETER_NONPAGED            0x00000002
+#define MEM_EXTENDED_PARAMETER_ZERO_PAGES_OPTIONAL 0x00000004
+#define MEM_EXTENDED_PARAMETER_NONPAGED_LARGE      0x00000008
+#define MEM_EXTENDED_PARAMETER_NONPAGED_HUGE       0x00000010
+#define MEM_EXTENDED_PARAMETER_SOFT_FAULT_PAGES    0x00000020
+#define MEM_EXTENDED_PARAMETER_EC_CODE             0x00000040
+#define MEM_EXTENDED_PARAMETER_IMAGE_NO_HPAT       0x00000080
+
+typedef enum MEM_EXTENDED_PARAMETER_TYPE
+{
+    MemExtendedParameterInvalidType = 0,
+    MemExtendedParameterAddressRequirements,
+    MemExtendedParameterNumaNode,
+    MemExtendedParameterPartitionHandle,
+    MemExtendedParameterUserPhysicalHandle,
+    MemExtendedParameterAttributeFlags,
+    MemExtendedParameterImageMachine,
+    MemExtendedParameterMax
+} MEM_EXTENDED_PARAMETER_TYPE, *PMEM_EXTENDED_PARAMETER_TYPE;
+
 #endif
 
 typedef struct _PEB_LDR_DATA64
@@ -69,6 +275,21 @@ typedef struct _PEB_LDR_DATA64
     BOOLEAN ShutdownInProgress;
     EmulatorTraits<Emu64>::HANDLE ShutdownThreadId;
 } PEB_LDR_DATA64, *PPEB_LDR_DATA64;
+
+typedef struct _PEB_LDR_DATA32
+{
+    ULONG Length;
+    BOOLEAN Initialized;
+    EmulatorTraits<Emu32>::HANDLE SsHandle;
+    LIST_ENTRY32 InLoadOrderModuleList;
+    LIST_ENTRY32 InMemoryOrderModuleList;
+    LIST_ENTRY32 InInitializationOrderModuleList;
+    std::uint32_t EntryInProgress;
+    BOOLEAN ShutdownInProgress;
+    EmulatorTraits<Emu32>::HANDLE ShutdownThreadId;
+} PEB_LDR_DATA32, *PPEB_LDR_DATA32;
+
+static_assert(sizeof(PEB_LDR_DATA32) == 48);
 
 using STRING64 = UNICODE_STRING<EmulatorTraits<Emu64>>;
 using ANSI_STRING64 = STRING64;
@@ -96,6 +317,19 @@ typedef struct _CURDIR64
     UNICODE_STRING<EmulatorTraits<Emu64>> DosPath;
     EmulatorTraits<Emu64>::HANDLE Handle;
 } CURDIR64, *PCURDIR64;
+
+#define RTL_USER_PROCESS_PARAMETERS_NORMALIZED            0x01
+#define RTL_USER_PROCESS_PARAMETERS_PROFILE_USER          0x02
+#define RTL_USER_PROCESS_PARAMETERS_PROFILE_KERNEL        0x04
+#define RTL_USER_PROCESS_PARAMETERS_PROFILE_SERVER        0x08
+#define RTL_USER_PROCESS_PARAMETERS_RESERVE_1MB           0x20
+#define RTL_USER_PROCESS_PARAMETERS_RESERVE_16MB          0x40
+#define RTL_USER_PROCESS_PARAMETERS_CASE_SENSITIVE        0x80
+#define RTL_USER_PROCESS_PARAMETERS_DISABLE_HEAP_DECOMMIT 0x100
+#define RTL_USER_PROCESS_PARAMETERS_DLL_REDIRECTION_LOCAL 0x1000
+#define RTL_USER_PROCESS_PARAMETERS_APP_MANIFEST_PRESENT  0x2000
+#define RTL_USER_PROCESS_PARAMETERS_IMAGE_KEY_MISSING     0x4000
+#define RTL_USER_PROCESS_PARAMETERS_NX_OPTIN              0x20000
 
 typedef struct _RTL_USER_PROCESS_PARAMETERS64
 {
@@ -242,6 +476,77 @@ typedef struct _NLSTABLEINFO
     EMULATOR_CAST(uint64_t, USHORT*) LowerCaseTable;
 } NLSTABLEINFO, *PNLSTABLEINFO;
 
+typedef struct _CURDIR32
+{
+    UNICODE_STRING<EmulatorTraits<Emu32>> DosPath;
+    EmulatorTraits<Emu32>::HANDLE Handle;
+} CURDIR32, *PCURDIR32;
+
+static_assert(sizeof(CURDIR32) == 12);
+
+typedef struct _RTL_DRIVE_LETTER_CURDIR32
+{
+    USHORT Flags;
+    USHORT Length;
+    ULONG TimeStamp;
+    UNICODE_STRING<EmulatorTraits<Emu32>> DosPath;
+} RTL_DRIVE_LETTER_CURDIR32, *PRTL_DRIVE_LETTER_CURDIR32;
+
+static_assert(sizeof(RTL_DRIVE_LETTER_CURDIR32) == 16);
+
+typedef struct _RTL_USER_PROCESS_PARAMETERS32
+{
+    ULONG MaximumLength;
+    ULONG Length;
+
+    ULONG Flags;
+    ULONG DebugFlags;
+
+    EmulatorTraits<Emu32>::HANDLE ConsoleHandle;
+    ULONG ConsoleFlags;
+    EmulatorTraits<Emu32>::HANDLE StandardInput;
+    EmulatorTraits<Emu32>::HANDLE StandardOutput;
+    EmulatorTraits<Emu32>::HANDLE StandardError;
+
+    CURDIR32 CurrentDirectory;
+    UNICODE_STRING<EmulatorTraits<Emu32>> DllPath;
+    UNICODE_STRING<EmulatorTraits<Emu32>> ImagePathName;
+    UNICODE_STRING<EmulatorTraits<Emu32>> CommandLine;
+    std::uint32_t Environment;
+
+    ULONG StartingX;
+    ULONG StartingY;
+    ULONG CountX;
+    ULONG CountY;
+    ULONG CountCharsX;
+    ULONG CountCharsY;
+    ULONG FillAttribute;
+
+    ULONG WindowFlags;
+    ULONG ShowWindowFlags;
+    UNICODE_STRING<EmulatorTraits<Emu32>> WindowTitle;
+    UNICODE_STRING<EmulatorTraits<Emu32>> DesktopInfo;
+    UNICODE_STRING<EmulatorTraits<Emu32>> ShellInfo;
+    UNICODE_STRING<EmulatorTraits<Emu32>> RuntimeData;
+    RTL_DRIVE_LETTER_CURDIR32 CurrentDirectories[RTL_MAX_DRIVE_LETTERS];
+
+    std::uint32_t EnvironmentSize;
+    std::uint32_t EnvironmentVersion;
+
+    std::uint32_t PackageDependencyData;
+    ULONG ProcessGroupId;
+    ULONG LoaderThreads;
+
+    UNICODE_STRING<EmulatorTraits<Emu32>> RedirectionDllName; // REDSTONE4
+    UNICODE_STRING<EmulatorTraits<Emu32>> HeapPartitionName;  // 19H1
+    std::uint32_t DefaultThreadpoolCpuSetMasks;
+    ULONG DefaultThreadpoolCpuSetMaskCount;
+    ULONG DefaultThreadpoolThreadMaximum;
+    ULONG HeapMemoryTypeMask; // WIN11
+} RTL_USER_PROCESS_PARAMETERS32, *PRTL_USER_PROCESS_PARAMETERS32;
+
+static_assert(sizeof(RTL_USER_PROCESS_PARAMETERS32) == 708);
+
 typedef struct _PEB64
 {
     BOOLEAN InheritedAddressSpace;
@@ -281,10 +586,10 @@ typedef struct _PEB64
     ULONG NtGlobalFlag;
 
     ULARGE_INTEGER CriticalSectionTimeout;
-    EMULATOR_CAST(std::int64_t, SIZE_T) HeapSegmentReserve;
-    EMULATOR_CAST(std::int64_t, SIZE_T) HeapSegmentCommit;
-    EMULATOR_CAST(std::int64_t, SIZE_T) HeapDeCommitTotalFreeThreshold;
-    EMULATOR_CAST(std::int64_t, SIZE_T) HeapDeCommitFreeBlockThreshold;
+    EMULATOR_CAST(std::uint64_t, SIZE_T) HeapSegmentReserve;
+    EMULATOR_CAST(std::uint64_t, SIZE_T) HeapSegmentCommit;
+    EMULATOR_CAST(std::uint64_t, SIZE_T) HeapDeCommitTotalFreeThreshold;
+    EMULATOR_CAST(std::uint64_t, SIZE_T) HeapDeCommitFreeBlockThreshold;
 
     ULONG NumberOfHeaps;
     ULONG MaximumNumberOfHeaps;
@@ -365,12 +670,243 @@ typedef struct _PEB64
 
 static_assert(sizeof(PEB64) == 0x7D0);
 
+typedef struct _PEB32
+{
+    BOOLEAN InheritedAddressSpace;
+    BOOLEAN ReadImageFileExecOptions;
+    BOOLEAN BeingDebugged;
+    union
+    {
+        BOOLEAN BitField;
+        struct
+        {
+            BOOLEAN ImageUsesLargePages : 1;
+            BOOLEAN IsProtectedProcess : 1;
+            BOOLEAN IsImageDynamicallyRelocated : 1;
+            BOOLEAN SkipPatchingUser32Forwarders : 1;
+            BOOLEAN IsPackagedProcess : 1;
+            BOOLEAN IsAppContainer : 1;
+            BOOLEAN IsProtectedProcessLight : 1;
+            BOOLEAN IsLongPathAwareProcess : 1;
+        };
+    };
+
+    EmulatorTraits<Emu32>::HANDLE Mutant;
+
+    std::uint32_t ImageBaseAddress;
+    EMULATOR_CAST(std::uint32_t, PPEB_LDR_DATA32) Ldr;
+    EMULATOR_CAST(std::uint32_t, struct _RTL_USER_PROCESS_PARAMETERS32*) ProcessParameters;
+    EMULATOR_CAST(std::uint32_t, PVOID32) SubSystemData;
+    EMULATOR_CAST(std::uint32_t, PVOID32) ProcessHeap;
+    EMULATOR_CAST(std::uint32_t, struct _RTL_CRITICAL_SECTION32*) FastPebLock;
+    EMULATOR_CAST(std::uint32_t, union _SLIST_HEADER*) AtlThunkSListPtr;
+    EMULATOR_CAST(std::uint32_t, PVOID32) IFEOKey;
+
+    union
+    {
+        ULONG CrossProcessFlags;
+        struct
+        {
+            ULONG ProcessInJob : 1;
+            ULONG ProcessInitializing : 1;
+            ULONG ProcessUsingVEH : 1;
+            ULONG ProcessUsingVCH : 1;
+            ULONG ProcessUsingFTH : 1;
+            ULONG ProcessPreviouslyThrottled : 1;
+            ULONG ProcessCurrentlyThrottled : 1;
+            ULONG ProcessImagesHotPatched : 1; // REDSTONE5
+            ULONG ReservedBits0 : 24;
+        };
+    };
+    union
+    {
+        EMULATOR_CAST(std::uint32_t, PVOID32) KernelCallbackTable;
+        EMULATOR_CAST(std::uint32_t, PVOID32) UserSharedInfoPtr;
+    };
+    ULONG SystemReserved;
+    ULONG AtlThunkSListPtr32;
+    EMULATOR_CAST(std::uint32_t, struct _API_SET_NAMESPACE*) ApiSetMap;
+    ULONG TlsExpansionCounter;
+    EMULATOR_CAST(std::uint32_t, struct _RTL_BITMAP*) TlsBitmap;
+    ARRAY_CONTAINER<ULONG, 2> TlsBitmapBits;
+
+    EMULATOR_CAST(std::uint32_t, PVOID32) ReadOnlySharedMemoryBase;
+    EMULATOR_CAST(std::uint32_t, struct _SILO_USER_SHARED_DATA*) SharedData; // HotpatchInformation
+    EMULATOR_CAST(std::uint32_t, PVOID32*) ReadOnlyStaticServerData;
+
+    EMULATOR_CAST(std::uint32_t, PVOID32) AnsiCodePageData;     // PCPTABLEINFO
+    EMULATOR_CAST(std::uint32_t, PVOID32) OemCodePageData;      // PCPTABLEINFO
+    EMULATOR_CAST(std::uint32_t, PVOID32) UnicodeCaseTableData; // PNLSTABLEINFO
+
+    ULONG NumberOfProcessors;
+    ULONG NtGlobalFlag;
+
+    ULARGE_INTEGER CriticalSectionTimeout;
+    EMULATOR_CAST(std::uint32_t, SIZE_T32) HeapSegmentReserve;
+    EMULATOR_CAST(std::uint32_t, SIZE_T32) HeapSegmentCommit;
+    EMULATOR_CAST(std::uint32_t, SIZE_T32) HeapDeCommitTotalFreeThreshold;
+    EMULATOR_CAST(std::uint32_t, SIZE_T32) HeapDeCommitFreeBlockThreshold;
+
+    ULONG NumberOfHeaps;
+    ULONG MaximumNumberOfHeaps;
+    EMULATOR_CAST(std::uint32_t, PVOID32*) ProcessHeaps; // PHEAP
+
+    EMULATOR_CAST(std::uint32_t, PVOID32) GdiSharedHandleTable; // PGDI_SHARED_MEMORY
+    EMULATOR_CAST(std::uint32_t, PVOID32) ProcessStarterHelper;
+    ULONG GdiDCAttributeList;
+
+    EMULATOR_CAST(std::uint32_t, struct _RTL_CRITICAL_SECTION32*) LoaderLock;
+
+    ULONG OSMajorVersion;
+    ULONG OSMinorVersion;
+    USHORT OSBuildNumber;
+    USHORT OSCSDVersion;
+    ULONG OSPlatformId;
+    ULONG ImageSubsystem;
+    ULONG ImageSubsystemMajorVersion;
+    ULONG ImageSubsystemMinorVersion;
+    EMULATOR_CAST(std::uint32_t, KAFFINITY32) ActiveProcessAffinityMask;
+    ARRAY_CONTAINER<ULONG, GDI_HANDLE_BUFFER_SIZE32> GdiHandleBuffer;
+    EMULATOR_CAST(std::uint32_t, PVOID32) PostProcessInitRoutine;
+
+    EMULATOR_CAST(std::uint32_t, PVOID32) TlsExpansionBitmap;
+    ARRAY_CONTAINER<ULONG, 32> TlsExpansionBitmapBits;
+
+    ULONG SessionId;
+
+    ULARGE_INTEGER AppCompatFlags;
+    ULARGE_INTEGER AppCompatFlagsUser;
+    EMULATOR_CAST(std::uint32_t, PVOID32) pShimData;
+    EMULATOR_CAST(std::uint32_t, PVOID32) AppCompatInfo; // APPCOMPAT_EXE_DATA
+
+    UNICODE_STRING<EmulatorTraits<Emu32>> CSDVersion;
+
+    EMULATOR_CAST(std::uint32_t, struct _ACTIVATION_CONTEXT_DATA*) ActivationContextData;
+    EMULATOR_CAST(std::uint32_t, struct _ASSEMBLY_STORAGE_MAP32*) ProcessAssemblyStorageMap;
+    EMULATOR_CAST(std::uint32_t, struct _ACTIVATION_CONTEXT_DATA*) SystemDefaultActivationContextData;
+    EMULATOR_CAST(std::uint32_t, struct _ASSEMBLY_STORAGE_MAP32*) SystemAssemblyStorageMap;
+
+    EMULATOR_CAST(std::uint32_t, SIZE_T32) MinimumStackCommit;
+
+    ARRAY_CONTAINER<ULONG, 2> SparePointers; // 19H1 (previously FlsCallback to FlsHighIndex)
+    EMULATOR_CAST(std::uint32_t, PVOID32) PatchLoaderData;
+    EMULATOR_CAST(std::uint32_t, PVOID32) ChpeV2ProcessInfo; // _CHPEV2_PROCESS_INFO
+
+    ULONG AppModelFeatureState;
+    ULONG SpareUlongs[2];
+
+    USHORT ActiveCodePage;
+    USHORT OemCodePage;
+    USHORT UseCaseMapping;
+    USHORT UnusedNlsField;
+
+    EMULATOR_CAST(std::uint32_t, PVOID32) WerRegistrationData;
+    EMULATOR_CAST(std::uint32_t, PVOID32) WerShipAssertPtr;
+
+    union
+    {
+        EMULATOR_CAST(std::uint32_t, PVOID32) pContextData; // WIN7
+        EMULATOR_CAST(std::uint32_t, PVOID32) pUnused;      // WIN10
+        EMULATOR_CAST(std::uint32_t, PVOID32) EcCodeBitMap; // WIN11
+    };
+
+    EMULATOR_CAST(std::uint32_t, PVOID32) pImageHeaderHash;
+    union
+    {
+        ULONG TracingFlags;
+        struct
+        {
+            ULONG HeapTracingEnabled : 1;
+            ULONG CritSecTracingEnabled : 1;
+            ULONG LibLoaderTracingEnabled : 1;
+            ULONG SpareTracingBits : 29;
+        };
+    };
+    ULONGLONG CsrServerReadOnlySharedMemoryBase;
+    EMULATOR_CAST(std::uint32_t, struct _RTL_CRITICAL_SECTION32*) TppWorkerpListLock;
+    LIST_ENTRY32 TppWorkerpList;
+    ARRAY_CONTAINER<ULONG, 128> WaitOnAddressHashTable;
+    EMULATOR_CAST(std::uint32_t, struct _PTELEMETRY_COVERAGE_HEADER*) TelemetryCoverageHeader; // REDSTONE3
+    ULONG CloudFileFlags;
+    ULONG CloudFileDiagFlags; // REDSTONE4
+    CHAR PlaceholderCompatibilityMode;
+    ARRAY_CONTAINER<CHAR, 7> PlaceholderCompatibilityModeReserved;
+    EMULATOR_CAST(std::uint32_t, struct _LEAP_SECOND_DATA*) LeapSecondData; // REDSTONE5
+    union
+    {
+        ULONG LeapSecondFlags;
+        struct
+        {
+            ULONG SixtySecondEnabled : 1;
+            ULONG Reserved : 31;
+        };
+    };
+    ULONG NtGlobalFlag2;
+    ULONGLONG ExtendedFeatureDisableMask; // since WIN11
+
+} PEB32, *PPEB32;
+
+static_assert(sizeof(PEB32) == 0x488, "sizeof(PEB32) is incorrect"); // WIN11
+
 typedef struct _RTL_ACTIVATION_CONTEXT_STACK_FRAME64
 {
     struct _RTL_ACTIVATION_CONTEXT_STACK_FRAME* Previous;
     EMULATOR_CAST(std::uint64_t, ACTIVATION_CONTEXT) ActivationContext;
     ULONG Flags; // RTL_ACTIVATION_CONTEXT_STACK_FRAME_FLAG_*
 } RTL_ACTIVATION_CONTEXT_STACK_FRAME64, *PRTL_ACTIVATION_CONTEXT_STACK_FRAME64;
+
+typedef struct _ASSEMBLY_STORAGE_MAP_ENTRY32
+{
+    ULONG Flags;
+    UNICODE_STRING<EmulatorTraits<Emu32>> DosPath;
+    EMULATOR_CAST(std::uint32_t, HANDLE32) Handle;
+} ASSEMBLY_STORAGE_MAP_ENTRY32, *PASSEMBLY_STORAGE_MAP_ENTRY32;
+
+static_assert(sizeof(ASSEMBLY_STORAGE_MAP_ENTRY32) == 16);
+
+typedef struct _ASSEMBLY_STORAGE_MAP32
+{
+    ULONG Flags;
+    ULONG AssemblyCount;
+    EMULATOR_CAST(std::uint32_t, PASSEMBLY_STORAGE_MAP_ENTRY32*) AssemblyArray;
+} ASSEMBLY_STORAGE_MAP32, *PASSEMBLY_STORAGE_MAP32;
+
+static_assert(sizeof(ASSEMBLY_STORAGE_MAP32) == 12);
+
+typedef struct _ACTIVATION_CONTEXT32
+{
+    LONG RefCount;
+    ULONG Flags;
+    EMULATOR_CAST(std::uint32_t, struct _ACTIVATION_CONTEXT_DATA*) ActivationContextData;
+    std::uint32_t /*PACTIVATION_CONTEXT_NOTIFY_ROUTINE*/ NotificationRoutine;
+    std::uint32_t NotificationContext;
+    ULONG SentNotifications[8];
+    ULONG DisabledNotifications[8];
+    ASSEMBLY_STORAGE_MAP32 StorageMap;
+    EMULATOR_CAST(std::uint32_t, PASSEMBLY_STORAGE_MAP_ENTRY32) InlineStorageMapEntries[32];
+} ACTIVATION_CONTEXT32, *PACTIVATION_CONTEXT32;
+
+static_assert(sizeof(ACTIVATION_CONTEXT32) == 224);
+
+typedef struct _RTL_ACTIVATION_CONTEXT_STACK_FRAME32
+{
+    EMULATOR_CAST(std::uint32_t, struct _RTL_ACTIVATION_CONTEXT_STACK_FRAME32*) Previous;
+    EMULATOR_CAST(std::uint32_t, PACTIVATION_CONTEXT32) ActivationContext;
+    ULONG Flags; // RTL_ACTIVATION_CONTEXT_STACK_FRAME_FLAG_*
+} RTL_ACTIVATION_CONTEXT_STACK_FRAME32, *PRTL_ACTIVATION_CONTEXT_STACK_FRAME32;
+
+static_assert(sizeof(RTL_ACTIVATION_CONTEXT_STACK_FRAME32) == 12);
+
+typedef struct _ACTIVATION_CONTEXT_STACK32
+{
+    EMULATOR_CAST(std::uint32_t, PRTL_ACTIVATION_CONTEXT_STACK_FRAME32) ActiveFrame;
+    LIST_ENTRY32 FrameListCache;
+    ULONG Flags; // ACTIVATION_CONTEXT_STACK_FLAG_*
+    ULONG NextCookieSequenceNumber;
+    ULONG StackId;
+} ACTIVATION_CONTEXT_STACK32, *PACTIVATION_CONTEXT_STACK32;
+
+static_assert(sizeof(ACTIVATION_CONTEXT_STACK32) == 24);
 
 typedef struct _ACTIVATION_CONTEXT_STACK64
 {
@@ -387,6 +923,15 @@ typedef struct _GDI_TEB_BATCH64
     std::uint64_t HDC;
     ULONG Buffer[GDI_BATCH_BUFFER_SIZE];
 } GDI_TEB_BATCH64, *PGDI_TEB_BATCH64;
+
+typedef struct _GDI_TEB_BATCH32
+{
+    ULONG Offset;
+    EMULATOR_CAST(std::uint32_t, ULONG_PTR32) HDC;
+    ULONG Buffer[GDI_BATCH_BUFFER_SIZE];
+} GDI_TEB_BATCH32, *PGDI_TEB_BATCH32;
+
+static_assert(sizeof(GDI_TEB_BATCH32) == 1248, "sizeof(GDI_TEB_BATCH32) is incorrect");
 
 #ifndef OS_WINDOWS
 typedef struct _GUID
@@ -425,6 +970,13 @@ union TEB_CROSS_TEB_FLAGS_UNION
     USHORT CrossTebFlags;
     USHORT SpareCrossTebBits : 16;
 };
+
+constexpr auto THREAD_CREATE_FLAGS_CREATE_SUSPENDED = 0x1;
+constexpr auto THREAD_CREATE_FLAGS_SKIP_THREAD_ATTACH = 0x2;
+constexpr auto THREAD_CREATE_FLAGS_HIDE_FROM_DEBUGGER = 0x4;
+constexpr auto THREAD_CREATE_FLAGS_LOADER_WORKER = 0x10;
+constexpr auto THREAD_CREATE_FLAGS_SKIP_LOADER_INIT = 0x20;
+constexpr auto THREAD_CREATE_FLAGS_BYPASS_PROCESS_FREEZE = 0x40;
 
 union TEB_SAME_TEB_FLAGS_UNION
 {
@@ -594,6 +1146,164 @@ inline TEB64* NtCurrentTeb64()
 }
 #endif
 
+typedef struct _TEB32
+{
+    EMU_NT_TIB32 NtTib;
+
+    std::uint32_t EnvironmentPointer;
+    CLIENT_ID32 ClientId;
+    std::uint32_t ActiveRpcHandle;
+    std::uint32_t ThreadLocalStoragePointer;
+    EMULATOR_CAST(std::uint32_t, PPEB32) ProcessEnvironmentBlock;
+
+    ULONG LastErrorValue;
+    ULONG CountOfOwnedCriticalSections;
+    std::uint32_t CsrClientThread;
+    std::uint32_t Win32ThreadInfo;
+    ULONG User32Reserved[26];
+    ULONG UserReserved[5];
+    std::uint32_t WOW32Reserved;
+    LCID CurrentLocale;
+    ULONG FpSoftwareStatusRegister;
+    std::uint32_t ReservedForDebuggerInstrumentation[16];
+    std::uint32_t SystemReserved1[26];
+
+    CHAR PlaceholderCompatibilityMode;
+    BOOLEAN PlaceholderHydrationAlwaysExplicit;
+    CHAR PlaceholderReserved[10];
+
+    ULONG ProxiedProcessId;
+    ACTIVATION_CONTEXT_STACK32 ActivationStack;
+
+    UCHAR WorkingOnBehalfTicket[8];
+    NTSTATUS ExceptionCode;
+
+    EMULATOR_CAST(std::uint32_t, PACTIVATION_CONTEXT_STACK32) ActivationContextStackPointer;
+    EMULATOR_CAST(std::uint32_t, ULONG_PTR32) InstrumentationCallbackSp;
+    EMULATOR_CAST(std::uint32_t, ULONG_PTR32) InstrumentationCallbackPreviousPc;
+    EMULATOR_CAST(std::uint32_t, ULONG_PTR32) InstrumentationCallbackPreviousSp;
+
+    BOOLEAN InstrumentationCallbackDisabled;
+    UCHAR SpareBytes[23];
+    ULONG TxFsContext;
+    GDI_TEB_BATCH32 GdiTebBatch;
+    CLIENT_ID32 RealClientId;
+    EmulatorTraits<Emu32>::HANDLE GdiCachedProcessHandle;
+    ULONG GdiClientPID;
+    ULONG GdiClientTID;
+    std::uint32_t GdiThreadLocalInfo;
+    EMULATOR_CAST(std::uint32_t, ULONG_PTR32) Win32ClientInfo[WIN32_CLIENT_INFO_LENGTH];
+    std::uint32_t glDispatchTable[233];
+    EMULATOR_CAST(std::uint32_t, ULONG_PTR32) glReserved1[29];
+    std::uint32_t glReserved2;
+    std::uint32_t glSectionInfo;
+    std::uint32_t glSection;
+    std::uint32_t glTable;
+    std::uint32_t glCurrentRC;
+    std::uint32_t glContext;
+
+    NTSTATUS LastStatusValue;
+    UNICODE_STRING<EmulatorTraits<Emu32>> StaticUnicodeString;
+    WCHAR StaticUnicodeBuffer[STATIC_UNICODE_BUFFER_LENGTH];
+
+    std::uint32_t DeallocationStack;
+    ARRAY_CONTAINER<std::uint32_t, TLS_MINIMUM_AVAILABLE> TlsSlots;
+    LIST_ENTRY32 TlsLinks;
+
+    std::uint32_t Vdm;
+    std::uint32_t ReservedForNtRpc;
+    std::uint32_t DbgSsReserved[2];
+
+    ULONG HardErrorMode;
+    std::uint32_t Instrumentation[9];
+    GUID ActivityId;
+
+    std::uint32_t SubProcessTag;
+    std::uint32_t PerflibData;
+    std::uint32_t EtwTraceData;
+    std::uint32_t WinSockData;
+    ULONG GdiBatchCount;
+
+    union
+    {
+        EMULATOR_CAST(std::uint32_t, PROCESSOR_NUMBER) CurrentIdealProcessor;
+        ULONG IdealProcessorValue;
+        struct
+        {
+            UCHAR ReservedPad0;
+            UCHAR ReservedPad1;
+            UCHAR ReservedPad2;
+            UCHAR IdealProcessor;
+        };
+    };
+
+    ULONG GuaranteedStackBytes;
+    EMULATOR_CAST(std::uint32_t, PVOID32) ReservedForPerf;
+    EMULATOR_CAST(std::uint32_t, PVOID32) ReservedForOle; // tagSOleTlsData32
+    ULONG WaitingOnLoaderLock;
+    EMULATOR_CAST(std::uint32_t, PVOID32) SavedPriorityState;
+    EMULATOR_CAST(std::uint32_t, ULONG_PTR32) ReservedForCodeCoverage;
+    std::uint32_t ThreadPoolData;
+    EMULATOR_CAST(std::uint32_t, PVOID32*) TlsExpansionSlots;
+    ULONG MuiGeneration;
+    ULONG IsImpersonating;
+    std::uint32_t NlsCache;
+    std::uint32_t pShimData;
+    ULONG HeapData;
+    EMULATOR_CAST(std::uint32_t, HANDLE32) CurrentTransactionHandle;
+    EMULATOR_CAST(std::uint32_t, PTEB_ACTIVE_FRAME32) ActiveFrame;
+    std::uint32_t FlsData;
+
+    std::uint32_t PreferredLanguages;
+    std::uint32_t UserPrefLanguages;
+    std::uint32_t MergedPrefLanguages;
+    ULONG MuiImpersonation;
+
+    union
+    {
+        USHORT CrossTebFlags;
+        USHORT SpareCrossTebBits : 16;
+    };
+    union
+    {
+        USHORT SameTebFlags;
+        struct
+        {
+            USHORT SafeThunkCall : 1;
+            USHORT InDebugPrint : 1;
+            USHORT HasFiberData : 1;
+            USHORT SkipThreadAttach : 1;
+            USHORT WerInShipAssertCode : 1;
+            USHORT RanProcessInit : 1;
+            USHORT ClonedThread : 1;
+            USHORT SuppressDebugMsg : 1;
+            USHORT DisableUserStackWalk : 1;
+            USHORT RtlExceptionAttached : 1;
+            USHORT InitialThread : 1;
+            USHORT SessionAware : 1;
+            USHORT LoadOwner : 1;
+            USHORT LoaderWorker : 1;
+            USHORT SkipLoaderInit : 1;
+            USHORT SkipFileAPIBrokering : 1;
+        };
+    };
+
+    std::uint32_t TxnScopeEnterCallback;
+    std::uint32_t TxnScopeExitCallback;
+    std::uint32_t TxnScopeContext;
+    ULONG LockCount;
+    LONG WowTebOffset;
+    std::uint32_t ResourceRetValue;
+    std::uint32_t ReservedForWdf;
+    ULONGLONG ReservedForCrt;
+    GUID EffectiveContainerId;
+    ULONGLONG LastSleepCounter; // Win11
+    ULONG SpinCallCount;
+    ULONGLONG ExtendedFeatureDisableMask;
+} TEB32, *PTEB32;
+
+static_assert(sizeof(TEB32) == 4120, "sizeof(TEB32) is incorrect");
+
 #pragma pack(push, 4)
 typedef struct _KSYSTEM_TIME
 {
@@ -719,13 +1429,15 @@ typedef struct _XSTATE_CONFIGURATION
 
 #endif
 
+#define ORIGINALLY_VOLATILE /*volatile*/
+
 typedef struct _KUSER_SHARED_DATA64
 {
     ULONG TickCountLowDeprecated;
     ULONG TickCountMultiplier;
-    volatile KSYSTEM_TIME InterruptTime;
-    volatile KSYSTEM_TIME SystemTime;
-    volatile KSYSTEM_TIME TimeZoneBias;
+    ORIGINALLY_VOLATILE KSYSTEM_TIME InterruptTime;
+    ORIGINALLY_VOLATILE KSYSTEM_TIME SystemTime;
+    ORIGINALLY_VOLATILE KSYSTEM_TIME TimeZoneBias;
     USHORT ImageNumberLow;
     USHORT ImageNumberHigh;
     ARRAY_CONTAINER<char16_t, 260> NtSystemRoot;
@@ -737,7 +1449,7 @@ typedef struct _KUSER_SHARED_DATA64
     ULONG AppCompatFlag;
     ULONGLONG RNGSeedVersion;
     ULONG GlobalValidationRunlevel;
-    volatile LONG TimeZoneBiasStamp;
+    ORIGINALLY_VOLATILE LONG TimeZoneBiasStamp;
     ULONG NtBuildNumber;
     NT_PRODUCT_TYPE NtProductType;
     BOOLEAN ProductTypeIsValid;
@@ -748,7 +1460,7 @@ typedef struct _KUSER_SHARED_DATA64
     ARRAY_CONTAINER<BOOLEAN, PROCESSOR_FEATURE_MAX> ProcessorFeatures;
     ULONG Reserved1;
     ULONG Reserved3;
-    volatile ULONG TimeSlip;
+    ORIGINALLY_VOLATILE ULONG TimeSlip;
     ALTERNATIVE_ARCHITECTURE_TYPE AlternativeArchitecture;
     ULONG BootId;
     LARGE_INTEGER SystemExpirationDate;
@@ -756,8 +1468,8 @@ typedef struct _KUSER_SHARED_DATA64
     BOOLEAN KdDebuggerEnabled;
     KUSD_MITIGATION_POLICIES_UNION MitigationPolicies;
     USHORT CyclesPerYield;
-    volatile ULONG ActiveConsoleId;
-    volatile ULONG DismountCount;
+    ORIGINALLY_VOLATILE ULONG ActiveConsoleId;
+    ORIGINALLY_VOLATILE ULONG DismountCount;
     ULONG ComPlusPackage;
     ULONG LastSystemRITEventTickCount;
     ULONG NumberOfPhysicalPages;
@@ -790,10 +1502,10 @@ typedef struct _KUSER_SHARED_DATA64
     ULONG ImageFileExecutionOptions;
     ULONG LangGenerationCount;
     ULONGLONG Reserved4;
-    volatile ULONGLONG InterruptTimeBias;
-    volatile ULONGLONG QpcBias;
+    ORIGINALLY_VOLATILE ULONGLONG InterruptTimeBias;
+    ORIGINALLY_VOLATILE ULONGLONG QpcBias;
     ULONG ActiveProcessorCount;
-    volatile UCHAR ActiveGroupCount;
+    ORIGINALLY_VOLATILE UCHAR ActiveGroupCount;
     UCHAR Reserved9;
     KUSD_QPC_DATA_UNION QpcData;
     LARGE_INTEGER TimeZoneBiasEffectiveStart;
@@ -899,6 +1611,33 @@ typedef struct _SYSTEM_DYNAMIC_TIMEZONE_INFORMATION
     BOOLEAN DynamicDaylightTimeDisabled;
 } SYSTEM_DYNAMIC_TIMEZONE_INFORMATION, *PSYSTEM_DYNAMIC_TIMEZONE_INFORMATION;
 
+// Memory address requirements structure
+typedef struct _MEM_ADDRESS_REQUIREMENTS64
+{
+    EMULATOR_CAST(std::uint64_t, PVOID) LowestStartingAddress;
+    EMULATOR_CAST(std::uint64_t, PVOID) HighestEndingAddress;
+    EMULATOR_CAST(std::uint64_t, SIZE_T) Alignment;
+} MEM_ADDRESS_REQUIREMENTS64, *PMEM_ADDRESS_REQUIREMENTS64;
+
+// Extended memory parameter structure
+typedef struct _MEM_EXTENDED_PARAMETER64
+{
+    struct
+    {
+        ULONG64 Type : 8; // MEM_EXTENDED_PARAMETER_TYPE
+        ULONG64 Reserved : 56;
+    };
+
+    union
+    {
+        ULONG64 ULong64;
+        EMULATOR_CAST(std::uint64_t, PVOID) Pointer;
+        EMULATOR_CAST(std::uint64_t, SIZE_T) Size;
+        EMULATOR_CAST(std::uint64_t, HANDLE) Handle;
+        ULONG ULong;
+    };
+} MEM_EXTENDED_PARAMETER64, *PMEM_EXTENDED_PARAMETER64;
+
 typedef struct _PROCESS_BASIC_INFORMATION64
 {
     NTSTATUS ExitStatus;
@@ -909,6 +1648,29 @@ typedef struct _PROCESS_BASIC_INFORMATION64
     EMULATOR_CAST(std::uint64_t, HANDLE) InheritedFromUniqueProcessId;
 } PROCESS_BASIC_INFORMATION64, *PPROCESS_BASIC_INFORMATION64;
 
+typedef struct _PROCESS_EXTENDED_BASIC_INFORMATION
+{
+    EMULATOR_CAST(std::uint64_t, SIZE_T) Size; // Ignored as input, written with structure size on output
+    PROCESS_BASIC_INFORMATION64 BasicInfo;
+    union
+    {
+        ULONG Flags;
+        struct
+        {
+            ULONG IsProtectedProcess : 1;
+            ULONG IsWow64Process : 1;
+            ULONG IsProcessDeleting : 1;
+            ULONG IsCrossSessionCreate : 1;
+            ULONG IsFrozen : 1;
+            ULONG IsBackground : 1;
+            ULONG IsStronglyNamed : 1;
+            ULONG IsSecureProcess : 1;
+            ULONG IsSubsystemProcess : 1;
+            ULONG SpareBits : 23;
+        };
+    };
+} PROCESS_EXTENDED_BASIC_INFORMATION, *PPROCESS_EXTENDED_BASIC_INFORMATION;
+
 typedef struct _KERNEL_USER_TIMES
 {
     LARGE_INTEGER CreateTime;
@@ -917,44 +1679,322 @@ typedef struct _KERNEL_USER_TIMES
     LARGE_INTEGER UserTime;
 } KERNEL_USER_TIMES, *PKERNEL_USER_TIMES;
 
-struct THREAD_TLS_INFO
+struct THREAD_TLS_INFORMATION
 {
     ULONG Flags;
     uint32_t _Padding;
 
     union
     {
-        EmulatorTraits<Emu64>::PVOID TlsVector;
-        EmulatorTraits<Emu64>::PVOID TlsModulePointer;
+        EmulatorTraits<Emu64>::PVOID NewTlsData;
+        EmulatorTraits<Emu64>::PVOID OldTlsData;
     };
 
-    EMULATOR_CAST(std::uint64_t, ULONG_PTR) ThreadId;
+    uint64_t ThreadId;
 };
 
-static_assert(sizeof(THREAD_TLS_INFO) == 0x18);
+static_assert(sizeof(THREAD_TLS_INFORMATION) == 0x18);
 
-typedef enum _PROCESS_TLS_INFORMATION_TYPE
+enum PROCESS_TLS_INFORMATION_TYPE
 {
     ProcessTlsReplaceIndex,
     ProcessTlsReplaceVector,
     MaxProcessTlsOperation
-} PROCESS_TLS_INFORMATION_TYPE, *PPROCESS_TLS_INFORMATION_TYPE;
+};
 
-struct PROCESS_TLS_INFO
+struct PROCESS_TLS_INFORMATION
 {
-    ULONG Unknown;
-    PROCESS_TLS_INFORMATION_TYPE TlsRequest;
+    ULONG Flags;
+    PROCESS_TLS_INFORMATION_TYPE OperationType;
     ULONG ThreadDataCount;
 
     union
     {
         ULONG TlsIndex;
-        ULONG TlsVectorLength;
+        ULONG PreviousCount;
     };
 
-    THREAD_TLS_INFO ThreadData[1];
+    THREAD_TLS_INFORMATION ThreadData[1];
 };
 
-static_assert(sizeof(PROCESS_TLS_INFO) - sizeof(THREAD_TLS_INFO) == 0x10);
+static_assert(sizeof(PROCESS_TLS_INFORMATION) == 0x28);
+
+struct EMU_GENERIC_MAPPING
+{
+    ACCESS_MASK GenericRead;
+    ACCESS_MASK GenericWrite;
+    ACCESS_MASK GenericExecute;
+    ACCESS_MASK GenericAll;
+};
+
+struct OBJECT_TYPES_INFORMATION
+{
+    ULONG NumberOfTypes;
+};
+
+struct OBJECT_TYPE_INFORMATION
+{
+    STRING64 TypeName;
+    ULONG TotalNumberOfObjects;
+    ULONG TotalNumberOfHandles;
+    ULONG TotalPagedPoolUsage;
+    ULONG TotalNonPagedPoolUsage;
+    ULONG TotalNamePoolUsage;
+    ULONG TotalHandleTableUsage;
+    ULONG HighWaterNumberOfObjects;
+    ULONG HighWaterNumberOfHandles;
+    ULONG HighWaterPagedPoolUsage;
+    ULONG HighWaterNonPagedPoolUsage;
+    ULONG HighWaterNamePoolUsage;
+    ULONG HighWaterHandleTableUsage;
+    ULONG InvalidAttributes;
+    EMU_GENERIC_MAPPING GenericMapping;
+    ULONG ValidAccessMask;
+    BOOLEAN SecurityRequired;
+    BOOLEAN MaintainHandleCount;
+    UCHAR TypeIndex; // since WINBLUE
+    CHAR ReservedByte;
+    ULONG PoolType;
+    ULONG DefaultPagedPoolCharge;
+    ULONG DefaultNonPagedPoolCharge;
+};
+
+// WIN8 to REDSTONE
+typedef struct _PS_MITIGATION_OPTIONS_MAP_V1
+{
+    ULONG64 Map[1];
+} PS_MITIGATION_OPTIONS_MAP_V1, *PPS_MITIGATION_OPTIONS_MAP_V1;
+
+// private // REDSTONE2 to 19H2
+typedef struct _PS_MITIGATION_OPTIONS_MAP_V2
+{
+    ULONG64 Map[2];
+} PS_MITIGATION_OPTIONS_MAP_V2, *PPS_MITIGATION_OPTIONS_MAP_V2;
+
+// private // since 20H1
+typedef struct _PS_MITIGATION_OPTIONS_MAP_V3
+{
+    ULONG64 Map[3];
+} PS_MITIGATION_OPTIONS_MAP_V3, *PPS_MITIGATION_OPTIONS_MAP_V3;
+
+typedef PS_MITIGATION_OPTIONS_MAP_V3 PS_MITIGATION_OPTIONS_MAP, *PPS_MITIGATION_OPTIONS_MAP;
+
+// private // REDSTONE3 to 19H2
+typedef struct _PS_MITIGATION_AUDIT_OPTIONS_MAP_V2
+{
+    ULONG64 Map[2];
+} PS_MITIGATION_AUDIT_OPTIONS_MAP_V2, *PPS_MITIGATION_AUDIT_OPTIONS_MAP_V2;
+
+// private // since 20H1
+typedef struct _PS_MITIGATION_AUDIT_OPTIONS_MAP_V3
+{
+    ULONG64 Map[3];
+} PS_MITIGATION_AUDIT_OPTIONS_MAP_V3, *PPS_MITIGATION_AUDIT_OPTIONS_MAP_V3, PS_MITIGATION_AUDIT_OPTIONS_MAP,
+    *PPS_MITIGATION_AUDIT_OPTIONS_MAP;
+
+// private // VISTA to WIN7 SP1
+typedef enum class _WOW64_SHARED_INFORMATION_V1
+{
+    SharedNtdll32LdrInitializeThunk = 0,
+    SharedNtdll32KiUserExceptionDispatcher = 1,
+    SharedNtdll32KiUserApcDispatcher = 2,
+    SharedNtdll32KiUserCallbackDispatcher = 3,
+    SharedNtdll32LdrHotPatchRoutine = 4,
+    SharedNtdll32ExpInterlockedPopEntrySListFault = 5,
+    SharedNtdll32ExpInterlockedPopEntrySListResume = 6,
+    SharedNtdll32ExpInterlockedPopEntrySListEnd = 7,
+    SharedNtdll32RtlUserThreadStart = 8,
+    SharedNtdll32pQueryProcessDebugInformationRemote = 9,
+    SharedNtdll32EtwpNotificationThread = 10,
+    SharedNtdll32BaseAddress = 11,
+    Wow64SharedPageEntriesCount = 12
+} WOW64_SHARED_INFORMATION_V1;
+
+// private // WIN8
+typedef enum class _WOW64_SHARED_INFORMATION_V2
+{
+    SharedNtdll32LdrInitializeThunk = 0,
+    SharedNtdll32KiUserExceptionDispatcher = 1,
+    SharedNtdll32KiUserApcDispatcher = 2,
+    SharedNtdll32KiUserCallbackDispatcher = 3,
+    SharedNtdll32LdrHotPatchRoutine = 4,
+    SharedNtdll32ExpInterlockedPopEntrySListFault = 5,
+    SharedNtdll32ExpInterlockedPopEntrySListResume = 6,
+    SharedNtdll32ExpInterlockedPopEntrySListEnd = 7,
+    SharedNtdll32RtlUserThreadStart = 8,
+    SharedNtdll32pQueryProcessDebugInformationRemote = 9,
+    SharedNtdll32EtwpNotificationThread = 10,
+    SharedNtdll32BaseAddress = 11,
+    SharedNtdll32RtlpWnfNotificationThread = 12,
+    SharedNtdll32LdrSystemDllInitBlock = 13,
+    Wow64SharedPageEntriesCount = 14
+} WOW64_SHARED_INFORMATION_V2;
+
+// private // WIN8.1 to THRESHOLD 1
+typedef enum class _WOW64_SHARED_INFORMATION_V3
+{
+    SharedNtdll32LdrInitializeThunk = 0,
+    SharedNtdll32KiUserExceptionDispatcher = 1,
+    SharedNtdll32KiUserApcDispatcher = 2,
+    SharedNtdll32KiUserCallbackDispatcher = 3,
+    SharedNtdll32ExpInterlockedPopEntrySListFault = 4,
+    SharedNtdll32ExpInterlockedPopEntrySListResume = 5,
+    SharedNtdll32ExpInterlockedPopEntrySListEnd = 6,
+    SharedNtdll32RtlUserThreadStart = 7,
+    SharedNtdll32pQueryProcessDebugInformationRemote = 8,
+    SharedNtdll32BaseAddress = 9,
+    SharedNtdll32LdrSystemDllInitBlock = 10,
+    Wow64SharedPageEntriesCount = 11
+} WOW64_SHARED_INFORMATION_V3;
+
+// private // THRESHOLD 2 to REDSTONE 2
+typedef enum class _WOW64_SHARED_INFORMATION_V4
+{
+    SharedNtdll32LdrInitializeThunk = 0,
+    SharedNtdll32KiUserExceptionDispatcher = 1,
+    SharedNtdll32KiUserApcDispatcher = 2,
+    SharedNtdll32KiUserCallbackDispatcher = 3,
+    SharedNtdll32RtlUserThreadStart = 4,
+    SharedNtdll32pQueryProcessDebugInformationRemote = 5,
+    SharedNtdll32BaseAddress = 6,
+    SharedNtdll32LdrSystemDllInitBlock = 7,
+    Wow64SharedPageEntriesCount = 8
+} WOW64_SHARED_INFORMATION_V4;
+
+// private // REDSTONE 3 to 24H2
+typedef enum class _WOW64_SHARED_INFORMATION_V5
+{
+    SharedNtdll32LdrInitializeThunk = 0,
+    SharedNtdll32KiUserExceptionDispatcher = 1,
+    SharedNtdll32KiUserApcDispatcher = 2,
+    SharedNtdll32KiUserCallbackDispatcher = 3,
+    SharedNtdll32RtlUserThreadStart = 4,
+    SharedNtdll32pQueryProcessDebugInformationRemote = 5,
+    SharedNtdll32BaseAddress = 6,
+    SharedNtdll32LdrSystemDllInitBlock = 7,
+    SharedNtdll32RtlpFreezeTimeBias = 8,
+    Wow64SharedPageEntriesCount = 9
+} WOW64_SHARED_INFORMATION_V5;
+
+// private // WIN8 to REDSTONE
+typedef struct _PS_SYSTEM_DLL_INIT_BLOCK_V1
+{
+    ULONG Size;
+    ULONG SystemDllWowRelocation;
+    ULONG64 SystemDllNativeRelocation;
+    ULONG Wow64SharedInformation[16]; // use WOW64_SHARED_INFORMATION as index
+    ULONG RngData;
+    union
+    {
+        ULONG Flags;
+        struct
+        {
+            ULONG CfgOverride : 1; // since REDSTONE
+            ULONG Reserved : 31;
+        };
+    };
+    ULONG64 MitigationOptions;
+    ULONG64 CfgBitMap; // since WINBLUE
+    ULONG64 CfgBitMapSize;
+    ULONG64 Wow64CfgBitMap; // since THRESHOLD
+    ULONG64 Wow64CfgBitMapSize;
+} PS_SYSTEM_DLL_INIT_BLOCK_V1, *PPS_SYSTEM_DLL_INIT_BLOCK_V1;
+
+// RS2 - 19H2
+typedef struct _PS_SYSTEM_DLL_INIT_BLOCK_V2
+{
+    ULONG Size;
+    ULONG64 SystemDllWowRelocation;
+    ULONG64 SystemDllNativeRelocation;
+    ULONG64 Wow64SharedInformation[16]; // use WOW64_SHARED_INFORMATION as index
+    ULONG RngData;
+    union
+    {
+        ULONG Flags;
+        struct
+        {
+            ULONG CfgOverride : 1;
+            ULONG Reserved : 31;
+        };
+    };
+    PS_MITIGATION_OPTIONS_MAP_V2 MitigationOptionsMap;
+    ULONG64 CfgBitMap;
+    ULONG64 CfgBitMapSize;
+    ULONG64 Wow64CfgBitMap;
+    ULONG64 Wow64CfgBitMapSize;
+    PS_MITIGATION_AUDIT_OPTIONS_MAP_V2 MitigationAuditOptionsMap; // since REDSTONE3
+} PS_SYSTEM_DLL_INIT_BLOCK_V2, *PPS_SYSTEM_DLL_INIT_BLOCK_V2;
+
+// private // since 20H1
+typedef struct _PS_SYSTEM_DLL_INIT_BLOCK_V3
+{
+    ULONG Size;
+    ULONG64 SystemDllWowRelocation; // effectively since WIN8
+    ULONG64 SystemDllNativeRelocation;
+    ULONG64 Wow64SharedInformation[16]; // use WOW64_SHARED_INFORMATION_V5 as index
+    ULONG RngData;
+    union
+    {
+        ULONG Flags;
+        struct
+        {
+            ULONG CfgOverride : 1; // effectively since REDSTONE
+            ULONG Reserved : 31;
+        };
+    };
+    PS_MITIGATION_OPTIONS_MAP_V3 MitigationOptionsMap;
+    ULONG64 CfgBitMap; // effectively since WINBLUE
+    ULONG64 CfgBitMapSize;
+    ULONG64 Wow64CfgBitMap; // effectively since THRESHOLD
+    ULONG64 Wow64CfgBitMapSize;
+    PS_MITIGATION_AUDIT_OPTIONS_MAP_V3 MitigationAuditOptionsMap; // effectively since REDSTONE3
+    ULONG64 ScpCfgCheckFunction;                                  // since 24H2
+    ULONG64 ScpCfgCheckESFunction;
+    ULONG64 ScpCfgDispatchFunction;
+    ULONG64 ScpCfgDispatchESFunction;
+    ULONG64 ScpArm64EcCallCheck;
+    ULONG64 ScpArm64EcCfgCheckFunction;
+    ULONG64 ScpArm64EcCfgCheckESFunction;
+} PS_SYSTEM_DLL_INIT_BLOCK_V3, *PPS_SYSTEM_DLL_INIT_BLOCK_V3, PS_SYSTEM_DLL_INIT_BLOCK, *PPS_SYSTEM_DLL_INIT_BLOCK;
+
+static_assert(sizeof(PS_SYSTEM_DLL_INIT_BLOCK_V3) == 0x128);
+
+//
+// Process mitigation policy information
+//  NtSetInformationProcess using ProcessMitigationPolicy
+//
+
+typedef struct _PROCESS_MITIGATION_POLICY_RAW_DATA
+{
+    PROCESS_MITIGATION_POLICY Policy;
+    ULONG Value;
+} PROCESS_MITIGATION_POLICY_RAW_DATA, *PPROCESS_MITIGATION_POLICY_RAW_DATA;
+
+static_assert(sizeof(PROCESS_MITIGATION_POLICY_RAW_DATA) == 0x8);
+
+typedef struct _WOW64_CPURESERVED
+{
+    USHORT Flags;       // Initialised to 0x02 by ntdll.dll and periodically bitwise OR'd with WOW64_CPURESERVED_FLAG_RESET_STATE
+    USHORT MachineType; // IMAGE_FILE_MACHINE_I386 (0x014C) for x86 architecture
+
+    // Under IMAGE_FILE_MACHINE_I386 machine type, this is the WOW64_CONTEXT structure containing x86 architecture context
+    WOW64_CONTEXT Context;
+
+    // Padding to align WOW64 stack
+    BYTE AlignmentPad[0x10];
+} WOW64_CPURESERVED, *PWOW64_CPURESERVED;
+
+static_assert(sizeof(WOW64_CPURESERVED) == 0x2E0);
+
+#define WOW64_CPURESERVED_FLAG_RESET_STATE 1
+
+typedef enum class _SECTION_INFORMATION_CLASS
+{
+    SectionBasicInformation = 0,
+    SectionImageInformation = 1,
+    SectionRelocationInformation = 2,
+    SectionOriginalBaseInformation = 3,
+    SectionInternalImageInformation = 4
+} SECTION_INFORMATION_CLASS, *PSECTION_INFORMATION_CLASS;
 
 // NOLINTEND(modernize-use-using,cppcoreguidelines-avoid-c-arrays,hicpp-avoid-c-arrays,modernize-avoid-c-arrays)

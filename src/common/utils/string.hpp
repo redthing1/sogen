@@ -13,30 +13,21 @@ namespace utils::string
 #ifdef __clang__
     __attribute__((__format__(__printf__, 1, 2)))
 #endif
-    const char*
-    va(const char* format, ...);
-
-    template <typename T, size_t Size>
-        requires(std::is_trivially_copyable_v<T>)
-    // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays,hicpp-avoid-c-arrays,modernize-avoid-c-arrays)
-    void copy(T (&array)[Size], const std::basic_string_view<T> str)
-    {
-        if constexpr (Size == 0)
-        {
-            return;
-        }
-
-        const auto size = std::min(Size, str.size());
-        memcpy(array, str.data(), size * sizeof(T));
-        array[std::min(Size - 1, size)] = {};
-    }
+    const char* va(const char* format, ...);
 
     template <typename T, size_t Size>
         requires(std::is_trivially_copyable_v<T>)
     // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays,hicpp-avoid-c-arrays,modernize-avoid-c-arrays)
     void copy(T (&array)[Size], const T* str)
     {
-        copy<T, Size>(array, std::basic_string_view<T>(str));
+        if constexpr (Size == 0)
+        {
+            return;
+        }
+
+        const auto size = std::min(Size, std::char_traits<T>::length(str));
+        memcpy(array, str, size * sizeof(T));
+        array[std::min(Size - 1, size)] = {};
     }
 
     inline char char_to_lower(const char val)
@@ -180,18 +171,14 @@ namespace utils::string
     }
 
     template <class Elem, class Traits, class Alloc>
-    bool equals_ignore_case(const std::basic_string<Elem, Traits, Alloc>& lhs,
-                            const std::basic_string<Elem, Traits, Alloc>& rhs)
+    bool equals_ignore_case(const std::basic_string<Elem, Traits, Alloc>& lhs, const std::basic_string<Elem, Traits, Alloc>& rhs)
     {
-        return std::ranges::equal(lhs, rhs,
-                                  [](const auto c1, const auto c2) { return char_to_lower(c1) == char_to_lower(c2); });
+        return std::ranges::equal(lhs, rhs, [](const auto c1, const auto c2) { return char_to_lower(c1) == char_to_lower(c2); });
     }
 
     template <class Elem, class Traits>
-    bool equals_ignore_case(const std::basic_string_view<Elem, Traits>& lhs,
-                            const std::basic_string_view<Elem, Traits>& rhs)
+    bool equals_ignore_case(const std::basic_string_view<Elem, Traits>& lhs, const std::basic_string_view<Elem, Traits>& rhs)
     {
-        return std::ranges::equal(lhs, rhs,
-                                  [](const auto c1, const auto c2) { return char_to_lower(c1) == char_to_lower(c2); });
+        return std::ranges::equal(lhs, rhs, [](const auto c1, const auto c2) { return char_to_lower(c1) == char_to_lower(c2); });
     }
 }

@@ -1,5 +1,7 @@
 import React from "react";
-import { FixedSizeList as List } from "react-window";
+import { List, ListImperativeAPI, type RowComponentProps } from "react-window";
+import { ArrowDown } from "react-bootstrap-icons";
+import { Button } from "./ui/button";
 
 interface OutputProps {}
 
@@ -11,10 +13,17 @@ interface OutputState extends ColorState {
   lines: LogLine[];
 }
 
+enum SizeState {
+  Final,
+  Updating,
+}
+
 interface FullOutputState extends OutputState {
   grouper: OutputGrouper;
   height: number;
   width: number;
+  state: SizeState;
+  autoScroll: boolean;
 }
 
 interface LogLine {
@@ -150,10 +159,29 @@ class OutputGrouper {
   }
 }
 
+function LogLineRow({
+  ariaAttributes,
+  lines,
+  index,
+  style,
+}: RowComponentProps<{
+  lines: LogLine[];
+}>) {
+  {
+    const line = lines[index];
+    return (
+      <span className={line.classNames} style={style} {...ariaAttributes}>
+        {line.text}
+      </span>
+    );
+  }
+}
+
 export class Output extends React.Component<OutputProps, FullOutputState> {
   private outputRef: React.RefObject<HTMLDivElement | null>;
-  private listRef: React.RefObject<List | null>;
+  private listRef: React.RefObject<ListImperativeAPI | null>;
   private resizeObserver: ResizeObserver;
+  private scrollElement: HTMLDivElement | null | undefined;
 
   constructor(props: OutputProps) {
     super(props);
@@ -161,6 +189,8 @@ export class Output extends React.Component<OutputProps, FullOutputState> {
     this.clear = this.clear.bind(this);
     this.logLine = this.logLine.bind(this);
     this.logLines = this.logLines.bind(this);
+    this.handleScroll = this.handleScroll.bind(this);
+    this.scrollListToEnd = this.scrollListToEnd.bind(this);
     this.updateDimensions = this.updateDimensions.bind(this);
 
     this.outputRef = React.createRef();
@@ -173,11 +203,40 @@ export class Output extends React.Component<OutputProps, FullOutputState> {
       grouper: new OutputGrouper(),
       height: 10,
       width: 10,
+      state: SizeState.Final,
+      autoScroll: true,
     };
 
     this.state.grouper.handler = (lines: string[]) => {
       this.setState((s) => mergeLines(s, lines));
     };
+  }
+
+  handleScroll(e: Event) {
+    const threshold = 40;
+    const element = e.target as HTMLElement;
+    const { scrollTop, scrollHeight, clientHeight } = element;
+    const isAtEnd = scrollTop + clientHeight >= scrollHeight - threshold;
+
+    this.setState({ autoScroll: isAtEnd });
+  }
+
+  unregisterScrollListener() {
+    this.scrollElement?.removeEventListener("scroll", this.handleScroll);
+  }
+
+  registerScrollListener(element: HTMLDivElement | null | undefined) {
+    if (element == this.scrollElement) {
+      return;
+    }
+
+    this.unregisterScrollListener();
+    this.scrollElement = element;
+    element?.addEventListener("scroll", this.handleScroll);
+  }
+
+  registerScrollOnList() {
+    this.registerScrollListener(this.listRef.current?.element);
   }
 
   componentDidMount() {
@@ -186,21 +245,35 @@ export class Output extends React.Component<OutputProps, FullOutputState> {
     if (this.outputRef.current) {
       this.resizeObserver.observe(this.outputRef.current);
     }
+
+    this.registerScrollOnList();
   }
 
   componentWillUnmount() {
     this.resizeObserver.disconnect();
+    this.unregisterScrollListener();
+  }
+
+  scrollListToEnd() {
+    if (this.listRef.current && this.state.lines.length > 0) {
+      this.listRef.current.scrollToRow({
+        index: this.state.lines.length - 1,
+        behavior: "instant",
+      });
+    }
+
+    this.setState({ autoScroll: true });
   }
 
   componentDidUpdate(_: OutputProps, prevState: FullOutputState) {
-    if (
-      prevState.lines.length == this.state.lines.length ||
-      !this.listRef.current
-    ) {
-      return;
-    }
+    this.registerScrollOnList();
 
-    this.listRef.current.scrollToItem(this.state.lines.length - 1);
+    if (
+      this.state.autoScroll &&
+      prevState.lines.length != this.state.lines.length
+    ) {
+      this.scrollListToEnd();
+    }
   }
 
   clear() {
@@ -216,9 +289,29 @@ export class Output extends React.Component<OutputProps, FullOutputState> {
       return;
     }
 
-    this.setState({
-      width: this.outputRef.current.offsetWidth,
-      height: this.outputRef.current.offsetHeight,
+    if (this.state.state == SizeState.Updating) {
+      this.setState({
+        width: this.outputRef.current.offsetWidth - 1,
+        height: this.outputRef.current.offsetHeight - 1,
+        state: SizeState.Final,
+      });
+
+      return;
+    }
+
+    this.setState(
+      {
+        width: 0,
+        height: 0,
+        state: SizeState.Updating,
+      },
+      this.triggerDimensionUpdate.bind(this),
+    );
+  }
+
+  triggerDimensionUpdate() {
+    requestAnimationFrame(() => {
+      this.updateDimensions();
     });
   }
 
@@ -234,21 +327,25 @@ export class Output extends React.Component<OutputProps, FullOutputState> {
     return (
       <div className="terminal-output" ref={this.outputRef}>
         <List
-          ref={this.listRef}
-          width={this.state.width}
-          height={this.state.height}
-          itemCount={this.state.lines.length}
-          itemSize={20}
+          listRef={this.listRef}
+          overscanCount={30}
+          rowComponent={LogLineRow}
+          rowCount={this.state.lines.length}
+          rowProps={{ lines: this.state.lines }}
+          rowHeight={20}
+          style={{ height: this.state.height, width: this.state.width }}
+        />
+        <Button
+          title="Scroll to end"
+          className={
+            "absolute bottom-6 right-6 z-50 terminal-glass transition-opacity duration-50 ease-linear " +
+            (this.state.autoScroll ? "opacity-0" : "")
+          }
+          variant="secondary"
+          onClick={this.scrollListToEnd}
         >
-          {({ index, style }) => {
-            const line = this.state.lines[index];
-            return (
-              <span className={line.classNames} style={style}>
-                {line.text}
-              </span>
-            );
-          }}
-        </List>
+          <ArrowDown />
+        </Button>
       </div>
     );
   }

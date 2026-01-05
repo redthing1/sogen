@@ -186,6 +186,7 @@ struct file : ref_counted_object
     utils::file_handle handle{};
     std::u16string name{};
     std::optional<file_enumeration_state> enumeration_state{};
+    std::optional<std::u16string> deferred_rename;
 
     bool is_file() const
     {
@@ -220,6 +221,27 @@ struct section : ref_counted_object
     uint32_t section_page_protection{};
     uint32_t allocation_attributes{};
 
+    // Cached PE image information for image sections
+    struct image_info
+    {
+        uint64_t entry_point_rva{};
+        uint64_t image_base{};
+        uint64_t size_of_stack_reserve{};
+        uint64_t size_of_stack_commit{};
+        uint32_t size_of_code{};
+        uint32_t loader_flags{};
+        uint32_t checksum{};
+        uint16_t machine{};
+        uint16_t subsystem{};
+        uint16_t subsystem_major_version{};
+        uint16_t subsystem_minor_version{};
+        uint16_t image_characteristics{};
+        uint16_t dll_characteristics{};
+        bool has_code{false};
+        std::array<char, 7> _padding{};
+    };
+    std::optional<image_info> cached_image_info{};
+
     bool is_image() const
     {
         return this->allocation_attributes & SEC_IMAGE;
@@ -232,6 +254,7 @@ struct section : ref_counted_object
         buffer.write(this->maximum_size);
         buffer.write(this->section_page_protection);
         buffer.write(this->allocation_attributes);
+        buffer.write_optional<image_info>(this->cached_image_info);
     }
 
     void deserialize_object(utils::buffer_deserializer& buffer) override
@@ -241,6 +264,7 @@ struct section : ref_counted_object
         buffer.read(this->maximum_size);
         buffer.read(this->section_page_protection);
         buffer.read(this->allocation_attributes);
+        buffer.read_optional(this->cached_image_info);
     }
 };
 
@@ -287,23 +311,5 @@ struct semaphore : ref_counted_object
         buffer.read(this->name);
         buffer.read(this->current_count);
         buffer.read(this->max_count);
-    }
-};
-
-struct port : ref_counted_object
-{
-    std::u16string name{};
-    uint64_t view_base{};
-
-    void serialize_object(utils::buffer_serializer& buffer) const override
-    {
-        buffer.write(this->name);
-        buffer.write(this->view_base);
-    }
-
-    void deserialize_object(utils::buffer_deserializer& buffer) override
-    {
-        buffer.read(this->name);
-        buffer.read(this->view_base);
     }
 };

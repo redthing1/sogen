@@ -7,9 +7,8 @@
 
 namespace syscalls
 {
-    NTSTATUS handle_NtSetInformationThread(const syscall_context& c, const handle thread_handle,
-                                           const THREADINFOCLASS info_class, const uint64_t thread_information,
-                                           const uint32_t thread_information_length)
+    NTSTATUS handle_NtSetInformationThread(const syscall_context& c, const handle thread_handle, const THREADINFOCLASS info_class,
+                                           const uint64_t thread_information, const uint32_t thread_information_length)
     {
         auto* thread = thread_handle == CURRENT_THREAD ? c.proc.active_thread : c.proc.threads.get(thread_handle);
 
@@ -18,14 +17,48 @@ namespace syscalls
             return STATUS_INVALID_HANDLE;
         }
 
-        if (info_class == ThreadSchedulerSharedDataSlot || info_class == ThreadBasePriority ||
-            info_class == ThreadAffinityMask)
+        if (info_class == ThreadWow64Context)
+        {
+            // ThreadWow64Context is only valid for WOW64 processes
+            if (!c.proc.is_wow64_process)
+            {
+                return STATUS_NOT_SUPPORTED;
+            }
+
+            if (thread_information_length != sizeof(WOW64_CONTEXT))
+            {
+                return STATUS_BUFFER_OVERFLOW;
+            }
+
+            // Check if thread has persistent WOW64 context
+            if (!thread->wow64_cpu_reserved.has_value())
+            {
+                c.win_emu.log.print(color::red, "Error: WOW64 saved context not initialized for thread %d\n", thread->id);
+                return STATUS_INTERNAL_ERROR;
+            }
+
+            const emulator_object<WOW64_CONTEXT> context_obj{c.emu, thread_information};
+            const auto new_wow64_context = context_obj.read();
+
+            // Update the persistent context for future queries
+            thread->wow64_cpu_reserved->access([&](WOW64_CPURESERVED& ctx) {
+                ctx.Flags |= WOW64_CPURESERVED_FLAG_RESET_STATE;
+                ctx.Context = new_wow64_context;
+                // c.win_emu.callbacks.on_suspicious_activity("WOW64 CONTEXT");
+            });
+
+            return STATUS_SUCCESS;
+        }
+
+        if (info_class == ThreadSchedulerSharedDataSlot || info_class == ThreadBasePriority || info_class == ThreadAffinityMask ||
+            info_class == ThreadPriorityBoost)
         {
             return STATUS_SUCCESS;
         }
 
         if (info_class == ThreadHideFromDebugger)
         {
+            c.win_emu.current_thread().debugger_hide = true;
             c.win_emu.callbacks.on_suspicious_activity("Hiding thread from debugger");
             return STATUS_SUCCESS;
         }
@@ -70,17 +103,44 @@ namespace syscalls
 
             for (const auto& t : c.proc.threads | std::views::values)
             {
-                t.teb->access([&](TEB64& teb) {
-                    if (tls_cell < TLS_MINIMUM_AVAILABLE)
+                if (tls_cell < TLS_MINIMUM_AVAILABLE)
+                {
+                    if (c.proc.is_wow64_process)
                     {
-                        teb.TlsSlots.arr[tls_cell] = 0;
+                        if (t.teb32.has_value())
+                        {
+                            t.teb32->access([&](TEB32& teb32) { teb32.TlsSlots.arr[tls_cell] = 0; });
+                        }
                     }
-                    else if (teb.TlsExpansionSlots)
+                    else
                     {
-                        const emulator_object<emulator_pointer> expansion_slots(c.emu, teb.TlsExpansionSlots);
-                        expansion_slots.write(0, tls_cell - TLS_MINIMUM_AVAILABLE);
+                        t.teb64->access([&](TEB64& teb64) { teb64.TlsSlots.arr[tls_cell] = 0; });
                     }
-                });
+                }
+                else if (tls_cell < TLS_MINIMUM_AVAILABLE + TLS_EXPANSION_SLOTS)
+                {
+                    if (c.proc.is_wow64_process)
+                    {
+                        if (t.teb32.has_value())
+                        {
+                            t.teb32->access([&](TEB32& teb32) {
+                                if (teb32.TlsExpansionSlots)
+                                {
+                                    c.emu.write_memory<uint32_t>(teb32.TlsExpansionSlots + (4 * tls_cell) - TLS_MINIMUM_AVAILABLE, 0);
+                                }
+                            });
+                        }
+                    }
+                    else
+                    {
+                        t.teb64->access([&](TEB64& teb64) {
+                            if (teb64.TlsExpansionSlots)
+                            {
+                                c.emu.write_memory<uint64_t>(teb64.TlsExpansionSlots + (8 * tls_cell) - TLS_MINIMUM_AVAILABLE, 0);
+                            }
+                        });
+                    }
+                }
             }
 
             return STATUS_SUCCESS;
@@ -91,9 +151,8 @@ namespace syscalls
         return STATUS_NOT_SUPPORTED;
     }
 
-    NTSTATUS handle_NtQueryInformationThread(const syscall_context& c, const handle thread_handle,
-                                             const uint32_t info_class, const uint64_t thread_information,
-                                             const uint32_t thread_information_length,
+    NTSTATUS handle_NtQueryInformationThread(const syscall_context& c, const handle thread_handle, const uint32_t info_class,
+                                             const uint64_t thread_information, const uint32_t thread_information_length,
                                              const emulator_object<uint32_t> return_length)
     {
         const auto* thread = thread_handle == CURRENT_THREAD ? c.proc.active_thread : c.proc.threads.get(thread_handle);
@@ -101,6 +160,44 @@ namespace syscalls
         if (!thread)
         {
             return STATUS_INVALID_HANDLE;
+        }
+
+        emulator_thread& cur_emulator_thread = c.win_emu.current_thread();
+
+        if (info_class == ThreadWow64Context)
+        {
+            // ThreadWow64Context is only valid for WOW64 processes
+            if (!c.proc.is_wow64_process)
+            {
+                return STATUS_NOT_SUPPORTED;
+            }
+
+            if (return_length)
+            {
+                return_length.write(sizeof(WOW64_CONTEXT));
+            }
+
+            if (thread_information_length < sizeof(WOW64_CONTEXT))
+            {
+                return STATUS_BUFFER_OVERFLOW;
+            }
+
+            const emulator_object<WOW64_CONTEXT> context_obj{c.emu, thread_information};
+
+            // Check if thread has persistent WOW64 context
+            if (!thread->wow64_cpu_reserved.has_value())
+            {
+                c.win_emu.log.print(color::red, "Error: WOW64 saved context not initialized for thread %d\n", thread->id);
+                return STATUS_INTERNAL_ERROR;
+            }
+
+            // Return the saved context (which was set by NtSetInformationThread)
+            thread->wow64_cpu_reserved->access([&](const WOW64_CPURESERVED& ctx) {
+                const auto wow64_context = ctx.Context;
+                context_obj.write(wow64_context);
+            });
+
+            return STATUS_SUCCESS;
         }
 
         if (info_class == ThreadTebInformation)
@@ -116,7 +213,7 @@ namespace syscalls
             }
 
             const auto teb_info = c.emu.read_memory<THREAD_TEB_INFORMATION>(thread_information);
-            const auto data = c.emu.read_memory(thread->teb->value() + teb_info.TebOffset, teb_info.BytesToRead);
+            const auto data = c.emu.read_memory(thread->teb64->value() + teb_info.TebOffset, teb_info.BytesToRead);
             c.emu.write_memory(teb_info.TebInformation, data.data(), data.size());
 
             return STATUS_SUCCESS;
@@ -136,8 +233,8 @@ namespace syscalls
 
             const emulator_object<THREAD_BASIC_INFORMATION64> info{c.emu, thread_information};
             info.access([&](THREAD_BASIC_INFORMATION64& i) {
-                i.TebBaseAddress = thread->teb->value();
-                i.ClientId = thread->teb->read().ClientId;
+                i.TebBaseAddress = thread->teb64->value();
+                i.ClientId = thread->teb64->read().ClientId;
             });
 
             return STATUS_SUCCESS;
@@ -210,7 +307,9 @@ namespace syscalls
             }
 
             const emulator_object<BOOLEAN> info{c.emu, thread_information};
-            info.write(0);
+            info.write(cur_emulator_thread.debugger_hide);
+
+            c.win_emu.callbacks.on_suspicious_activity("Checking if the thread is hidden from the debugger");
 
             return STATUS_SUCCESS;
         }
@@ -246,9 +345,8 @@ namespace syscalls
         return STATUS_NOT_SUPPORTED;
     }
 
-    NTSTATUS handle_NtOpenThreadToken(const syscall_context&, const handle thread_handle,
-                                      const ACCESS_MASK /*desired_access*/, const BOOLEAN /*open_as_self*/,
-                                      const emulator_object<handle> token_handle)
+    NTSTATUS handle_NtOpenThreadToken(const syscall_context&, const handle thread_handle, const ACCESS_MASK /*desired_access*/,
+                                      const BOOLEAN /*open_as_self*/, const emulator_object<handle> token_handle)
     {
         if (thread_handle != CURRENT_THREAD)
         {
@@ -260,11 +358,26 @@ namespace syscalls
         return STATUS_SUCCESS;
     }
 
-    NTSTATUS handle_NtOpenThreadTokenEx(const syscall_context& c, const handle thread_handle,
-                                        const ACCESS_MASK desired_access, const BOOLEAN open_as_self,
-                                        const ULONG /*handle_attributes*/, const emulator_object<handle> token_handle)
+    NTSTATUS handle_NtOpenThreadTokenEx(const syscall_context& c, const handle thread_handle, const ACCESS_MASK desired_access,
+                                        const BOOLEAN open_as_self, const ULONG /*handle_attributes*/,
+                                        const emulator_object<handle> token_handle)
     {
         return handle_NtOpenThreadToken(c, thread_handle, desired_access, open_as_self, token_handle);
+    }
+
+    static void delete_thread_windows(const syscall_context& c, const uint32_t thread_id)
+    {
+        for (auto i = c.proc.windows.begin(); i != c.proc.windows.end();)
+        {
+            if (i->second.thread_id != thread_id)
+            {
+                ++i;
+                continue;
+            }
+
+            i->second.ref_count = 1;
+            i = c.proc.windows.erase(i).first;
+        }
     }
 
     NTSTATUS handle_NtTerminateThread(const syscall_context& c, const handle thread_handle, const NTSTATUS exit_status)
@@ -279,17 +392,7 @@ namespace syscalls
         thread->exit_status = exit_status;
         c.win_emu.callbacks.on_thread_terminated(thread_handle, *thread);
 
-        for (auto i = c.proc.windows.begin(); i != c.proc.windows.end();)
-        {
-            if (i->second.thread_id != thread->id)
-            {
-                ++i;
-                continue;
-            }
-
-            i->second.ref_count = 1;
-            i = c.proc.windows.erase(i).first;
-        }
+        delete_thread_windows(c, thread->id);
 
         if (thread == c.proc.active_thread)
         {
@@ -299,11 +402,13 @@ namespace syscalls
         return STATUS_SUCCESS;
     }
 
-    NTSTATUS handle_NtDelayExecution(const syscall_context& c, const BOOLEAN alertable,
-                                     const emulator_object<LARGE_INTEGER> delay_interval)
+    NTSTATUS handle_NtDelayExecution(const syscall_context& c, const BOOLEAN alertable, const emulator_object<LARGE_INTEGER> delay_interval)
     {
         auto& t = c.win_emu.current_thread();
-        t.await_time = utils::convert_delay_interval_to_time_point(c.win_emu.clock(), delay_interval.read());
+        if (delay_interval.value())
+        {
+            t.await_time = utils::convert_delay_interval_to_time_point(c.win_emu.clock(), delay_interval.read());
+        }
         c.win_emu.yield_thread(alertable);
 
         return STATUS_SUCCESS;
@@ -337,8 +442,7 @@ namespace syscalls
         return handle_NtAlertThreadByThreadId(c, thread_id);
     }
 
-    NTSTATUS handle_NtWaitForAlertByThreadId(const syscall_context& c, const uint64_t,
-                                             const emulator_object<LARGE_INTEGER> timeout)
+    NTSTATUS handle_NtWaitForAlertByThreadId(const syscall_context& c, const uint64_t, const emulator_object<LARGE_INTEGER> timeout)
     {
         auto& t = c.win_emu.current_thread();
         t.waiting_for_alert = true;
@@ -408,15 +512,14 @@ namespace syscalls
         return STATUS_SUCCESS;
     }
 
-    NTSTATUS handle_NtContinue(const syscall_context& c, const emulator_object<CONTEXT64> thread_context,
-                               const BOOLEAN raise_alert)
+    NTSTATUS handle_NtContinue(const syscall_context& c, const emulator_object<CONTEXT64> thread_context, const BOOLEAN raise_alert)
     {
         return handle_NtContinueEx(c, thread_context, raise_alert ? 1 : 0);
     }
 
     NTSTATUS handle_NtGetNextThread(const syscall_context& c, const handle process_handle, const handle thread_handle,
-                                    const ACCESS_MASK /*desired_access*/, const ULONG /*handle_attributes*/,
-                                    const ULONG flags, const emulator_object<handle> new_thread_handle)
+                                    const ACCESS_MASK /*desired_access*/, const ULONG /*handle_attributes*/, const ULONG flags,
+                                    const emulator_object<handle> new_thread_handle)
     {
         if (process_handle != CURRENT_PROCESS || thread_handle.value.type != handle_types::thread)
         {
@@ -530,8 +633,7 @@ namespace syscalls
             return STATUS_NOT_SUPPORTED;
         }
 
-        const auto h = c.proc.create_thread(c.win_emu.memory, start_routine, argument, stack_size,
-                                            create_flags & CREATE_SUSPENDED);
+        const auto h = c.proc.create_thread(c.win_emu.memory, start_routine, argument, stack_size, create_flags);
         thread_handle.write(h);
 
         if (!attribute_list)
@@ -558,12 +660,12 @@ namespace syscalls
 
                     if (type == PsAttributeClientId)
                     {
-                        const auto client_id = thread->teb->read().ClientId;
+                        const auto client_id = thread->teb64->read().ClientId;
                         write_attribute(c.emu, attribute, client_id);
                     }
                     else if (type == PsAttributeTebAddress)
                     {
-                        write_attribute(c.emu, attribute, thread->teb->value());
+                        write_attribute(c.emu, attribute, thread->teb64->value());
                     }
                     else
                     {
@@ -576,8 +678,7 @@ namespace syscalls
         return STATUS_SUCCESS;
     }
 
-    NTSTATUS handle_NtGetCurrentProcessorNumberEx(const syscall_context&,
-                                                  const emulator_object<PROCESSOR_NUMBER> processor_number)
+    NTSTATUS handle_NtGetCurrentProcessorNumberEx(const syscall_context&, const emulator_object<PROCESSOR_NUMBER> processor_number)
     {
         constexpr PROCESSOR_NUMBER number{};
         processor_number.write(number);
@@ -589,9 +690,8 @@ namespace syscalls
         return 0;
     }
 
-    NTSTATUS handle_NtQueueApcThreadEx2(const syscall_context& c, const handle thread_handle,
-                                        const handle /*reserve_handle*/, const uint32_t apc_flags,
-                                        const uint64_t apc_routine, const uint64_t apc_argument1,
+    NTSTATUS handle_NtQueueApcThreadEx2(const syscall_context& c, const handle thread_handle, const handle /*reserve_handle*/,
+                                        const uint32_t apc_flags, const uint64_t apc_routine, const uint64_t apc_argument1,
                                         const uint64_t apc_argument2, const uint64_t apc_argument3)
     {
         auto* thread = thread_handle == CURRENT_THREAD ? c.proc.active_thread : c.proc.threads.get(thread_handle);
@@ -619,9 +719,8 @@ namespace syscalls
         return STATUS_SUCCESS;
     }
 
-    NTSTATUS handle_NtQueueApcThreadEx(const syscall_context& c, const handle thread_handle,
-                                       const handle reserve_handle, const uint64_t apc_routine,
-                                       const uint64_t apc_argument1, const uint64_t apc_argument2,
+    NTSTATUS handle_NtQueueApcThreadEx(const syscall_context& c, const handle thread_handle, const handle reserve_handle,
+                                       const uint64_t apc_routine, const uint64_t apc_argument1, const uint64_t apc_argument2,
                                        const uint64_t apc_argument3)
     {
         uint32_t flags{0};
@@ -633,15 +732,13 @@ namespace syscalls
             static_assert(QUEUE_USER_APC_FLAGS_SPECIAL_USER_APC == 1);
         }
 
-        return handle_NtQueueApcThreadEx2(c, thread_handle, real_reserve_handle, flags, apc_routine, apc_argument1,
-                                          apc_argument2, apc_argument3);
+        return handle_NtQueueApcThreadEx2(c, thread_handle, real_reserve_handle, flags, apc_routine, apc_argument1, apc_argument2,
+                                          apc_argument3);
     }
 
     NTSTATUS handle_NtQueueApcThread(const syscall_context& c, const handle thread_handle, const uint64_t apc_routine,
-                                     const uint64_t apc_argument1, const uint64_t apc_argument2,
-                                     const uint64_t apc_argument3)
+                                     const uint64_t apc_argument1, const uint64_t apc_argument2, const uint64_t apc_argument3)
     {
-        return handle_NtQueueApcThreadEx(c, thread_handle, make_handle(0), apc_routine, apc_argument1, apc_argument2,
-                                         apc_argument3);
+        return handle_NtQueueApcThreadEx(c, thread_handle, make_handle(0), apc_routine, apc_argument1, apc_argument2, apc_argument3);
     }
 }

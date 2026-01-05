@@ -48,8 +48,8 @@ class emulator_thread : public ref_counted_object
     {
     }
 
-    emulator_thread(memory_manager& memory, const process_context& context, uint64_t start_address, uint64_t argument,
-                    uint64_t stack_size, bool suspended, uint32_t id);
+    emulator_thread(memory_manager& memory, const process_context& context, uint64_t start_address, uint64_t argument, uint64_t stack_size,
+                    uint32_t create_flags, uint32_t id, bool initial_thread);
 
     emulator_thread(const emulator_thread&) = delete;
     emulator_thread& operator=(const emulator_thread&) = delete;
@@ -66,13 +66,18 @@ class emulator_thread : public ref_counted_object
 
     memory_manager* memory_ptr{};
 
-    uint64_t stack_base{};
-    uint64_t stack_size{};
+    uint64_t stack_base{};                    // Native 64-bit stack base
+    uint64_t stack_size{};                    // Native 64-bit stack size
+    std::optional<uint64_t> wow64_stack_base; // WOW64 32-bit stack base
+    std::optional<uint64_t> wow64_stack_size; // WOW64 32-bit stack size
     uint64_t start_address{};
     uint64_t argument{};
     uint64_t executed_instructions{0};
 
     uint32_t id{};
+
+    uint64_t current_ip{0};
+    uint64_t previous_ip{0};
 
     std::u16string name{};
 
@@ -81,6 +86,7 @@ class emulator_thread : public ref_counted_object
     bool await_any{false};
     bool waiting_for_alert{false};
     bool alerted{false};
+    uint32_t create_flags{0};
     uint32_t suspended{0};
     std::optional<std::chrono::steady_clock::time_point> await_time{};
 
@@ -90,15 +96,21 @@ class emulator_thread : public ref_counted_object
     std::optional<NTSTATUS> pending_status{};
 
     std::optional<emulator_allocator> gs_segment;
-    std::optional<emulator_object<TEB64>> teb;
+    std::optional<emulator_object<TEB64>> teb64;                          // Native 64-bit TEB
+    std::optional<emulator_object<TEB32>> teb32;                          // WOW64 32-bit TEB
+    std::optional<emulator_allocator> wow64_context_segment;              // For WOW64 context (CONTEXT64) allocation
+    std::optional<emulator_object<WOW64_CPURESERVED>> wow64_cpu_reserved; // Persistent WOW64 thread context for ThreadWow64Context queries
 
     std::vector<std::byte> last_registers{};
+
+    bool debugger_hide{false};
 
     void mark_as_ready(NTSTATUS status);
 
     bool is_await_time_over(utils::clock& clock) const
     {
-        return this->await_time.has_value() && this->await_time.value() < clock.steady_now();
+        constexpr auto infinite = std::chrono::steady_clock::time_point::min();
+        return this->await_time.has_value() && this->await_time.value() != infinite && this->await_time.value() < clock.steady_now();
     }
 
     bool is_terminated() const;
@@ -113,6 +125,7 @@ class emulator_thread : public ref_counted_object
     void restore(x86_64_emulator& emu) const
     {
         emu.restore_registers(this->last_registers);
+        this->refresh_execution_context(emu);
     }
 
     void setup_if_necessary(x86_64_emulator& emu, const process_context& context)
@@ -144,6 +157,8 @@ class emulator_thread : public ref_counted_object
         buffer.write(this->argument);
         buffer.write(this->executed_instructions);
         buffer.write(this->id);
+        buffer.write(this->current_ip);
+        buffer.write(this->previous_ip);
 
         buffer.write_string(this->name);
 
@@ -154,6 +169,7 @@ class emulator_thread : public ref_counted_object
         buffer.write(this->waiting_for_alert);
         buffer.write(this->alerted);
 
+        buffer.write(this->create_flags);
         buffer.write(this->suspended);
         buffer.write_optional(this->await_time);
 
@@ -162,9 +178,16 @@ class emulator_thread : public ref_counted_object
 
         buffer.write_optional(this->pending_status);
         buffer.write_optional(this->gs_segment);
-        buffer.write_optional(this->teb);
+        buffer.write_optional(this->teb64);
+        buffer.write_optional(this->wow64_stack_base);
+        buffer.write_optional(this->wow64_stack_size);
+        buffer.write_optional(this->teb32);
+        buffer.write_optional(this->wow64_context_segment);
+        buffer.write_optional(this->wow64_cpu_reserved);
 
         buffer.write_vector(this->last_registers);
+
+        buffer.write(this->debugger_hide);
     }
 
     void deserialize_object(utils::buffer_deserializer& buffer) override
@@ -182,6 +205,8 @@ class emulator_thread : public ref_counted_object
         buffer.read(this->argument);
         buffer.read(this->executed_instructions);
         buffer.read(this->id);
+        buffer.read(this->current_ip);
+        buffer.read(this->previous_ip);
 
         buffer.read_string(this->name);
 
@@ -192,6 +217,7 @@ class emulator_thread : public ref_counted_object
         buffer.read(this->waiting_for_alert);
         buffer.read(this->alerted);
 
+        buffer.read(this->create_flags);
         buffer.read(this->suspended);
         buffer.read_optional(this->await_time);
 
@@ -200,9 +226,16 @@ class emulator_thread : public ref_counted_object
 
         buffer.read_optional(this->pending_status);
         buffer.read_optional(this->gs_segment, [this] { return emulator_allocator(*this->memory_ptr); });
-        buffer.read_optional(this->teb, [this] { return emulator_object<TEB64>(*this->memory_ptr); });
+        buffer.read_optional(this->teb64, [this] { return emulator_object<TEB64>(*this->memory_ptr); });
+        buffer.read_optional(this->wow64_stack_base);
+        buffer.read_optional(this->wow64_stack_size);
+        buffer.read_optional(this->teb32, [this] { return emulator_object<TEB32>(*this->memory_ptr); });
+        buffer.read_optional(this->wow64_context_segment, [this] { return emulator_allocator(*this->memory_ptr); });
+        buffer.read_optional(this->wow64_cpu_reserved, [this] { return emulator_object<WOW64_CPURESERVED>(*this->memory_ptr); });
 
         buffer.read_vector(this->last_registers);
+
+        buffer.read(this->debugger_hide);
     }
 
     void leak_memory()
@@ -217,6 +250,7 @@ class emulator_thread : public ref_counted_object
 
   private:
     void setup_registers(x86_64_emulator& emu, const process_context& context) const;
+    void refresh_execution_context(x86_64_emulator& emu) const;
 
     void release()
     {

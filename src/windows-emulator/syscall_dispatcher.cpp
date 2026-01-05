@@ -65,7 +65,11 @@ void syscall_dispatcher::dispatch(windows_emulator& win_emu)
     auto& context = win_emu.process;
 
     const auto address = emu.read_instruction_pointer();
-    const auto syscall_id = emu.reg<uint32_t>(x86_register::eax);
+    const auto raw_syscall_id = emu.reg<uint32_t>(x86_register::eax);
+    const auto syscall_id = raw_syscall_id & 0xFFFF; // Only take low bits for WOW64 compatibility
+
+    const auto entry = this->handlers_.find(syscall_id);
+    const auto* syscall_name = (entry != this->handlers_.end()) ? entry->second.name.c_str() : "<unknown>";
 
     const syscall_context c{
         .win_emu = win_emu,
@@ -76,10 +80,9 @@ void syscall_dispatcher::dispatch(windows_emulator& win_emu)
 
     try
     {
-        const auto entry = this->handlers_.find(syscall_id);
         if (entry == this->handlers_.end())
         {
-            win_emu.log.error("Unknown syscall: 0x%X\n", syscall_id);
+            win_emu.log.error("Unknown syscall: 0x%X (raw: 0x%X)\n", syscall_id, raw_syscall_id);
             c.emu.reg<uint64_t>(x86_register::rax, STATUS_NOT_SUPPORTED);
             c.emu.stop();
             return;
@@ -93,32 +96,52 @@ void syscall_dispatcher::dispatch(windows_emulator& win_emu)
 
         if (!entry->second.handler)
         {
-            win_emu.log.error("Unimplemented syscall: %s - 0x%X\n", entry->second.name.c_str(), syscall_id);
+            win_emu.log.error("Unimplemented syscall: %s - 0x%X (raw: 0x%X)\n", entry->second.name.c_str(), syscall_id, raw_syscall_id);
             c.emu.reg<uint64_t>(x86_register::rax, STATUS_NOT_SUPPORTED);
             c.emu.stop();
             return;
         }
 
         entry->second.handler(c);
+
+        dispatch_callback(win_emu, entry->second.name);
     }
     catch (std::exception& e)
     {
-        win_emu.log.error("Syscall threw an exception: %X (0x%" PRIx64 ") - %s\n", syscall_id, address, e.what());
+        win_emu.log.error("Syscall %s threw an exception: 0x%X (raw: 0x%X) (0x%" PRIx64 ") - %s\n", syscall_name, syscall_id,
+                          raw_syscall_id, address, e.what());
         emu.reg<uint64_t>(x86_register::rax, STATUS_UNSUCCESSFUL);
         emu.stop();
     }
     catch (...)
     {
-        win_emu.log.error("Syscall threw an unknown exception: %X (0x%" PRIx64 ")\n", syscall_id, address);
+        win_emu.log.error("Syscall %s threw an unknown exception: 0x%X (raw: 0x%X) (0x%" PRIx64 ")\n", syscall_name, syscall_id,
+                          raw_syscall_id, address);
         emu.reg<uint64_t>(x86_register::rax, STATUS_UNSUCCESSFUL);
         emu.stop();
     }
 }
 
-syscall_dispatcher::syscall_dispatcher(const exported_symbols& ntdll_exports,
-                                       const std::span<const std::byte> ntdll_data,
-                                       const exported_symbols& win32u_exports,
-                                       const std::span<const std::byte> win32u_data)
+void syscall_dispatcher::dispatch_callback(windows_emulator& win_emu, std::string& syscall_name)
+{
+    auto& emu = win_emu.emu();
+    auto& context = win_emu.process;
+
+    if (context.instrumentation_callback != 0 && syscall_name != "NtContinue")
+    {
+        auto rip_old = emu.reg<uint64_t>(x86_register::rip);
+
+        // The increase in RIP caused by executing the syscall here has not yet occurred.
+        // If RIP is set directly, it will lead to an incorrect address, so the length of
+        // the syscall instruction needs to be subtracted.
+        emu.reg<uint64_t>(x86_register::rip, context.instrumentation_callback - 2);
+
+        emu.reg<uint64_t>(x86_register::r10, rip_old);
+    }
+}
+
+syscall_dispatcher::syscall_dispatcher(const exported_symbols& ntdll_exports, const std::span<const std::byte> ntdll_data,
+                                       const exported_symbols& win32u_exports, const std::span<const std::byte> win32u_data)
 {
     this->setup(ntdll_exports, ntdll_data, win32u_exports, win32u_data);
 }

@@ -6,8 +6,7 @@
 
 namespace syscalls
 {
-    NTSTATUS handle_NtOpenKey(const syscall_context& c, const emulator_object<handle> key_handle,
-                              const ACCESS_MASK /*desired_access*/,
+    NTSTATUS handle_NtOpenKey(const syscall_context& c, const emulator_object<handle> key_handle, const ACCESS_MASK /*desired_access*/,
                               const emulator_object<OBJECT_ATTRIBUTES<EmulatorTraits<Emu64>>> object_attributes)
     {
         const auto attributes = object_attributes.read();
@@ -39,17 +38,14 @@ namespace syscalls
         return STATUS_SUCCESS;
     }
 
-    NTSTATUS handle_NtOpenKeyEx(const syscall_context& c, const emulator_object<handle> key_handle,
-                                const ACCESS_MASK desired_access,
-                                const emulator_object<OBJECT_ATTRIBUTES<EmulatorTraits<Emu64>>> object_attributes,
-                                ULONG /*open_options*/)
+    NTSTATUS handle_NtOpenKeyEx(const syscall_context& c, const emulator_object<handle> key_handle, const ACCESS_MASK desired_access,
+                                const emulator_object<OBJECT_ATTRIBUTES<EmulatorTraits<Emu64>>> object_attributes, ULONG /*open_options*/)
     {
         return handle_NtOpenKey(c, key_handle, desired_access, object_attributes);
     }
 
-    NTSTATUS handle_NtQueryKey(const syscall_context& c, const handle key_handle,
-                               const KEY_INFORMATION_CLASS key_information_class, const uint64_t key_information,
-                               const ULONG length, const emulator_object<ULONG> result_length)
+    NTSTATUS handle_NtQueryKey(const syscall_context& c, const handle key_handle, const KEY_INFORMATION_CLASS key_information_class,
+                               const uint64_t key_information, const ULONG length, const emulator_object<ULONG> result_length)
     {
         const auto* key = c.proc.registry_keys.get(key_handle);
         if (!key)
@@ -81,15 +77,49 @@ namespace syscalls
             const emulator_object<KEY_NAME_INFORMATION> info_obj{c.emu, key_information};
             info_obj.write(info);
 
-            c.emu.write_memory(key_information + offsetof(KEY_NAME_INFORMATION, Name), key_name.data(),
-                               info.NameLength);
+            c.emu.write_memory(key_information + offsetof(KEY_NAME_INFORMATION, Name), key_name.data(), info.NameLength);
 
             return STATUS_SUCCESS;
         }
 
         if (key_information_class == KeyFullInformation)
         {
+            c.win_emu.log.warn("Unsupported registry class: %X\n", key_information_class);
             return STATUS_NOT_SUPPORTED;
+        }
+
+        if (key_information_class == KeyCachedInformation)
+        {
+            auto key_name = (key->hive.get() / key->path.get()).u16string();
+            while (key_name.ends_with(u'/') || key_name.ends_with(u'\\'))
+            {
+                key_name.pop_back();
+            }
+
+            const auto hive_key = c.win_emu.registry.get_hive_key(*key);
+            if (!hive_key.has_value())
+            {
+                return STATUS_OBJECT_NAME_NOT_FOUND;
+            }
+
+            constexpr auto required_size = sizeof(KEY_CACHED_INFORMATION);
+            result_length.write(required_size);
+
+            if (required_size > length)
+            {
+                return STATUS_BUFFER_TOO_SMALL;
+            }
+
+            KEY_CACHED_INFORMATION info{};
+            info.SubKeys = static_cast<ULONG>(hive_key->key.get_sub_key_count(hive_key->file));
+            info.Values = static_cast<ULONG>(hive_key->key.get_value_count(hive_key->file));
+            info.NameLength = static_cast<ULONG>(key_name.size() * 2);
+            info.MaxValueDataLen = 0x1000;
+            info.MaxValueNameLen = 0x1000;
+            info.MaxNameLen = 0x1000;
+
+            c.emu.write_memory(key_information, info);
+            return STATUS_SUCCESS;
         }
 
         if (key_information_class == KeyHandleTagsInformation)
@@ -118,9 +148,8 @@ namespace syscalls
 
     NTSTATUS handle_NtQueryValueKey(const syscall_context& c, const handle key_handle,
                                     const emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>> value_name,
-                                    const KEY_VALUE_INFORMATION_CLASS key_value_information_class,
-                                    const uint64_t key_value_information, const ULONG length,
-                                    const emulator_object<ULONG> result_length)
+                                    const KEY_VALUE_INFORMATION_CLASS key_value_information_class, const uint64_t key_value_information,
+                                    const ULONG length, const emulator_object<ULONG> result_length)
     {
         const auto* key = c.proc.registry_keys.get(key_handle);
         if (!key)
@@ -222,8 +251,7 @@ namespace syscalls
 
             c.emu.write_memory(key_value_information + base_size, original_name.data(), info.NameLength);
 
-            c.emu.write_memory(key_value_information + base_size + info.NameLength, value->data.data(),
-                               value->data.size());
+            c.emu.write_memory(key_value_information + base_size + info.NameLength, value->data.data(), value->data.size());
 
             return STATUS_SUCCESS;
         }
@@ -233,11 +261,9 @@ namespace syscalls
         return STATUS_NOT_SUPPORTED;
     }
 
-    NTSTATUS handle_NtCreateKey(const syscall_context& c, const emulator_object<handle> key_handle,
-                                const ACCESS_MASK desired_access,
+    NTSTATUS handle_NtCreateKey(const syscall_context& c, const emulator_object<handle> key_handle, const ACCESS_MASK desired_access,
                                 const emulator_object<OBJECT_ATTRIBUTES<EmulatorTraits<Emu64>>> object_attributes,
-                                const ULONG /*title_index*/,
-                                const emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>> /*class*/,
+                                const ULONG /*title_index*/, const emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>> /*class*/,
                                 const ULONG /*create_options*/, const emulator_object<ULONG> /*disposition*/)
     {
         const auto result = handle_NtOpenKey(c, key_handle, desired_access, object_attributes);
@@ -261,8 +287,8 @@ namespace syscalls
     }
 
     NTSTATUS handle_NtEnumerateKey(const syscall_context& c, const handle key_handle, const ULONG index,
-                                   const KEY_INFORMATION_CLASS key_information_class, const uint64_t key_information,
-                                   const ULONG length, const emulator_object<ULONG> result_length)
+                                   const KEY_INFORMATION_CLASS key_information_class, const uint64_t key_information, const ULONG length,
+                                   const emulator_object<ULONG> result_length)
     {
         const auto* key = c.proc.registry_keys.get(key_handle);
         if (!key)
@@ -341,9 +367,8 @@ namespace syscalls
     }
 
     NTSTATUS handle_NtEnumerateValueKey(const syscall_context& c, const handle key_handle, const ULONG index,
-                                        const KEY_VALUE_INFORMATION_CLASS key_value_information_class,
-                                        const uint64_t key_value_information, const ULONG length,
-                                        const emulator_object<ULONG> result_length)
+                                        const KEY_VALUE_INFORMATION_CLASS key_value_information_class, const uint64_t key_value_information,
+                                        const ULONG length, const emulator_object<ULONG> result_length)
     {
         const auto* key = c.proc.registry_keys.get(key_handle);
         if (!key)

@@ -6,8 +6,8 @@ option(MOMO_ENABLE_AVX2 "Enable AVX2 support" ON)
 option(MOMO_ENABLE_SANITIZER "Enable sanitizer" OFF)
 option(MOMO_ENABLE_CLANG_TIDY "Enable clang-tidy checks" OFF)
 option(MOMO_ENABLE_RUST_CODE "Enable code parts written in rust" ON)
+option(MOMO_EMSCRIPTEN_MEMORY64 "Enable memory 64 support for emscripten builds" OFF)
 option(MOMO_EMSCRIPTEN_SUPPORT_NODEJS "Enable Node.js filesystem for emscripten compilation" OFF)
-option(MOMO_BUILD_AS_LIBRARY "Configure and Build the emulator as a shared library (without the samples and tests)" OFF)
 
 set(MOMO_REFLECTION_LEVEL "0" CACHE STRING "Reflection level for the build")
 message(STATUS "Reflection level is set to: ${MOMO_REFLECTION_LEVEL}")
@@ -31,8 +31,20 @@ set(ENV{ARCHFLAGS} "nope")
 
 ##########################################
 
-project(emulator LANGUAGES C CXX)
+project(sogen LANGUAGES C CXX)
 enable_testing()
+
+##########################################
+
+if(PROJECT_IS_TOP_LEVEL)
+  set(MOMO_IS_SUBPROJECT OFF)
+else()
+  set(MOMO_IS_SUBPROJECT ON)
+endif()
+
+##########################################
+
+option(SOGEN_BUILD_STATIC "Build sogen as static libraries for embedding (e.g., IDA plugins)" ${MOMO_IS_SUBPROJECT})
 
 ##########################################
 

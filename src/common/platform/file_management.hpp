@@ -73,18 +73,27 @@
 #define SL_NO_CURSOR_UPDATE            0x10
 
 #ifndef SEC_IMAGE
-#define SEC_IMAGE   0x01000000
-#define SEC_RESERVE 0x04000000
+#define SEC_HUGE_PAGES             0x00020000
+#define SEC_PARTITION_OWNER_HANDLE 0x00040000
+#define SEC_64K_PAGES              0x00080000
+#define SEC_FILE                   0x00800000
+#define SEC_IMAGE                  0x01000000
+#define SEC_PROTECTED_IMAGE        0x02000000
+#define SEC_RESERVE                0x04000000
+#define SEC_COMMIT                 0x08000000
+#define SEC_NOCACHE                0x10000000
+#define SEC_WRITECOMBINE           0x40000000
+#define SEC_LARGE_PAGES            0x80000000
+#define SEC_IMAGE_NO_EXECUTE       (SEC_IMAGE | SEC_NOCACHE)
 #endif
 
-#define CTL_CODE(DeviceType, Function, Method, Access) \
-    (((DeviceType) << 16) | ((Access) << 14) | ((Function) << 2) | (Method))
+#define CTL_CODE(DeviceType, Function, Method, Access) (((DeviceType) << 16) | ((Access) << 14) | ((Function) << 2) | (Method))
 
-#define METHOD_BUFFERED   0
+#define METHOD_BUFFERED                                0
 
-#define FILE_ANY_ACCESS   0
-#define FILE_READ_ACCESS  (0x0001) // file & pipe
-#define FILE_WRITE_ACCESS (0x0002) // file & pipe
+#define FILE_ANY_ACCESS                                0
+#define FILE_READ_ACCESS                               (0x0001) // file & pipe
+#define FILE_WRITE_ACCESS                              (0x0002) // file & pipe
 
 typedef enum _FSINFOCLASS
 {
@@ -147,10 +156,10 @@ typedef enum _FILE_INFORMATION_CLASS
     FileMailslotQueryInformation, // q: FILE_MAILSLOT_QUERY_INFORMATION
     FileMailslotSetInformation,   // s: FILE_MAILSLOT_SET_INFORMATION
     FileCompressionInformation,   // q: FILE_COMPRESSION_INFORMATION
-    FileObjectIdInformation,   // q: FILE_OBJECTID_INFORMATION (requires FILE_LIST_DIRECTORY) (NtQueryDirectoryFile[Ex])
-    FileCompletionInformation, // s: FILE_COMPLETION_INFORMATION // 30
-    FileMoveClusterInformation, // s: FILE_MOVE_CLUSTER_INFORMATION (requires FILE_WRITE_DATA)
-    FileQuotaInformation,       // q: FILE_QUOTA_INFORMATION (requires FILE_LIST_DIRECTORY) (NtQueryDirectoryFile[Ex])
+    FileObjectIdInformation,      // q: FILE_OBJECTID_INFORMATION (requires FILE_LIST_DIRECTORY) (NtQueryDirectoryFile[Ex])
+    FileCompletionInformation,    // s: FILE_COMPLETION_INFORMATION // 30
+    FileMoveClusterInformation,   // s: FILE_MOVE_CLUSTER_INFORMATION (requires FILE_WRITE_DATA)
+    FileQuotaInformation,         // q: FILE_QUOTA_INFORMATION (requires FILE_LIST_DIRECTORY) (NtQueryDirectoryFile[Ex])
     FileReparsePointInformation,
     // q: FILE_REPARSE_POINT_INFORMATION (requires FILE_LIST_DIRECTORY) (NtQueryDirectoryFile[Ex])
     FileNetworkOpenInformation,  // q: FILE_NETWORK_OPEN_INFORMATION (requires FILE_READ_ATTRIBUTES)
@@ -310,6 +319,14 @@ typedef struct _FILE_FS_DEVICE_INFORMATION
     ULONG Characteristics;
 } FILE_FS_DEVICE_INFORMATION, *PFILE_FS_DEVICE_INFORMATION;
 
+typedef struct _FILE_FS_ATTRIBUTE_INFORMATION
+{
+    ULONG FileSystemAttributes;
+    LONG MaximumComponentNameLength;
+    ULONG FileSystemNameLength;
+    char16_t FileSystemName[10];
+} FILE_FS_ATTRIBUTE_INFORMATION, *PFILE_FS_ATTRIBUTE_INFORMATION;
+
 typedef struct _FILE_POSITION_INFORMATION
 {
     LARGE_INTEGER CurrentByteOffset;
@@ -320,6 +337,24 @@ typedef struct _FILE_ATTRIBUTE_TAG_INFORMATION
     ULONG FileAttributes;
     ULONG ReparseTag;
 } FILE_ATTRIBUTE_TAG_INFORMATION, *PFILE_ATTRIBUTE_TAG_INFORMATION;
+
+typedef struct _FILE_IS_REMOTE_DEVICE_INFORMATION
+{
+    BOOLEAN IsRemote;
+} FILE_IS_REMOTE_DEVICE_INFORMATION, *PFILE_IS_REMOTE_DEVICE_INFORMATION;
+
+#ifndef OS_WINDOWS
+typedef struct _FILE_ID_128
+{
+    BYTE Identifier[16];
+} FILE_ID_128, *PFILE_ID_128;
+#endif
+
+typedef struct _FILE_ID_INFORMATION
+{
+    ULONGLONG VolumeSerialNumber;
+    FILE_ID_128 FileId;
+} FILE_ID_INFORMATION, *PFILE_ID_INFORMATION;
 
 typedef struct _FILE_STANDARD_INFORMATION
 {
@@ -414,11 +449,6 @@ typedef struct _FILE_RENAME_INFORMATION
 } FILE_RENAME_INFORMATION, *PFILE_RENAME_INFORMATION;
 
 #ifndef OS_WINDOWS
-typedef struct _FILE_ID_128
-{
-    BYTE Identifier[16];
-} FILE_ID_128, *PFILE_ID_128;
-
 typedef BOOLEAN SECURITY_CONTEXT_TRACKING_MODE, *PSECURITY_CONTEXT_TRACKING_MODE;
 typedef struct _SECURITY_QUALITY_OF_SERVICE
 {

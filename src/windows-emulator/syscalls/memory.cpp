@@ -3,13 +3,13 @@
 #include "../cpu_context.hpp"
 #include "../emulator_utils.hpp"
 #include "../syscall_utils.hpp"
+#include "../memory_manager.hpp"
 
 namespace syscalls
 {
-    NTSTATUS handle_NtQueryVirtualMemory(const syscall_context& c, const handle process_handle,
-                                         const uint64_t base_address, const uint32_t info_class,
-                                         const uint64_t memory_information, const uint64_t memory_information_length,
-                                         const emulator_object<uint64_t> return_length)
+    NTSTATUS handle_NtQueryVirtualMemory(const syscall_context& c, const handle process_handle, const uint64_t base_address,
+                                         const uint32_t info_class, const uint64_t memory_information,
+                                         const uint64_t memory_information_length, const emulator_object<uint64_t> return_length)
     {
         if (process_handle != CURRENT_PROCESS)
         {
@@ -21,7 +21,18 @@ namespace syscalls
             return STATUS_NOT_SUPPORTED;
         }
 
-        if (info_class == MemoryBasicInformation)
+        if (base_address < MIN_ALLOCATION_ADDRESS || base_address >= MAX_ALLOCATION_END_EXCL)
+        {
+            if (return_length)
+            {
+                return_length.write(0);
+            }
+            return STATUS_INVALID_PARAMETER;
+        }
+
+        // https://www.exploit-db.com/exploits/44464
+        // Both information classes appear to return the same output structure, MEMORY_BASIC_INFORMATION
+        if (info_class == MemoryBasicInformation || info_class == MemoryPrivilegedBasicInformation)
         {
             if (return_length)
             {
@@ -48,7 +59,15 @@ namespace syscalls
 
                 image_info.Protect = map_emulator_to_nt_protection(region_info.permissions);
                 image_info.AllocationProtect = map_emulator_to_nt_protection(region_info.initial_permissions);
-                image_info.Type = MEM_PRIVATE;
+
+                if (!region_info.is_reserved)
+                {
+                    image_info.Type = 0;
+                }
+                else
+                {
+                    image_info.Type = memory_region_policy::to_memory_basic_information_type(region_info.kind);
+                }
             });
 
             return STATUS_SUCCESS;
@@ -126,9 +145,8 @@ namespace syscalls
     }
 
     NTSTATUS handle_NtProtectVirtualMemory(const syscall_context& c, const handle process_handle,
-                                           const emulator_object<uint64_t> base_address,
-                                           const emulator_object<uint32_t> bytes_to_protect, const uint32_t protection,
-                                           const emulator_object<uint32_t> old_protection)
+                                           const emulator_object<uint64_t> base_address, const emulator_object<uint32_t> bytes_to_protect,
+                                           const uint32_t protection, const emulator_object<uint32_t> old_protection)
     {
         if (process_handle != CURRENT_PROCESS)
         {
@@ -144,15 +162,19 @@ namespace syscalls
         base_address.write(aligned_start);
         bytes_to_protect.write(static_cast<uint32_t>(aligned_length));
 
-        const auto requested_protection = map_nt_to_emulator_protection(protection);
+        const auto requested_protection = try_map_nt_to_emulator_protection(protection);
+        if (!requested_protection.has_value())
+        {
+            return STATUS_INVALID_PAGE_PROTECTION;
+        }
 
-        c.win_emu.callbacks.on_memory_protect(aligned_start, aligned_length, requested_protection);
+        c.win_emu.callbacks.on_memory_protect(aligned_start, aligned_length, *requested_protection);
 
-        memory_permission old_protection_value{};
+        nt_memory_permission old_protection_value{};
 
         try
         {
-            c.win_emu.memory.protect_memory(aligned_start, static_cast<size_t>(aligned_length), requested_protection,
+            c.win_emu.memory.protect_memory(aligned_start, static_cast<size_t>(aligned_length), *requested_protection,
                                             &old_protection_value);
         }
         catch (...)
@@ -168,8 +190,8 @@ namespace syscalls
 
     NTSTATUS handle_NtAllocateVirtualMemoryEx(const syscall_context& c, const handle process_handle,
                                               const emulator_object<uint64_t> base_address,
-                                              const emulator_object<uint64_t> bytes_to_allocate,
-                                              const uint32_t allocation_type, const uint32_t page_protection)
+                                              const emulator_object<uint64_t> bytes_to_allocate, const uint32_t allocation_type,
+                                              const uint32_t page_protection)
     {
         if (process_handle != CURRENT_PROCESS)
         {
@@ -177,15 +199,41 @@ namespace syscalls
         }
 
         auto allocation_bytes = bytes_to_allocate.read();
+
+        if (allocation_bytes == 0)
+        {
+            return STATUS_INVALID_PARAMETER;
+        }
+
         allocation_bytes = page_align_up(allocation_bytes);
         bytes_to_allocate.write(allocation_bytes);
 
-        const auto protection = map_nt_to_emulator_protection(page_protection);
+        const auto base_protection = page_protection & ~static_cast<uint32_t>(PAGE_GUARD | PAGE_NOCACHE | PAGE_WRITECOMBINE);
+        if (base_protection == PAGE_WRITECOPY || base_protection == PAGE_EXECUTE_WRITECOPY)
+        {
+            return STATUS_INVALID_PAGE_PROTECTION;
+        }
+
+        const auto protection = try_map_nt_to_emulator_protection(page_protection);
+        if (!protection.has_value())
+        {
+            return STATUS_INVALID_PAGE_PROTECTION;
+        }
 
         auto potential_base = base_address.read();
         if (!potential_base)
         {
             potential_base = c.win_emu.memory.find_free_allocation_base(static_cast<size_t>(allocation_bytes));
+        }
+        else
+        {
+            // https://learn.microsoft.com/en-us/windows-hardware/drivers/ddi/ntifs/nf-ntifs-ntallocatevirtualmemory
+            // BaseAddress
+            // A pointer to a variable that will receive the base address of the allocated region of pages. If the
+            // initial value of BaseAddress is non-NULL, the region is allocated starting at the specified virtual
+            // address rounded down to the next host page size address boundary. If the initial value of BaseAddress
+            // is NULL, the operating system will determine where to allocate the region.
+            potential_base = page_align_down(potential_base);
         }
 
         if (!potential_base)
@@ -203,32 +251,28 @@ namespace syscalls
             throw std::runtime_error("Unsupported allocation type!");
         }
 
-        if (commit && !reserve &&
-            c.win_emu.memory.commit_memory(potential_base, static_cast<size_t>(allocation_bytes), protection))
+        if (commit && !reserve && c.win_emu.memory.commit_memory(potential_base, static_cast<size_t>(allocation_bytes), *protection))
         {
-            c.win_emu.callbacks.on_memory_allocate(potential_base, allocation_bytes, protection, true);
+            c.win_emu.callbacks.on_memory_allocate(potential_base, allocation_bytes, *protection, true);
             return STATUS_SUCCESS;
         }
 
-        c.win_emu.callbacks.on_memory_allocate(potential_base, allocation_bytes, protection, false);
+        c.win_emu.callbacks.on_memory_allocate(potential_base, allocation_bytes, *protection, false);
 
-        return c.win_emu.memory.allocate_memory(potential_base, static_cast<size_t>(allocation_bytes), protection,
-                                                !commit)
+        return c.win_emu.memory.allocate_memory(potential_base, static_cast<size_t>(allocation_bytes), *protection, !commit)
                    ? STATUS_SUCCESS
                    : STATUS_MEMORY_NOT_ALLOCATED;
     }
 
     NTSTATUS handle_NtAllocateVirtualMemory(const syscall_context& c, const handle process_handle,
                                             const emulator_object<uint64_t> base_address, const uint64_t /*zero_bits*/,
-                                            const emulator_object<uint64_t> bytes_to_allocate,
-                                            const uint32_t allocation_type, const uint32_t page_protection)
+                                            const emulator_object<uint64_t> bytes_to_allocate, const uint32_t allocation_type,
+                                            const uint32_t page_protection)
     {
-        return handle_NtAllocateVirtualMemoryEx(c, process_handle, base_address, bytes_to_allocate, allocation_type,
-                                                page_protection);
+        return handle_NtAllocateVirtualMemoryEx(c, process_handle, base_address, bytes_to_allocate, allocation_type, page_protection);
     }
 
-    NTSTATUS handle_NtFreeVirtualMemory(const syscall_context& c, const handle process_handle,
-                                        const emulator_object<uint64_t> base_address,
+    NTSTATUS handle_NtFreeVirtualMemory(const syscall_context& c, const handle process_handle, const emulator_object<uint64_t> base_address,
                                         const emulator_object<uint64_t> bytes_to_allocate, const uint32_t free_type)
     {
         if (process_handle != CURRENT_PROCESS)
@@ -236,53 +280,146 @@ namespace syscalls
             return STATUS_NOT_SUPPORTED;
         }
 
+        if (free_type == 0)
+        {
+            return STATUS_INVALID_PARAMETER_4;
+        }
+
         const auto allocation_base = base_address.read();
         const auto allocation_size = bytes_to_allocate.read();
 
         if (free_type & MEM_RELEASE)
         {
-            return c.win_emu.memory.release_memory(allocation_base, static_cast<size_t>(allocation_size))
-                       ? STATUS_SUCCESS
-                       : STATUS_MEMORY_NOT_ALLOCATED;
+            if (!allocation_size)
+            {
+                const auto region_info = c.win_emu.memory.get_region_info(allocation_base);
+                if (!region_info.is_reserved)
+                {
+                    return STATUS_MEMORY_NOT_ALLOCATED;
+                }
+
+                if (region_info.allocation_base != allocation_base)
+                {
+                    return STATUS_FREE_VM_NOT_AT_BASE;
+                }
+            }
+
+            const auto region_kind = c.win_emu.memory.get_region_kind(allocation_base);
+            const auto denied_status = memory_region_policy::nt_free_virtual_memory_denied_status(region_kind);
+            if (denied_status != STATUS_SUCCESS)
+            {
+                return denied_status;
+            }
+
+            const bool success = c.win_emu.memory.release_memory(allocation_base, static_cast<size_t>(allocation_size));
+            if (success)
+            {
+                return STATUS_SUCCESS;
+            }
+
+            const auto region_info = c.win_emu.memory.get_region_info(allocation_base);
+            if (!region_info.is_reserved)
+            {
+                return STATUS_MEMORY_NOT_ALLOCATED;
+            }
+
+            return STATUS_FREE_VM_NOT_AT_BASE;
         }
 
         if (free_type & MEM_DECOMMIT)
         {
-            return c.win_emu.memory.decommit_memory(allocation_base, static_cast<size_t>(allocation_size))
-                       ? STATUS_SUCCESS
-                       : STATUS_MEMORY_NOT_ALLOCATED;
+            const auto region_kind = c.win_emu.memory.get_region_kind(allocation_base);
+            const auto denied_status = memory_region_policy::nt_free_virtual_memory_denied_status(region_kind);
+            if (denied_status != STATUS_SUCCESS)
+            {
+                return denied_status;
+            }
+
+            auto decommit_size = static_cast<size_t>(allocation_size);
+            if (!decommit_size)
+            {
+                const auto region_info = c.win_emu.memory.get_region_info(allocation_base);
+                if (!region_info.is_reserved)
+                {
+                    return STATUS_MEMORY_NOT_ALLOCATED;
+                }
+
+                if (region_info.allocation_base != allocation_base)
+                {
+                    return STATUS_FREE_VM_NOT_AT_BASE;
+                }
+
+                decommit_size = region_info.allocation_length;
+            }
+
+            const bool success = c.win_emu.memory.decommit_memory(allocation_base, decommit_size);
+            return success ? STATUS_SUCCESS : STATUS_MEMORY_NOT_ALLOCATED;
         }
 
         throw std::runtime_error("Bad free type");
     }
 
-    NTSTATUS handle_NtReadVirtualMemory(const syscall_context& c, const handle process_handle,
-                                        const emulator_pointer base_address, const emulator_pointer buffer,
-                                        const ULONG number_of_bytes_to_read,
+    NTSTATUS handle_NtReadVirtualMemory(const syscall_context& c, const handle process_handle, const emulator_pointer base_address,
+                                        const emulator_pointer buffer, const ULONG number_of_bytes_to_read,
                                         const emulator_object<ULONG> number_of_bytes_read)
     {
-        number_of_bytes_read.write(0);
+        number_of_bytes_read.try_write(0);
 
         if (process_handle != CURRENT_PROCESS)
         {
             return STATUS_NOT_SUPPORTED;
         }
 
-        std::vector<uint8_t> memory{};
-        memory.resize(number_of_bytes_to_read);
+        std::vector<uint8_t> memory(number_of_bytes_to_read, 0);
 
-        if (!c.emu.try_read_memory(base_address, memory.data(), memory.size()))
+        if (!c.emu.try_read_memory(base_address, memory.data(), number_of_bytes_to_read))
         {
             return STATUS_INVALID_ADDRESS;
         }
 
-        c.emu.write_memory(buffer, memory.data(), memory.size());
-        number_of_bytes_read.write(number_of_bytes_to_read);
+        if (!c.emu.try_write_memory(buffer, memory.data(), number_of_bytes_to_read))
+        {
+            return STATUS_INVALID_ADDRESS;
+        }
+
+        number_of_bytes_read.try_write(number_of_bytes_to_read);
+        return STATUS_SUCCESS;
+    }
+
+    NTSTATUS handle_NtWriteVirtualMemory(const syscall_context& c, const handle process_handle, const emulator_pointer base_address,
+                                         const emulator_pointer buffer, const ULONG number_of_bytes_to_write,
+                                         const emulator_object<ULONG> number_of_bytes_write)
+    {
+        number_of_bytes_write.try_write(0);
+
+        if (process_handle != CURRENT_PROCESS)
+        {
+            return STATUS_NOT_SUPPORTED;
+        }
+
+        std::vector<uint8_t> memory(number_of_bytes_to_write, 0);
+
+        if (!c.emu.try_read_memory(buffer, memory.data(), number_of_bytes_to_write))
+        {
+            return STATUS_INVALID_ADDRESS;
+        }
+
+        if (!c.emu.try_write_memory(base_address, memory.data(), number_of_bytes_to_write))
+        {
+            return STATUS_INVALID_ADDRESS;
+        }
+
+        number_of_bytes_write.try_write(number_of_bytes_to_write);
         return STATUS_SUCCESS;
     }
 
     NTSTATUS handle_NtSetInformationVirtualMemory()
     {
         return STATUS_NOT_SUPPORTED;
+    }
+
+    BOOL handle_NtLockVirtualMemory()
+    {
+        return TRUE;
     }
 }

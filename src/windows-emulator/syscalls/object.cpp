@@ -7,19 +7,17 @@ namespace syscalls
     NTSTATUS handle_NtClose(const syscall_context& c, const handle h)
     {
         const auto value = h.value;
+
+        if (h.h == 0xDEADC0DE || h.h == 0xDEADBEEF)
+        {
+            c.win_emu.callbacks.on_suspicious_activity("Anti-debug check with invalid handle");
+
+            return STATUS_INVALID_HANDLE;
+        }
+
         if (value.is_pseudo)
         {
             return STATUS_SUCCESS;
-        }
-
-        if (h.value.type == handle_types::thread)
-        {
-            const auto* t = c.proc.threads.get(h);
-            if (t && t->ref_count == 1)
-            {
-                // TODO: Better handle ref counting
-                return STATUS_SUCCESS;
-            }
         }
 
         auto* handle_store = c.proc.get_handle_store(h);
@@ -31,10 +29,9 @@ namespace syscalls
         return STATUS_INVALID_HANDLE;
     }
 
-    NTSTATUS handle_NtDuplicateObject(const syscall_context& c, const handle source_process_handle,
-                                      const handle source_handle, const handle target_process_handle,
-                                      const emulator_object<handle> target_handle, const ACCESS_MASK /*desired_access*/,
-                                      const ULONG /*handle_attributes*/, const ULONG /*options*/)
+    NTSTATUS handle_NtDuplicateObject(const syscall_context& c, const handle source_process_handle, const handle source_handle,
+                                      const handle target_process_handle, const emulator_object<handle> target_handle,
+                                      const ACCESS_MASK /*desired_access*/, const ULONG /*handle_attributes*/, const ULONG /*options*/)
     {
         if (source_process_handle != CURRENT_PROCESS || target_process_handle != CURRENT_PROCESS)
         {
@@ -63,8 +60,44 @@ namespace syscalls
         return STATUS_SUCCESS;
     }
 
-    NTSTATUS handle_NtQueryObject(const syscall_context& c, const handle handle,
-                                  const OBJECT_INFORMATION_CLASS object_information_class,
+    std::u16string get_type_name(const handle_types::type type)
+    {
+        switch (type)
+        {
+        case handle_types::file:
+            return u"File";
+        case handle_types::device:
+            return u"Device";
+        case handle_types::event:
+            return u"Event";
+        case handle_types::section:
+            return u"Section";
+        case handle_types::symlink:
+            return u"Symlink";
+        case handle_types::directory:
+            return u"Directory";
+        case handle_types::semaphore:
+            return u"Semaphore";
+        case handle_types::port:
+            return u"Port";
+        case handle_types::thread:
+            return u"Thread";
+        case handle_types::registry:
+            return u"Registry";
+        case handle_types::mutant:
+            return u"Mutant";
+        case handle_types::token:
+            return u"Token";
+        case handle_types::window:
+            return u"Window";
+        case handle_types::timer:
+            return u"Timer";
+        default:
+            return u"";
+        }
+    }
+
+    NTSTATUS handle_NtQueryObject(const syscall_context& c, const handle handle, const OBJECT_INFORMATION_CLASS object_information_class,
                                   const emulator_pointer object_information, const ULONG object_information_length,
                                   const emulator_object<ULONG> return_length)
     {
@@ -73,6 +106,10 @@ namespace syscalls
             std::u16string device_path;
             switch (handle.value.type)
             {
+            case handle_types::reserved: {
+                return STATUS_NOT_SUPPORTED;
+            }
+
             case handle_types::file: {
                 const auto* file = c.proc.files.get(handle);
                 if (!file)
@@ -93,6 +130,50 @@ namespace syscalls
                 device_path = device->get_device_path();
                 break;
             }
+            case handle_types::directory: {
+                // Directory handles are pseudo handles representing specific object directories
+                if (handle == KNOWN_DLLS_DIRECTORY)
+                {
+                    device_path = u"\\KnownDlls";
+                }
+                else if (handle == KNOWN_DLLS32_DIRECTORY)
+                {
+                    device_path = u"\\KnownDlls32";
+                }
+                else if (handle == BASE_NAMED_OBJECTS_DIRECTORY)
+                {
+                    device_path = u"\\Sessions\\1\\BaseNamedObjects";
+                }
+                else if (handle == RPC_CONTROL_DIRECTORY)
+                {
+                    device_path = u"\\RPC Control";
+                }
+                else
+                {
+                    // Unknown directory handle
+                    return STATUS_INVALID_HANDLE;
+                }
+                break;
+            }
+            case handle_types::registry: {
+                const auto* registry = c.proc.registry_keys.get(handle);
+                if (!registry)
+                {
+                    return STATUS_INVALID_HANDLE;
+                }
+
+                // Build the full registry path in device format
+                auto registry_path = (registry->hive.get() / registry->path.get()).u16string();
+
+                // Convert backslashes to forward slashes for consistency
+                std::ranges::replace(registry_path, u'/', u'\\');
+
+                // Convert to uppercase as Windows registry paths are case-insensitive
+                std::ranges::transform(registry_path, registry_path.begin(), std::towupper);
+
+                device_path = registry_path;
+                break;
+            }
             default:
                 c.win_emu.log.error("Unsupported handle type for name information query: %X\n", handle.value.type);
                 c.emu.stop();
@@ -100,7 +181,7 @@ namespace syscalls
             }
 
             const auto required_size = sizeof(UNICODE_STRING<EmulatorTraits<Emu64>>) + (device_path.size() + 1) * 2;
-            return_length.write(static_cast<ULONG>(required_size));
+            return_length.write_if_valid(static_cast<ULONG>(required_size));
 
             if (required_size > object_information_length)
             {
@@ -113,10 +194,59 @@ namespace syscalls
             return STATUS_SUCCESS;
         }
 
+        if (object_information_class == ObjectTypeInformation)
+        {
+            const auto name = get_type_name(static_cast<handle_types::type>(handle.value.type));
+
+            const auto required_size = sizeof(OBJECT_TYPE_INFORMATION) + (name.size() + 1) * 2;
+            return_length.write_if_valid(static_cast<ULONG>(required_size));
+
+            if (required_size > object_information_length)
+            {
+                return STATUS_BUFFER_TOO_SMALL;
+            }
+
+            emulator_allocator allocator(c.emu, object_information, object_information_length);
+            const auto info = allocator.reserve<OBJECT_TYPE_INFORMATION>();
+            info.access([&](OBJECT_TYPE_INFORMATION& i) {
+                allocator.make_unicode_string(i.TypeName, name); //
+            });
+
+            return STATUS_SUCCESS;
+        }
+
+        if (object_information_class == ObjectTypesInformation)
+        {
+            const auto name = get_type_name(static_cast<handle_types::type>(handle.value.type));
+            constexpr auto type_start_offset = align_up(sizeof(OBJECT_TYPES_INFORMATION), sizeof(uint64_t));
+
+            const auto required_size = type_start_offset + sizeof(OBJECT_TYPE_INFORMATION) + (name.size() + 1) * 2;
+            return_length.write_if_valid(static_cast<ULONG>(required_size));
+
+            if (required_size > object_information_length)
+            {
+                return STATUS_BUFFER_TOO_SMALL;
+            }
+
+            emulator_allocator allocator(c.emu, object_information, object_information_length);
+            const auto types_info = allocator.reserve<OBJECT_TYPES_INFORMATION>();
+            types_info.access([&](OBJECT_TYPES_INFORMATION& i) {
+                i.NumberOfTypes = 1; //
+            });
+
+            allocator.skip_until(type_start_offset);
+
+            const auto info = allocator.reserve<OBJECT_TYPE_INFORMATION>();
+            info.access([&](OBJECT_TYPE_INFORMATION& i) {
+                allocator.make_unicode_string(i.TypeName, name); //
+            });
+
+            return STATUS_SUCCESS;
+        }
+
         if (object_information_class == ObjectHandleFlagInformation)
         {
-            return handle_query<OBJECT_HANDLE_FLAG_INFORMATION>(c.emu, object_information, object_information_length,
-                                                                return_length,
+            return handle_query<OBJECT_HANDLE_FLAG_INFORMATION>(c.emu, object_information, object_information_length, return_length,
                                                                 [&](OBJECT_HANDLE_FLAG_INFORMATION& info) {
                                                                     info.Inherit = 0;
                                                                     info.ProtectFromClose = 0;
@@ -137,9 +267,9 @@ namespace syscalls
                || h.value.type == handle_types::event;
     }
 
-    NTSTATUS handle_NtWaitForMultipleObjects(const syscall_context& c, const ULONG count,
-                                             const emulator_object<handle> handles, const WAIT_TYPE wait_type,
-                                             const BOOLEAN alertable, const emulator_object<LARGE_INTEGER> timeout)
+    NTSTATUS handle_NtWaitForMultipleObjects(const syscall_context& c, const ULONG count, const emulator_object<handle> handles,
+                                             const WAIT_TYPE wait_type, const BOOLEAN alertable,
+                                             const emulator_object<LARGE_INTEGER> timeout)
     {
         if (wait_type != WaitAny && wait_type != WaitAll)
         {
@@ -201,21 +331,19 @@ namespace syscalls
         return STATUS_NOT_SUPPORTED;
     }
 
-    NTSTATUS handle_NtQuerySecurityObject(const syscall_context& c, const handle /*h*/,
-                                          const SECURITY_INFORMATION security_information,
+    NTSTATUS handle_NtQuerySecurityObject(const syscall_context& c, const handle /*h*/, const SECURITY_INFORMATION security_information,
                                           const emulator_pointer security_descriptor, const ULONG length,
                                           const emulator_object<ULONG> length_needed)
     {
-        if ((security_information & (OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION |
-                                     DACL_SECURITY_INFORMATION | LABEL_SECURITY_INFORMATION)) == 0)
+        if ((security_information &
+             (OWNER_SECURITY_INFORMATION | GROUP_SECURITY_INFORMATION | DACL_SECURITY_INFORMATION | LABEL_SECURITY_INFORMATION)) == 0)
         {
             return STATUS_INVALID_PARAMETER;
         }
 
         // Owner SID: S-1-5-32-544 (Administrators)
         // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays,hicpp-avoid-c-arrays,modernize-avoid-c-arrays)
-        const uint8_t owner_sid[] = {0x01, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x05,
-                                     0x20, 0x00, 0x00, 0x00, 0x20, 0x02, 0x00, 0x00};
+        const uint8_t owner_sid[] = {0x01, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x05, 0x20, 0x00, 0x00, 0x00, 0x20, 0x02, 0x00, 0x00};
 
         // Group SID: S-1-5-18 (Local System)
         // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays,hicpp-avoid-c-arrays,modernize-avoid-c-arrays)
@@ -224,21 +352,19 @@ namespace syscalls
         // DACL structure
         // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays,hicpp-avoid-c-arrays,modernize-avoid-c-arrays)
         const uint8_t dacl_data[] = {
-            0x02, 0x00, 0x9C, 0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x14, 0x00, 0x0F, 0x00, 0x02, 0x00, 0x01, 0x01,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x14, 0x00, 0x0F, 0x00, 0x02, 0x00,
-            0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x05, 0x0C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x18, 0x00, 0x0F, 0x00,
-            0x0F, 0x00, 0x01, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x05, 0x20, 0x00, 0x00, 0x00, 0x20, 0x02, 0x00, 0x00,
-            0x00, 0x0B, 0x14, 0x00, 0x00, 0x00, 0x00, 0xE0, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x0B, 0x14, 0x00, 0x00, 0x00, 0x00, 0xE0, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x05,
-            0x0C, 0x00, 0x00, 0x00, 0x00, 0x0B, 0x18, 0x00, 0x00, 0x00, 0x00, 0x10, 0x01, 0x02, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x05, 0x20, 0x00, 0x00, 0x00, 0x20, 0x02, 0x00, 0x00, 0x00, 0x0B, 0x14, 0x00, 0x00, 0x00, 0x00, 0x10,
-            0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00};
+            0x02, 0x00, 0x9C, 0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x14, 0x00, 0x0F, 0x00, 0x02, 0x00, 0x01, 0x01, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x14, 0x00, 0x0F, 0x00, 0x02, 0x00, 0x01, 0x01, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x05, 0x0C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x18, 0x00, 0x0F, 0x00, 0x0F, 0x00, 0x01, 0x02, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x05, 0x20, 0x00, 0x00, 0x00, 0x20, 0x02, 0x00, 0x00, 0x00, 0x0B, 0x14, 0x00, 0x00, 0x00, 0x00, 0xE0,
+            0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0B, 0x14, 0x00, 0x00, 0x00, 0x00, 0xE0,
+            0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x05, 0x0C, 0x00, 0x00, 0x00, 0x00, 0x0B, 0x18, 0x00, 0x00, 0x00, 0x00, 0x10,
+            0x01, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x05, 0x20, 0x00, 0x00, 0x00, 0x20, 0x02, 0x00, 0x00, 0x00, 0x0B, 0x14, 0x00,
+            0x00, 0x00, 0x00, 0x10, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00};
 
         // SACL structure
         // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays,hicpp-avoid-c-arrays,modernize-avoid-c-arrays)
-        const uint8_t sacl_data[] = {0x02, 0x00, 0x1C, 0x00, 0x01, 0x00, 0x00, 0x00, 0x11, 0x00,
-                                     0x14, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x01, 0x00, 0x00,
-                                     0x00, 0x00, 0x00, 0x10, 0x00, 0x10, 0x00, 0x00};
+        const uint8_t sacl_data[] = {0x02, 0x00, 0x1C, 0x00, 0x01, 0x00, 0x00, 0x00, 0x11, 0x00, 0x14, 0x00, 0x01, 0x00,
+                                     0x00, 0x00, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x10, 0x00, 0x00};
 
         ULONG total_size = sizeof(SECURITY_DESCRIPTOR_RELATIVE);
 
@@ -314,6 +440,11 @@ namespace syscalls
 
         c.emu.write_memory(security_descriptor, sd);
 
+        return STATUS_SUCCESS;
+    }
+
+    NTSTATUS handle_NtSetSecurityObject()
+    {
         return STATUS_SUCCESS;
     }
 }

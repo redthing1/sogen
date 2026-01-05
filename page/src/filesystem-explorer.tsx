@@ -37,6 +37,7 @@ export interface FilesystemExplorerProps {
   runFile: (file: string) => void;
   resetFilesys: () => void;
   path: string[];
+  iconCache: Map<string, string | null>;
 }
 export interface FilesystemExplorerState {
   path: string[];
@@ -235,20 +236,36 @@ function generateBreadcrumbElements(path: string[]): BreadcrumbElement[] {
   return elements;
 }
 
+function downloadData(
+  data: Uint8Array,
+  filename: string,
+  mimeType: string = "application/octet-stream",
+) {
+  const buffer = data.buffer.slice(
+    data.byteOffset,
+    data.byteOffset + data.byteLength,
+  ) as ArrayBuffer;
+  const blob = new Blob([buffer], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+
+  URL.revokeObjectURL(url);
+}
+
 export class FilesystemExplorer extends React.Component<
   FilesystemExplorerProps,
   FilesystemExplorerState
 > {
-  private iconCache: Map<string, string | null>;
-
   constructor(props: FilesystemExplorerProps) {
     super(props);
 
     this._onAddFiles = this._onAddFiles.bind(this);
     this._uploadFiles = this._uploadFiles.bind(this);
     this._onElementSelect = this._onElementSelect.bind(this);
-
-    this.iconCache = new Map();
 
     this.state = {
       path: this.props.path,
@@ -290,10 +307,24 @@ export class FilesystemExplorer extends React.Component<
   }
 
   async _onFileRename(file: string, newFile: string) {
+    newFile = newFile.toLowerCase();
+
+    if (newFile == file) {
+      this.setState({ renameFile: "" });
+      return;
+    }
+
+    if (!this._validateName(newFile)) {
+      return;
+    }
+
     const oldPath = makeFullPathWithState(this.state, file);
     const newPath = makeFullPathWithState(this.state, newFile);
 
     this.setState({ renameFile: "" });
+
+    this._removeFromCache(file);
+    this._removeFromCache(newFile);
 
     await this.props.filesystem.rename(oldPath, newPath);
     this.forceUpdate();
@@ -304,24 +335,32 @@ export class FilesystemExplorer extends React.Component<
     await this._uploadFiles(files);
   }
 
-  async _onFolderCreate(name: string) {
-    this.setState({ createFolder: false });
-
-    name = name.toLowerCase();
-
+  _validateName(name: string) {
     if (name.length == 0) {
-      return;
+      return false;
     }
 
     if (name.includes("/") || name.includes("\\")) {
       this._showError("Folder must not contain special characters");
-      return;
+      return false;
     }
 
     if (this.state.path.length == 0 && name.length > 1) {
       this._showError("Drives must be a single letter");
+      return false;
+    }
+
+    return true;
+  }
+
+  async _onFolderCreate(name: string) {
+    name = name.toLowerCase();
+
+    if (!this._validateName(name)) {
       return;
     }
+
+    this.setState({ createFolder: false });
 
     const fullPath = makeFullPathWithState(this.state, name);
     await this.props.filesystem.createFolder(fullPath);
@@ -344,6 +383,10 @@ export class FilesystemExplorer extends React.Component<
         name: makeFullPathWithState(this.state, name.toLowerCase()),
         data: f.data,
       };
+    });
+
+    fileData.forEach((d) => {
+      this._removeFromCache(d.name);
     });
 
     await this.props.filesystem.storeFiles(fileData);
@@ -489,6 +532,7 @@ export class FilesystemExplorer extends React.Component<
                   this.state.removeFile,
                 );
                 this.setState({ removeFile: "" });
+                this._removeFromCache(file);
                 this.props.filesystem
                   .unlink(file)
                   .then(() => this.forceUpdate());
@@ -533,6 +577,7 @@ export class FilesystemExplorer extends React.Component<
               className="fancy rounded-lg"
               onClick={() => {
                 this.setState({ resetFilesys: false });
+                this.props.iconCache.clear();
                 this.props.resetFilesys();
               }}
             >
@@ -587,6 +632,16 @@ export class FilesystemExplorer extends React.Component<
     );
   }
 
+  _removeFromCache(file: string) {
+    this.props.iconCache.delete(file);
+  }
+
+  _downloadFile(file: string) {
+    const fullPath = makeFullPathWithState(this.state, file);
+    const data = this.props.filesystem.readFile(fullPath);
+    downloadData(data, file);
+  }
+
   render() {
     const elements = getFolderElements(this.props.filesystem, this.state.path);
 
@@ -628,12 +683,13 @@ export class FilesystemExplorer extends React.Component<
                 renameElementHandler={(e) =>
                   this.setState({ renameFile: e.name })
                 }
+                downloadElementHandler={(e) => this._downloadFile(e.name)}
                 addFilesHandler={this._onAddFiles}
                 iconReader={(e) =>
                   getPeIcon(
                     this.props.filesystem,
                     makeFullPathWithState(this.state, e.name),
-                    this.iconCache,
+                    this.props.iconCache,
                   )
                 }
               />

@@ -9,8 +9,8 @@
 // Ensure the included flatbuffers.h is the same version as when this file was
 // generated, otherwise it may not be compatible.
 static_assert(FLATBUFFERS_VERSION_MAJOR == 25 &&
-              FLATBUFFERS_VERSION_MINOR == 2 &&
-              FLATBUFFERS_VERSION_REVISION == 10,
+              FLATBUFFERS_VERSION_MINOR == 12 &&
+              FLATBUFFERS_VERSION_REVISION == 19,
              "Non-compatible flatbuffers version included");
 
 namespace Debugger {
@@ -63,6 +63,14 @@ struct ReadRegisterResponse;
 struct ReadRegisterResponseBuilder;
 struct ReadRegisterResponseT;
 
+struct ApplicationExit;
+struct ApplicationExitBuilder;
+struct ApplicationExitT;
+
+struct EmulationStatus;
+struct EmulationStatusBuilder;
+struct EmulationStatusT;
+
 struct DebugEvent;
 struct DebugEventBuilder;
 struct DebugEventT;
@@ -114,11 +122,13 @@ enum Event : uint8_t {
   Event_WriteRegisterResponse = 10,
   Event_ReadRegisterRequest = 11,
   Event_ReadRegisterResponse = 12,
+  Event_ApplicationExit = 13,
+  Event_EmulationStatus = 14,
   Event_MIN = Event_NONE,
-  Event_MAX = Event_ReadRegisterResponse
+  Event_MAX = Event_EmulationStatus
 };
 
-inline const Event (&EnumValuesEvent())[13] {
+inline const Event (&EnumValuesEvent())[15] {
   static const Event values[] = {
     Event_NONE,
     Event_PauseRequest,
@@ -132,13 +142,15 @@ inline const Event (&EnumValuesEvent())[13] {
     Event_WriteRegisterRequest,
     Event_WriteRegisterResponse,
     Event_ReadRegisterRequest,
-    Event_ReadRegisterResponse
+    Event_ReadRegisterResponse,
+    Event_ApplicationExit,
+    Event_EmulationStatus
   };
   return values;
 }
 
 inline const char * const *EnumNamesEvent() {
-  static const char * const names[14] = {
+  static const char * const names[16] = {
     "NONE",
     "PauseRequest",
     "RunRequest",
@@ -152,13 +164,15 @@ inline const char * const *EnumNamesEvent() {
     "WriteRegisterResponse",
     "ReadRegisterRequest",
     "ReadRegisterResponse",
+    "ApplicationExit",
+    "EmulationStatus",
     nullptr
   };
   return names;
 }
 
 inline const char *EnumNameEvent(Event e) {
-  if (::flatbuffers::IsOutRange(e, Event_NONE, Event_ReadRegisterResponse)) return "";
+  if (::flatbuffers::IsOutRange(e, Event_NONE, Event_EmulationStatus)) return "";
   const size_t index = static_cast<size_t>(e);
   return EnumNamesEvent()[index];
 }
@@ -215,6 +229,14 @@ template<> struct EventTraits<Debugger::ReadRegisterResponse> {
   static const Event enum_value = Event_ReadRegisterResponse;
 };
 
+template<> struct EventTraits<Debugger::ApplicationExit> {
+  static const Event enum_value = Event_ApplicationExit;
+};
+
+template<> struct EventTraits<Debugger::EmulationStatus> {
+  static const Event enum_value = Event_EmulationStatus;
+};
+
 template<typename T> struct EventUnionTraits {
   static const Event enum_value = Event_NONE;
 };
@@ -265,6 +287,14 @@ template<> struct EventUnionTraits<Debugger::ReadRegisterRequestT> {
 
 template<> struct EventUnionTraits<Debugger::ReadRegisterResponseT> {
   static const Event enum_value = Event_ReadRegisterResponse;
+};
+
+template<> struct EventUnionTraits<Debugger::ApplicationExitT> {
+  static const Event enum_value = Event_ApplicationExit;
+};
+
+template<> struct EventUnionTraits<Debugger::EmulationStatusT> {
+  static const Event enum_value = Event_EmulationStatus;
 };
 
 struct EventUnion {
@@ -393,10 +423,28 @@ struct EventUnion {
     return type == Event_ReadRegisterResponse ?
       reinterpret_cast<const Debugger::ReadRegisterResponseT *>(value) : nullptr;
   }
+  Debugger::ApplicationExitT *AsApplicationExit() {
+    return type == Event_ApplicationExit ?
+      reinterpret_cast<Debugger::ApplicationExitT *>(value) : nullptr;
+  }
+  const Debugger::ApplicationExitT *AsApplicationExit() const {
+    return type == Event_ApplicationExit ?
+      reinterpret_cast<const Debugger::ApplicationExitT *>(value) : nullptr;
+  }
+  Debugger::EmulationStatusT *AsEmulationStatus() {
+    return type == Event_EmulationStatus ?
+      reinterpret_cast<Debugger::EmulationStatusT *>(value) : nullptr;
+  }
+  const Debugger::EmulationStatusT *AsEmulationStatus() const {
+    return type == Event_EmulationStatus ?
+      reinterpret_cast<const Debugger::EmulationStatusT *>(value) : nullptr;
+  }
 };
 
-bool VerifyEvent(::flatbuffers::Verifier &verifier, const void *obj, Event type);
-bool VerifyEventVector(::flatbuffers::Verifier &verifier, const ::flatbuffers::Vector<::flatbuffers::Offset<void>> *values, const ::flatbuffers::Vector<uint8_t> *types);
+template <bool B = false>
+bool VerifyEvent(::flatbuffers::VerifierTemplate<B> &verifier, const void *obj, Event type);
+template <bool B = false>
+bool VerifyEventVector(::flatbuffers::VerifierTemplate<B> &verifier, const ::flatbuffers::Vector<::flatbuffers::Offset<void>> *values, const ::flatbuffers::Vector<uint8_t> *types);
 
 struct GetStateRequestT : public ::flatbuffers::NativeTable {
   typedef GetStateRequest TableType;
@@ -405,7 +453,8 @@ struct GetStateRequestT : public ::flatbuffers::NativeTable {
 struct GetStateRequest FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef GetStateRequestT NativeTableType;
   typedef GetStateRequestBuilder Builder;
-  bool Verify(::flatbuffers::Verifier &verifier) const {
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
     return VerifyTableStart(verifier) &&
            verifier.EndTable();
   }
@@ -454,7 +503,8 @@ struct GetStateResponse FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   bool mutate_state(Debugger::State _state = static_cast<Debugger::State>(0)) {
     return SetField<uint32_t>(VT_STATE, static_cast<uint32_t>(_state), 0);
   }
-  bool Verify(::flatbuffers::Verifier &verifier) const {
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<uint32_t>(verifier, VT_STATE, 4) &&
            verifier.EndTable();
@@ -499,7 +549,8 @@ struct PauseRequestT : public ::flatbuffers::NativeTable {
 struct PauseRequest FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   typedef PauseRequestT NativeTableType;
   typedef PauseRequestBuilder Builder;
-  bool Verify(::flatbuffers::Verifier &verifier) const {
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
     return VerifyTableStart(verifier) &&
            verifier.EndTable();
   }
@@ -548,7 +599,8 @@ struct RunRequest FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   bool mutate_single_step(bool _single_step = 0) {
     return SetField<uint8_t>(VT_SINGLE_STEP, static_cast<uint8_t>(_single_step), 0);
   }
-  bool Verify(::flatbuffers::Verifier &verifier) const {
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<uint8_t>(verifier, VT_SINGLE_STEP, 1) &&
            verifier.EndTable();
@@ -611,7 +663,8 @@ struct WriteMemoryRequest FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table
   ::flatbuffers::Vector<uint8_t> *mutable_data() {
     return GetPointer<::flatbuffers::Vector<uint8_t> *>(VT_DATA);
   }
-  bool Verify(::flatbuffers::Verifier &verifier) const {
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<uint64_t>(verifier, VT_ADDRESS, 8) &&
            VerifyOffset(verifier, VT_DATA) &&
@@ -700,7 +753,8 @@ struct WriteMemoryResponse FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Tabl
   bool mutate_success(bool _success = 0) {
     return SetField<uint8_t>(VT_SUCCESS, static_cast<uint8_t>(_success), 0);
   }
-  bool Verify(::flatbuffers::Verifier &verifier) const {
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<uint64_t>(verifier, VT_ADDRESS, 8) &&
            VerifyField<uint32_t>(verifier, VT_SIZE, 4) &&
@@ -775,7 +829,8 @@ struct ReadMemoryRequest FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table 
   bool mutate_size(uint32_t _size = 0) {
     return SetField<uint32_t>(VT_SIZE, _size, 0);
   }
-  bool Verify(::flatbuffers::Verifier &verifier) const {
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<uint64_t>(verifier, VT_ADDRESS, 8) &&
            VerifyField<uint32_t>(verifier, VT_SIZE, 4) &&
@@ -844,7 +899,8 @@ struct ReadMemoryResponse FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table
   ::flatbuffers::Vector<uint8_t> *mutable_data() {
     return GetPointer<::flatbuffers::Vector<uint8_t> *>(VT_DATA);
   }
-  bool Verify(::flatbuffers::Verifier &verifier) const {
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<uint64_t>(verifier, VT_ADDRESS, 8) &&
            VerifyOffset(verifier, VT_DATA) &&
@@ -925,7 +981,8 @@ struct WriteRegisterRequest FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Tab
   ::flatbuffers::Vector<uint8_t> *mutable_data() {
     return GetPointer<::flatbuffers::Vector<uint8_t> *>(VT_DATA);
   }
-  bool Verify(::flatbuffers::Verifier &verifier) const {
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<uint32_t>(verifier, VT_REGISTER_, 4) &&
            VerifyOffset(verifier, VT_DATA) &&
@@ -1014,7 +1071,8 @@ struct WriteRegisterResponse FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Ta
   bool mutate_success(bool _success = 0) {
     return SetField<uint8_t>(VT_SUCCESS, static_cast<uint8_t>(_success), 0);
   }
-  bool Verify(::flatbuffers::Verifier &verifier) const {
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<uint32_t>(verifier, VT_REGISTER_, 4) &&
            VerifyField<uint32_t>(verifier, VT_SIZE, 4) &&
@@ -1081,7 +1139,8 @@ struct ReadRegisterRequest FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Tabl
   bool mutate_register_(uint32_t _register_ = 0) {
     return SetField<uint32_t>(VT_REGISTER_, _register_, 0);
   }
-  bool Verify(::flatbuffers::Verifier &verifier) const {
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<uint32_t>(verifier, VT_REGISTER_, 4) &&
            verifier.EndTable();
@@ -1144,7 +1203,8 @@ struct ReadRegisterResponse FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Tab
   ::flatbuffers::Vector<uint8_t> *mutable_data() {
     return GetPointer<::flatbuffers::Vector<uint8_t> *>(VT_DATA);
   }
-  bool Verify(::flatbuffers::Verifier &verifier) const {
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<uint32_t>(verifier, VT_REGISTER_, 4) &&
            VerifyOffset(verifier, VT_DATA) &&
@@ -1199,6 +1259,160 @@ inline ::flatbuffers::Offset<ReadRegisterResponse> CreateReadRegisterResponseDir
 }
 
 ::flatbuffers::Offset<ReadRegisterResponse> CreateReadRegisterResponse(::flatbuffers::FlatBufferBuilder &_fbb, const ReadRegisterResponseT *_o, const ::flatbuffers::rehasher_function_t *_rehasher = nullptr);
+
+struct ApplicationExitT : public ::flatbuffers::NativeTable {
+  typedef ApplicationExit TableType;
+  ::flatbuffers::Optional<uint32_t> exit_status = ::flatbuffers::nullopt;
+};
+
+struct ApplicationExit FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
+  typedef ApplicationExitT NativeTableType;
+  typedef ApplicationExitBuilder Builder;
+  enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
+    VT_EXIT_STATUS = 4
+  };
+  ::flatbuffers::Optional<uint32_t> exit_status() const {
+    return GetOptional<uint32_t, uint32_t>(VT_EXIT_STATUS);
+  }
+  bool mutate_exit_status(uint32_t _exit_status) {
+    return SetField<uint32_t>(VT_EXIT_STATUS, _exit_status);
+  }
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
+    return VerifyTableStart(verifier) &&
+           VerifyField<uint32_t>(verifier, VT_EXIT_STATUS, 4) &&
+           verifier.EndTable();
+  }
+  ApplicationExitT *UnPack(const ::flatbuffers::resolver_function_t *_resolver = nullptr) const;
+  void UnPackTo(ApplicationExitT *_o, const ::flatbuffers::resolver_function_t *_resolver = nullptr) const;
+  static ::flatbuffers::Offset<ApplicationExit> Pack(::flatbuffers::FlatBufferBuilder &_fbb, const ApplicationExitT* _o, const ::flatbuffers::rehasher_function_t *_rehasher = nullptr);
+};
+
+struct ApplicationExitBuilder {
+  typedef ApplicationExit Table;
+  ::flatbuffers::FlatBufferBuilder &fbb_;
+  ::flatbuffers::uoffset_t start_;
+  void add_exit_status(uint32_t exit_status) {
+    fbb_.AddElement<uint32_t>(ApplicationExit::VT_EXIT_STATUS, exit_status);
+  }
+  explicit ApplicationExitBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
+        : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
+  ::flatbuffers::Offset<ApplicationExit> Finish() {
+    const auto end = fbb_.EndTable(start_);
+    auto o = ::flatbuffers::Offset<ApplicationExit>(end);
+    return o;
+  }
+};
+
+inline ::flatbuffers::Offset<ApplicationExit> CreateApplicationExit(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    ::flatbuffers::Optional<uint32_t> exit_status = ::flatbuffers::nullopt) {
+  ApplicationExitBuilder builder_(_fbb);
+  if(exit_status) { builder_.add_exit_status(*exit_status); }
+  return builder_.Finish();
+}
+
+::flatbuffers::Offset<ApplicationExit> CreateApplicationExit(::flatbuffers::FlatBufferBuilder &_fbb, const ApplicationExitT *_o, const ::flatbuffers::rehasher_function_t *_rehasher = nullptr);
+
+struct EmulationStatusT : public ::flatbuffers::NativeTable {
+  typedef EmulationStatus TableType;
+  uint32_t active_threads = 0;
+  uint64_t reserved_memory = 0;
+  uint64_t committed_memory = 0;
+  uint64_t executed_instructions = 0;
+};
+
+struct EmulationStatus FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
+  typedef EmulationStatusT NativeTableType;
+  typedef EmulationStatusBuilder Builder;
+  enum FlatBuffersVTableOffset FLATBUFFERS_VTABLE_UNDERLYING_TYPE {
+    VT_ACTIVE_THREADS = 4,
+    VT_RESERVED_MEMORY = 6,
+    VT_COMMITTED_MEMORY = 8,
+    VT_EXECUTED_INSTRUCTIONS = 10
+  };
+  uint32_t active_threads() const {
+    return GetField<uint32_t>(VT_ACTIVE_THREADS, 0);
+  }
+  bool mutate_active_threads(uint32_t _active_threads = 0) {
+    return SetField<uint32_t>(VT_ACTIVE_THREADS, _active_threads, 0);
+  }
+  uint64_t reserved_memory() const {
+    return GetField<uint64_t>(VT_RESERVED_MEMORY, 0);
+  }
+  bool mutate_reserved_memory(uint64_t _reserved_memory = 0) {
+    return SetField<uint64_t>(VT_RESERVED_MEMORY, _reserved_memory, 0);
+  }
+  uint64_t committed_memory() const {
+    return GetField<uint64_t>(VT_COMMITTED_MEMORY, 0);
+  }
+  bool mutate_committed_memory(uint64_t _committed_memory = 0) {
+    return SetField<uint64_t>(VT_COMMITTED_MEMORY, _committed_memory, 0);
+  }
+  uint64_t executed_instructions() const {
+    return GetField<uint64_t>(VT_EXECUTED_INSTRUCTIONS, 0);
+  }
+  bool mutate_executed_instructions(uint64_t _executed_instructions = 0) {
+    return SetField<uint64_t>(VT_EXECUTED_INSTRUCTIONS, _executed_instructions, 0);
+  }
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
+    return VerifyTableStart(verifier) &&
+           VerifyField<uint32_t>(verifier, VT_ACTIVE_THREADS, 4) &&
+           VerifyField<uint64_t>(verifier, VT_RESERVED_MEMORY, 8) &&
+           VerifyField<uint64_t>(verifier, VT_COMMITTED_MEMORY, 8) &&
+           VerifyField<uint64_t>(verifier, VT_EXECUTED_INSTRUCTIONS, 8) &&
+           verifier.EndTable();
+  }
+  EmulationStatusT *UnPack(const ::flatbuffers::resolver_function_t *_resolver = nullptr) const;
+  void UnPackTo(EmulationStatusT *_o, const ::flatbuffers::resolver_function_t *_resolver = nullptr) const;
+  static ::flatbuffers::Offset<EmulationStatus> Pack(::flatbuffers::FlatBufferBuilder &_fbb, const EmulationStatusT* _o, const ::flatbuffers::rehasher_function_t *_rehasher = nullptr);
+};
+
+struct EmulationStatusBuilder {
+  typedef EmulationStatus Table;
+  ::flatbuffers::FlatBufferBuilder &fbb_;
+  ::flatbuffers::uoffset_t start_;
+  void add_active_threads(uint32_t active_threads) {
+    fbb_.AddElement<uint32_t>(EmulationStatus::VT_ACTIVE_THREADS, active_threads, 0);
+  }
+  void add_reserved_memory(uint64_t reserved_memory) {
+    fbb_.AddElement<uint64_t>(EmulationStatus::VT_RESERVED_MEMORY, reserved_memory, 0);
+  }
+  void add_committed_memory(uint64_t committed_memory) {
+    fbb_.AddElement<uint64_t>(EmulationStatus::VT_COMMITTED_MEMORY, committed_memory, 0);
+  }
+  void add_executed_instructions(uint64_t executed_instructions) {
+    fbb_.AddElement<uint64_t>(EmulationStatus::VT_EXECUTED_INSTRUCTIONS, executed_instructions, 0);
+  }
+  explicit EmulationStatusBuilder(::flatbuffers::FlatBufferBuilder &_fbb)
+        : fbb_(_fbb) {
+    start_ = fbb_.StartTable();
+  }
+  ::flatbuffers::Offset<EmulationStatus> Finish() {
+    const auto end = fbb_.EndTable(start_);
+    auto o = ::flatbuffers::Offset<EmulationStatus>(end);
+    return o;
+  }
+};
+
+inline ::flatbuffers::Offset<EmulationStatus> CreateEmulationStatus(
+    ::flatbuffers::FlatBufferBuilder &_fbb,
+    uint32_t active_threads = 0,
+    uint64_t reserved_memory = 0,
+    uint64_t committed_memory = 0,
+    uint64_t executed_instructions = 0) {
+  EmulationStatusBuilder builder_(_fbb);
+  builder_.add_executed_instructions(executed_instructions);
+  builder_.add_committed_memory(committed_memory);
+  builder_.add_reserved_memory(reserved_memory);
+  builder_.add_active_threads(active_threads);
+  return builder_.Finish();
+}
+
+::flatbuffers::Offset<EmulationStatus> CreateEmulationStatus(::flatbuffers::FlatBufferBuilder &_fbb, const EmulationStatusT *_o, const ::flatbuffers::rehasher_function_t *_rehasher = nullptr);
 
 struct DebugEventT : public ::flatbuffers::NativeTable {
   typedef DebugEvent TableType;
@@ -1255,10 +1469,60 @@ struct DebugEvent FLATBUFFERS_FINAL_CLASS : private ::flatbuffers::Table {
   const Debugger::ReadRegisterResponse *event_as_ReadRegisterResponse() const {
     return event_type() == Debugger::Event_ReadRegisterResponse ? static_cast<const Debugger::ReadRegisterResponse *>(event()) : nullptr;
   }
+  const Debugger::ApplicationExit *event_as_ApplicationExit() const {
+    return event_type() == Debugger::Event_ApplicationExit ? static_cast<const Debugger::ApplicationExit *>(event()) : nullptr;
+  }
+  const Debugger::EmulationStatus *event_as_EmulationStatus() const {
+    return event_type() == Debugger::Event_EmulationStatus ? static_cast<const Debugger::EmulationStatus *>(event()) : nullptr;
+  }
+  template<typename T> T *mutable_event_as();
+  Debugger::PauseRequest *mutable_event_as_PauseRequest() {
+    return event_type() == Debugger::Event_PauseRequest ? static_cast<Debugger::PauseRequest *>(mutable_event()) : nullptr;
+  }
+  Debugger::RunRequest *mutable_event_as_RunRequest() {
+    return event_type() == Debugger::Event_RunRequest ? static_cast<Debugger::RunRequest *>(mutable_event()) : nullptr;
+  }
+  Debugger::GetStateRequest *mutable_event_as_GetStateRequest() {
+    return event_type() == Debugger::Event_GetStateRequest ? static_cast<Debugger::GetStateRequest *>(mutable_event()) : nullptr;
+  }
+  Debugger::GetStateResponse *mutable_event_as_GetStateResponse() {
+    return event_type() == Debugger::Event_GetStateResponse ? static_cast<Debugger::GetStateResponse *>(mutable_event()) : nullptr;
+  }
+  Debugger::WriteMemoryRequest *mutable_event_as_WriteMemoryRequest() {
+    return event_type() == Debugger::Event_WriteMemoryRequest ? static_cast<Debugger::WriteMemoryRequest *>(mutable_event()) : nullptr;
+  }
+  Debugger::WriteMemoryResponse *mutable_event_as_WriteMemoryResponse() {
+    return event_type() == Debugger::Event_WriteMemoryResponse ? static_cast<Debugger::WriteMemoryResponse *>(mutable_event()) : nullptr;
+  }
+  Debugger::ReadMemoryRequest *mutable_event_as_ReadMemoryRequest() {
+    return event_type() == Debugger::Event_ReadMemoryRequest ? static_cast<Debugger::ReadMemoryRequest *>(mutable_event()) : nullptr;
+  }
+  Debugger::ReadMemoryResponse *mutable_event_as_ReadMemoryResponse() {
+    return event_type() == Debugger::Event_ReadMemoryResponse ? static_cast<Debugger::ReadMemoryResponse *>(mutable_event()) : nullptr;
+  }
+  Debugger::WriteRegisterRequest *mutable_event_as_WriteRegisterRequest() {
+    return event_type() == Debugger::Event_WriteRegisterRequest ? static_cast<Debugger::WriteRegisterRequest *>(mutable_event()) : nullptr;
+  }
+  Debugger::WriteRegisterResponse *mutable_event_as_WriteRegisterResponse() {
+    return event_type() == Debugger::Event_WriteRegisterResponse ? static_cast<Debugger::WriteRegisterResponse *>(mutable_event()) : nullptr;
+  }
+  Debugger::ReadRegisterRequest *mutable_event_as_ReadRegisterRequest() {
+    return event_type() == Debugger::Event_ReadRegisterRequest ? static_cast<Debugger::ReadRegisterRequest *>(mutable_event()) : nullptr;
+  }
+  Debugger::ReadRegisterResponse *mutable_event_as_ReadRegisterResponse() {
+    return event_type() == Debugger::Event_ReadRegisterResponse ? static_cast<Debugger::ReadRegisterResponse *>(mutable_event()) : nullptr;
+  }
+  Debugger::ApplicationExit *mutable_event_as_ApplicationExit() {
+    return event_type() == Debugger::Event_ApplicationExit ? static_cast<Debugger::ApplicationExit *>(mutable_event()) : nullptr;
+  }
+  Debugger::EmulationStatus *mutable_event_as_EmulationStatus() {
+    return event_type() == Debugger::Event_EmulationStatus ? static_cast<Debugger::EmulationStatus *>(mutable_event()) : nullptr;
+  }
   void *mutable_event() {
     return GetPointer<void *>(VT_EVENT);
   }
-  bool Verify(::flatbuffers::Verifier &verifier) const {
+  template <bool B = false>
+  bool Verify(::flatbuffers::VerifierTemplate<B> &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<uint8_t>(verifier, VT_EVENT_TYPE, 1) &&
            VerifyOffset(verifier, VT_EVENT) &&
@@ -1274,48 +1538,112 @@ template<> inline const Debugger::PauseRequest *DebugEvent::event_as<Debugger::P
   return event_as_PauseRequest();
 }
 
+template<> inline Debugger::PauseRequest *DebugEvent::mutable_event_as<Debugger::PauseRequest>() {
+  return mutable_event_as_PauseRequest();
+}
+
 template<> inline const Debugger::RunRequest *DebugEvent::event_as<Debugger::RunRequest>() const {
   return event_as_RunRequest();
+}
+
+template<> inline Debugger::RunRequest *DebugEvent::mutable_event_as<Debugger::RunRequest>() {
+  return mutable_event_as_RunRequest();
 }
 
 template<> inline const Debugger::GetStateRequest *DebugEvent::event_as<Debugger::GetStateRequest>() const {
   return event_as_GetStateRequest();
 }
 
+template<> inline Debugger::GetStateRequest *DebugEvent::mutable_event_as<Debugger::GetStateRequest>() {
+  return mutable_event_as_GetStateRequest();
+}
+
 template<> inline const Debugger::GetStateResponse *DebugEvent::event_as<Debugger::GetStateResponse>() const {
   return event_as_GetStateResponse();
+}
+
+template<> inline Debugger::GetStateResponse *DebugEvent::mutable_event_as<Debugger::GetStateResponse>() {
+  return mutable_event_as_GetStateResponse();
 }
 
 template<> inline const Debugger::WriteMemoryRequest *DebugEvent::event_as<Debugger::WriteMemoryRequest>() const {
   return event_as_WriteMemoryRequest();
 }
 
+template<> inline Debugger::WriteMemoryRequest *DebugEvent::mutable_event_as<Debugger::WriteMemoryRequest>() {
+  return mutable_event_as_WriteMemoryRequest();
+}
+
 template<> inline const Debugger::WriteMemoryResponse *DebugEvent::event_as<Debugger::WriteMemoryResponse>() const {
   return event_as_WriteMemoryResponse();
+}
+
+template<> inline Debugger::WriteMemoryResponse *DebugEvent::mutable_event_as<Debugger::WriteMemoryResponse>() {
+  return mutable_event_as_WriteMemoryResponse();
 }
 
 template<> inline const Debugger::ReadMemoryRequest *DebugEvent::event_as<Debugger::ReadMemoryRequest>() const {
   return event_as_ReadMemoryRequest();
 }
 
+template<> inline Debugger::ReadMemoryRequest *DebugEvent::mutable_event_as<Debugger::ReadMemoryRequest>() {
+  return mutable_event_as_ReadMemoryRequest();
+}
+
 template<> inline const Debugger::ReadMemoryResponse *DebugEvent::event_as<Debugger::ReadMemoryResponse>() const {
   return event_as_ReadMemoryResponse();
+}
+
+template<> inline Debugger::ReadMemoryResponse *DebugEvent::mutable_event_as<Debugger::ReadMemoryResponse>() {
+  return mutable_event_as_ReadMemoryResponse();
 }
 
 template<> inline const Debugger::WriteRegisterRequest *DebugEvent::event_as<Debugger::WriteRegisterRequest>() const {
   return event_as_WriteRegisterRequest();
 }
 
+template<> inline Debugger::WriteRegisterRequest *DebugEvent::mutable_event_as<Debugger::WriteRegisterRequest>() {
+  return mutable_event_as_WriteRegisterRequest();
+}
+
 template<> inline const Debugger::WriteRegisterResponse *DebugEvent::event_as<Debugger::WriteRegisterResponse>() const {
   return event_as_WriteRegisterResponse();
+}
+
+template<> inline Debugger::WriteRegisterResponse *DebugEvent::mutable_event_as<Debugger::WriteRegisterResponse>() {
+  return mutable_event_as_WriteRegisterResponse();
 }
 
 template<> inline const Debugger::ReadRegisterRequest *DebugEvent::event_as<Debugger::ReadRegisterRequest>() const {
   return event_as_ReadRegisterRequest();
 }
 
+template<> inline Debugger::ReadRegisterRequest *DebugEvent::mutable_event_as<Debugger::ReadRegisterRequest>() {
+  return mutable_event_as_ReadRegisterRequest();
+}
+
 template<> inline const Debugger::ReadRegisterResponse *DebugEvent::event_as<Debugger::ReadRegisterResponse>() const {
   return event_as_ReadRegisterResponse();
+}
+
+template<> inline Debugger::ReadRegisterResponse *DebugEvent::mutable_event_as<Debugger::ReadRegisterResponse>() {
+  return mutable_event_as_ReadRegisterResponse();
+}
+
+template<> inline const Debugger::ApplicationExit *DebugEvent::event_as<Debugger::ApplicationExit>() const {
+  return event_as_ApplicationExit();
+}
+
+template<> inline Debugger::ApplicationExit *DebugEvent::mutable_event_as<Debugger::ApplicationExit>() {
+  return mutable_event_as_ApplicationExit();
+}
+
+template<> inline const Debugger::EmulationStatus *DebugEvent::event_as<Debugger::EmulationStatus>() const {
+  return event_as_EmulationStatus();
+}
+
+template<> inline Debugger::EmulationStatus *DebugEvent::mutable_event_as<Debugger::EmulationStatus>() {
+  return mutable_event_as_EmulationStatus();
 }
 
 struct DebugEventBuilder {
@@ -1362,11 +1690,11 @@ inline void GetStateRequest::UnPackTo(GetStateRequestT *_o, const ::flatbuffers:
   (void)_resolver;
 }
 
-inline ::flatbuffers::Offset<GetStateRequest> GetStateRequest::Pack(::flatbuffers::FlatBufferBuilder &_fbb, const GetStateRequestT* _o, const ::flatbuffers::rehasher_function_t *_rehasher) {
-  return CreateGetStateRequest(_fbb, _o, _rehasher);
+inline ::flatbuffers::Offset<GetStateRequest> CreateGetStateRequest(::flatbuffers::FlatBufferBuilder &_fbb, const GetStateRequestT *_o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+  return GetStateRequest::Pack(_fbb, _o, _rehasher);
 }
 
-inline ::flatbuffers::Offset<GetStateRequest> CreateGetStateRequest(::flatbuffers::FlatBufferBuilder &_fbb, const GetStateRequestT *_o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+inline ::flatbuffers::Offset<GetStateRequest> GetStateRequest::Pack(::flatbuffers::FlatBufferBuilder &_fbb, const GetStateRequestT* _o, const ::flatbuffers::rehasher_function_t *_rehasher) {
   (void)_rehasher;
   (void)_o;
   struct _VectorArgs { ::flatbuffers::FlatBufferBuilder *__fbb; const GetStateRequestT* __o; const ::flatbuffers::rehasher_function_t *__rehasher; } _va = { &_fbb, _o, _rehasher}; (void)_va;
@@ -1386,11 +1714,11 @@ inline void GetStateResponse::UnPackTo(GetStateResponseT *_o, const ::flatbuffer
   { auto _e = state(); _o->state = _e; }
 }
 
-inline ::flatbuffers::Offset<GetStateResponse> GetStateResponse::Pack(::flatbuffers::FlatBufferBuilder &_fbb, const GetStateResponseT* _o, const ::flatbuffers::rehasher_function_t *_rehasher) {
-  return CreateGetStateResponse(_fbb, _o, _rehasher);
+inline ::flatbuffers::Offset<GetStateResponse> CreateGetStateResponse(::flatbuffers::FlatBufferBuilder &_fbb, const GetStateResponseT *_o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+  return GetStateResponse::Pack(_fbb, _o, _rehasher);
 }
 
-inline ::flatbuffers::Offset<GetStateResponse> CreateGetStateResponse(::flatbuffers::FlatBufferBuilder &_fbb, const GetStateResponseT *_o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+inline ::flatbuffers::Offset<GetStateResponse> GetStateResponse::Pack(::flatbuffers::FlatBufferBuilder &_fbb, const GetStateResponseT* _o, const ::flatbuffers::rehasher_function_t *_rehasher) {
   (void)_rehasher;
   (void)_o;
   struct _VectorArgs { ::flatbuffers::FlatBufferBuilder *__fbb; const GetStateResponseT* __o; const ::flatbuffers::rehasher_function_t *__rehasher; } _va = { &_fbb, _o, _rehasher}; (void)_va;
@@ -1411,11 +1739,11 @@ inline void PauseRequest::UnPackTo(PauseRequestT *_o, const ::flatbuffers::resol
   (void)_resolver;
 }
 
-inline ::flatbuffers::Offset<PauseRequest> PauseRequest::Pack(::flatbuffers::FlatBufferBuilder &_fbb, const PauseRequestT* _o, const ::flatbuffers::rehasher_function_t *_rehasher) {
-  return CreatePauseRequest(_fbb, _o, _rehasher);
+inline ::flatbuffers::Offset<PauseRequest> CreatePauseRequest(::flatbuffers::FlatBufferBuilder &_fbb, const PauseRequestT *_o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+  return PauseRequest::Pack(_fbb, _o, _rehasher);
 }
 
-inline ::flatbuffers::Offset<PauseRequest> CreatePauseRequest(::flatbuffers::FlatBufferBuilder &_fbb, const PauseRequestT *_o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+inline ::flatbuffers::Offset<PauseRequest> PauseRequest::Pack(::flatbuffers::FlatBufferBuilder &_fbb, const PauseRequestT* _o, const ::flatbuffers::rehasher_function_t *_rehasher) {
   (void)_rehasher;
   (void)_o;
   struct _VectorArgs { ::flatbuffers::FlatBufferBuilder *__fbb; const PauseRequestT* __o; const ::flatbuffers::rehasher_function_t *__rehasher; } _va = { &_fbb, _o, _rehasher}; (void)_va;
@@ -1435,11 +1763,11 @@ inline void RunRequest::UnPackTo(RunRequestT *_o, const ::flatbuffers::resolver_
   { auto _e = single_step(); _o->single_step = _e; }
 }
 
-inline ::flatbuffers::Offset<RunRequest> RunRequest::Pack(::flatbuffers::FlatBufferBuilder &_fbb, const RunRequestT* _o, const ::flatbuffers::rehasher_function_t *_rehasher) {
-  return CreateRunRequest(_fbb, _o, _rehasher);
+inline ::flatbuffers::Offset<RunRequest> CreateRunRequest(::flatbuffers::FlatBufferBuilder &_fbb, const RunRequestT *_o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+  return RunRequest::Pack(_fbb, _o, _rehasher);
 }
 
-inline ::flatbuffers::Offset<RunRequest> CreateRunRequest(::flatbuffers::FlatBufferBuilder &_fbb, const RunRequestT *_o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+inline ::flatbuffers::Offset<RunRequest> RunRequest::Pack(::flatbuffers::FlatBufferBuilder &_fbb, const RunRequestT* _o, const ::flatbuffers::rehasher_function_t *_rehasher) {
   (void)_rehasher;
   (void)_o;
   struct _VectorArgs { ::flatbuffers::FlatBufferBuilder *__fbb; const RunRequestT* __o; const ::flatbuffers::rehasher_function_t *__rehasher; } _va = { &_fbb, _o, _rehasher}; (void)_va;
@@ -1462,11 +1790,11 @@ inline void WriteMemoryRequest::UnPackTo(WriteMemoryRequestT *_o, const ::flatbu
   { auto _e = data(); if (_e) { _o->data.resize(_e->size()); std::copy(_e->begin(), _e->end(), _o->data.begin()); } }
 }
 
-inline ::flatbuffers::Offset<WriteMemoryRequest> WriteMemoryRequest::Pack(::flatbuffers::FlatBufferBuilder &_fbb, const WriteMemoryRequestT* _o, const ::flatbuffers::rehasher_function_t *_rehasher) {
-  return CreateWriteMemoryRequest(_fbb, _o, _rehasher);
+inline ::flatbuffers::Offset<WriteMemoryRequest> CreateWriteMemoryRequest(::flatbuffers::FlatBufferBuilder &_fbb, const WriteMemoryRequestT *_o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+  return WriteMemoryRequest::Pack(_fbb, _o, _rehasher);
 }
 
-inline ::flatbuffers::Offset<WriteMemoryRequest> CreateWriteMemoryRequest(::flatbuffers::FlatBufferBuilder &_fbb, const WriteMemoryRequestT *_o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+inline ::flatbuffers::Offset<WriteMemoryRequest> WriteMemoryRequest::Pack(::flatbuffers::FlatBufferBuilder &_fbb, const WriteMemoryRequestT* _o, const ::flatbuffers::rehasher_function_t *_rehasher) {
   (void)_rehasher;
   (void)_o;
   struct _VectorArgs { ::flatbuffers::FlatBufferBuilder *__fbb; const WriteMemoryRequestT* __o; const ::flatbuffers::rehasher_function_t *__rehasher; } _va = { &_fbb, _o, _rehasher}; (void)_va;
@@ -1492,11 +1820,11 @@ inline void WriteMemoryResponse::UnPackTo(WriteMemoryResponseT *_o, const ::flat
   { auto _e = success(); _o->success = _e; }
 }
 
-inline ::flatbuffers::Offset<WriteMemoryResponse> WriteMemoryResponse::Pack(::flatbuffers::FlatBufferBuilder &_fbb, const WriteMemoryResponseT* _o, const ::flatbuffers::rehasher_function_t *_rehasher) {
-  return CreateWriteMemoryResponse(_fbb, _o, _rehasher);
+inline ::flatbuffers::Offset<WriteMemoryResponse> CreateWriteMemoryResponse(::flatbuffers::FlatBufferBuilder &_fbb, const WriteMemoryResponseT *_o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+  return WriteMemoryResponse::Pack(_fbb, _o, _rehasher);
 }
 
-inline ::flatbuffers::Offset<WriteMemoryResponse> CreateWriteMemoryResponse(::flatbuffers::FlatBufferBuilder &_fbb, const WriteMemoryResponseT *_o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+inline ::flatbuffers::Offset<WriteMemoryResponse> WriteMemoryResponse::Pack(::flatbuffers::FlatBufferBuilder &_fbb, const WriteMemoryResponseT* _o, const ::flatbuffers::rehasher_function_t *_rehasher) {
   (void)_rehasher;
   (void)_o;
   struct _VectorArgs { ::flatbuffers::FlatBufferBuilder *__fbb; const WriteMemoryResponseT* __o; const ::flatbuffers::rehasher_function_t *__rehasher; } _va = { &_fbb, _o, _rehasher}; (void)_va;
@@ -1523,11 +1851,11 @@ inline void ReadMemoryRequest::UnPackTo(ReadMemoryRequestT *_o, const ::flatbuff
   { auto _e = size(); _o->size = _e; }
 }
 
-inline ::flatbuffers::Offset<ReadMemoryRequest> ReadMemoryRequest::Pack(::flatbuffers::FlatBufferBuilder &_fbb, const ReadMemoryRequestT* _o, const ::flatbuffers::rehasher_function_t *_rehasher) {
-  return CreateReadMemoryRequest(_fbb, _o, _rehasher);
+inline ::flatbuffers::Offset<ReadMemoryRequest> CreateReadMemoryRequest(::flatbuffers::FlatBufferBuilder &_fbb, const ReadMemoryRequestT *_o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+  return ReadMemoryRequest::Pack(_fbb, _o, _rehasher);
 }
 
-inline ::flatbuffers::Offset<ReadMemoryRequest> CreateReadMemoryRequest(::flatbuffers::FlatBufferBuilder &_fbb, const ReadMemoryRequestT *_o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+inline ::flatbuffers::Offset<ReadMemoryRequest> ReadMemoryRequest::Pack(::flatbuffers::FlatBufferBuilder &_fbb, const ReadMemoryRequestT* _o, const ::flatbuffers::rehasher_function_t *_rehasher) {
   (void)_rehasher;
   (void)_o;
   struct _VectorArgs { ::flatbuffers::FlatBufferBuilder *__fbb; const ReadMemoryRequestT* __o; const ::flatbuffers::rehasher_function_t *__rehasher; } _va = { &_fbb, _o, _rehasher}; (void)_va;
@@ -1552,11 +1880,11 @@ inline void ReadMemoryResponse::UnPackTo(ReadMemoryResponseT *_o, const ::flatbu
   { auto _e = data(); if (_e) { _o->data.resize(_e->size()); std::copy(_e->begin(), _e->end(), _o->data.begin()); } }
 }
 
-inline ::flatbuffers::Offset<ReadMemoryResponse> ReadMemoryResponse::Pack(::flatbuffers::FlatBufferBuilder &_fbb, const ReadMemoryResponseT* _o, const ::flatbuffers::rehasher_function_t *_rehasher) {
-  return CreateReadMemoryResponse(_fbb, _o, _rehasher);
+inline ::flatbuffers::Offset<ReadMemoryResponse> CreateReadMemoryResponse(::flatbuffers::FlatBufferBuilder &_fbb, const ReadMemoryResponseT *_o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+  return ReadMemoryResponse::Pack(_fbb, _o, _rehasher);
 }
 
-inline ::flatbuffers::Offset<ReadMemoryResponse> CreateReadMemoryResponse(::flatbuffers::FlatBufferBuilder &_fbb, const ReadMemoryResponseT *_o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+inline ::flatbuffers::Offset<ReadMemoryResponse> ReadMemoryResponse::Pack(::flatbuffers::FlatBufferBuilder &_fbb, const ReadMemoryResponseT* _o, const ::flatbuffers::rehasher_function_t *_rehasher) {
   (void)_rehasher;
   (void)_o;
   struct _VectorArgs { ::flatbuffers::FlatBufferBuilder *__fbb; const ReadMemoryResponseT* __o; const ::flatbuffers::rehasher_function_t *__rehasher; } _va = { &_fbb, _o, _rehasher}; (void)_va;
@@ -1581,11 +1909,11 @@ inline void WriteRegisterRequest::UnPackTo(WriteRegisterRequestT *_o, const ::fl
   { auto _e = data(); if (_e) { _o->data.resize(_e->size()); std::copy(_e->begin(), _e->end(), _o->data.begin()); } }
 }
 
-inline ::flatbuffers::Offset<WriteRegisterRequest> WriteRegisterRequest::Pack(::flatbuffers::FlatBufferBuilder &_fbb, const WriteRegisterRequestT* _o, const ::flatbuffers::rehasher_function_t *_rehasher) {
-  return CreateWriteRegisterRequest(_fbb, _o, _rehasher);
+inline ::flatbuffers::Offset<WriteRegisterRequest> CreateWriteRegisterRequest(::flatbuffers::FlatBufferBuilder &_fbb, const WriteRegisterRequestT *_o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+  return WriteRegisterRequest::Pack(_fbb, _o, _rehasher);
 }
 
-inline ::flatbuffers::Offset<WriteRegisterRequest> CreateWriteRegisterRequest(::flatbuffers::FlatBufferBuilder &_fbb, const WriteRegisterRequestT *_o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+inline ::flatbuffers::Offset<WriteRegisterRequest> WriteRegisterRequest::Pack(::flatbuffers::FlatBufferBuilder &_fbb, const WriteRegisterRequestT* _o, const ::flatbuffers::rehasher_function_t *_rehasher) {
   (void)_rehasher;
   (void)_o;
   struct _VectorArgs { ::flatbuffers::FlatBufferBuilder *__fbb; const WriteRegisterRequestT* __o; const ::flatbuffers::rehasher_function_t *__rehasher; } _va = { &_fbb, _o, _rehasher}; (void)_va;
@@ -1611,11 +1939,11 @@ inline void WriteRegisterResponse::UnPackTo(WriteRegisterResponseT *_o, const ::
   { auto _e = success(); _o->success = _e; }
 }
 
-inline ::flatbuffers::Offset<WriteRegisterResponse> WriteRegisterResponse::Pack(::flatbuffers::FlatBufferBuilder &_fbb, const WriteRegisterResponseT* _o, const ::flatbuffers::rehasher_function_t *_rehasher) {
-  return CreateWriteRegisterResponse(_fbb, _o, _rehasher);
+inline ::flatbuffers::Offset<WriteRegisterResponse> CreateWriteRegisterResponse(::flatbuffers::FlatBufferBuilder &_fbb, const WriteRegisterResponseT *_o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+  return WriteRegisterResponse::Pack(_fbb, _o, _rehasher);
 }
 
-inline ::flatbuffers::Offset<WriteRegisterResponse> CreateWriteRegisterResponse(::flatbuffers::FlatBufferBuilder &_fbb, const WriteRegisterResponseT *_o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+inline ::flatbuffers::Offset<WriteRegisterResponse> WriteRegisterResponse::Pack(::flatbuffers::FlatBufferBuilder &_fbb, const WriteRegisterResponseT* _o, const ::flatbuffers::rehasher_function_t *_rehasher) {
   (void)_rehasher;
   (void)_o;
   struct _VectorArgs { ::flatbuffers::FlatBufferBuilder *__fbb; const WriteRegisterResponseT* __o; const ::flatbuffers::rehasher_function_t *__rehasher; } _va = { &_fbb, _o, _rehasher}; (void)_va;
@@ -1641,11 +1969,11 @@ inline void ReadRegisterRequest::UnPackTo(ReadRegisterRequestT *_o, const ::flat
   { auto _e = register_(); _o->register_ = _e; }
 }
 
-inline ::flatbuffers::Offset<ReadRegisterRequest> ReadRegisterRequest::Pack(::flatbuffers::FlatBufferBuilder &_fbb, const ReadRegisterRequestT* _o, const ::flatbuffers::rehasher_function_t *_rehasher) {
-  return CreateReadRegisterRequest(_fbb, _o, _rehasher);
+inline ::flatbuffers::Offset<ReadRegisterRequest> CreateReadRegisterRequest(::flatbuffers::FlatBufferBuilder &_fbb, const ReadRegisterRequestT *_o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+  return ReadRegisterRequest::Pack(_fbb, _o, _rehasher);
 }
 
-inline ::flatbuffers::Offset<ReadRegisterRequest> CreateReadRegisterRequest(::flatbuffers::FlatBufferBuilder &_fbb, const ReadRegisterRequestT *_o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+inline ::flatbuffers::Offset<ReadRegisterRequest> ReadRegisterRequest::Pack(::flatbuffers::FlatBufferBuilder &_fbb, const ReadRegisterRequestT* _o, const ::flatbuffers::rehasher_function_t *_rehasher) {
   (void)_rehasher;
   (void)_o;
   struct _VectorArgs { ::flatbuffers::FlatBufferBuilder *__fbb; const ReadRegisterRequestT* __o; const ::flatbuffers::rehasher_function_t *__rehasher; } _va = { &_fbb, _o, _rehasher}; (void)_va;
@@ -1668,11 +1996,11 @@ inline void ReadRegisterResponse::UnPackTo(ReadRegisterResponseT *_o, const ::fl
   { auto _e = data(); if (_e) { _o->data.resize(_e->size()); std::copy(_e->begin(), _e->end(), _o->data.begin()); } }
 }
 
-inline ::flatbuffers::Offset<ReadRegisterResponse> ReadRegisterResponse::Pack(::flatbuffers::FlatBufferBuilder &_fbb, const ReadRegisterResponseT* _o, const ::flatbuffers::rehasher_function_t *_rehasher) {
-  return CreateReadRegisterResponse(_fbb, _o, _rehasher);
+inline ::flatbuffers::Offset<ReadRegisterResponse> CreateReadRegisterResponse(::flatbuffers::FlatBufferBuilder &_fbb, const ReadRegisterResponseT *_o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+  return ReadRegisterResponse::Pack(_fbb, _o, _rehasher);
 }
 
-inline ::flatbuffers::Offset<ReadRegisterResponse> CreateReadRegisterResponse(::flatbuffers::FlatBufferBuilder &_fbb, const ReadRegisterResponseT *_o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+inline ::flatbuffers::Offset<ReadRegisterResponse> ReadRegisterResponse::Pack(::flatbuffers::FlatBufferBuilder &_fbb, const ReadRegisterResponseT* _o, const ::flatbuffers::rehasher_function_t *_rehasher) {
   (void)_rehasher;
   (void)_o;
   struct _VectorArgs { ::flatbuffers::FlatBufferBuilder *__fbb; const ReadRegisterResponseT* __o; const ::flatbuffers::rehasher_function_t *__rehasher; } _va = { &_fbb, _o, _rehasher}; (void)_va;
@@ -1682,6 +2010,67 @@ inline ::flatbuffers::Offset<ReadRegisterResponse> CreateReadRegisterResponse(::
       _fbb,
       _register_,
       _data);
+}
+
+inline ApplicationExitT *ApplicationExit::UnPack(const ::flatbuffers::resolver_function_t *_resolver) const {
+  auto _o = std::unique_ptr<ApplicationExitT>(new ApplicationExitT());
+  UnPackTo(_o.get(), _resolver);
+  return _o.release();
+}
+
+inline void ApplicationExit::UnPackTo(ApplicationExitT *_o, const ::flatbuffers::resolver_function_t *_resolver) const {
+  (void)_o;
+  (void)_resolver;
+  { auto _e = exit_status(); _o->exit_status = _e; }
+}
+
+inline ::flatbuffers::Offset<ApplicationExit> CreateApplicationExit(::flatbuffers::FlatBufferBuilder &_fbb, const ApplicationExitT *_o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+  return ApplicationExit::Pack(_fbb, _o, _rehasher);
+}
+
+inline ::flatbuffers::Offset<ApplicationExit> ApplicationExit::Pack(::flatbuffers::FlatBufferBuilder &_fbb, const ApplicationExitT* _o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+  (void)_rehasher;
+  (void)_o;
+  struct _VectorArgs { ::flatbuffers::FlatBufferBuilder *__fbb; const ApplicationExitT* __o; const ::flatbuffers::rehasher_function_t *__rehasher; } _va = { &_fbb, _o, _rehasher}; (void)_va;
+  auto _exit_status = _o->exit_status;
+  return Debugger::CreateApplicationExit(
+      _fbb,
+      _exit_status);
+}
+
+inline EmulationStatusT *EmulationStatus::UnPack(const ::flatbuffers::resolver_function_t *_resolver) const {
+  auto _o = std::unique_ptr<EmulationStatusT>(new EmulationStatusT());
+  UnPackTo(_o.get(), _resolver);
+  return _o.release();
+}
+
+inline void EmulationStatus::UnPackTo(EmulationStatusT *_o, const ::flatbuffers::resolver_function_t *_resolver) const {
+  (void)_o;
+  (void)_resolver;
+  { auto _e = active_threads(); _o->active_threads = _e; }
+  { auto _e = reserved_memory(); _o->reserved_memory = _e; }
+  { auto _e = committed_memory(); _o->committed_memory = _e; }
+  { auto _e = executed_instructions(); _o->executed_instructions = _e; }
+}
+
+inline ::flatbuffers::Offset<EmulationStatus> CreateEmulationStatus(::flatbuffers::FlatBufferBuilder &_fbb, const EmulationStatusT *_o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+  return EmulationStatus::Pack(_fbb, _o, _rehasher);
+}
+
+inline ::flatbuffers::Offset<EmulationStatus> EmulationStatus::Pack(::flatbuffers::FlatBufferBuilder &_fbb, const EmulationStatusT* _o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+  (void)_rehasher;
+  (void)_o;
+  struct _VectorArgs { ::flatbuffers::FlatBufferBuilder *__fbb; const EmulationStatusT* __o; const ::flatbuffers::rehasher_function_t *__rehasher; } _va = { &_fbb, _o, _rehasher}; (void)_va;
+  auto _active_threads = _o->active_threads;
+  auto _reserved_memory = _o->reserved_memory;
+  auto _committed_memory = _o->committed_memory;
+  auto _executed_instructions = _o->executed_instructions;
+  return Debugger::CreateEmulationStatus(
+      _fbb,
+      _active_threads,
+      _reserved_memory,
+      _committed_memory,
+      _executed_instructions);
 }
 
 inline DebugEventT *DebugEvent::UnPack(const ::flatbuffers::resolver_function_t *_resolver) const {
@@ -1697,11 +2086,11 @@ inline void DebugEvent::UnPackTo(DebugEventT *_o, const ::flatbuffers::resolver_
   { auto _e = event(); if (_e) _o->event.value = Debugger::EventUnion::UnPack(_e, event_type(), _resolver); }
 }
 
-inline ::flatbuffers::Offset<DebugEvent> DebugEvent::Pack(::flatbuffers::FlatBufferBuilder &_fbb, const DebugEventT* _o, const ::flatbuffers::rehasher_function_t *_rehasher) {
-  return CreateDebugEvent(_fbb, _o, _rehasher);
+inline ::flatbuffers::Offset<DebugEvent> CreateDebugEvent(::flatbuffers::FlatBufferBuilder &_fbb, const DebugEventT *_o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+  return DebugEvent::Pack(_fbb, _o, _rehasher);
 }
 
-inline ::flatbuffers::Offset<DebugEvent> CreateDebugEvent(::flatbuffers::FlatBufferBuilder &_fbb, const DebugEventT *_o, const ::flatbuffers::rehasher_function_t *_rehasher) {
+inline ::flatbuffers::Offset<DebugEvent> DebugEvent::Pack(::flatbuffers::FlatBufferBuilder &_fbb, const DebugEventT* _o, const ::flatbuffers::rehasher_function_t *_rehasher) {
   (void)_rehasher;
   (void)_o;
   struct _VectorArgs { ::flatbuffers::FlatBufferBuilder *__fbb; const DebugEventT* __o; const ::flatbuffers::rehasher_function_t *__rehasher; } _va = { &_fbb, _o, _rehasher}; (void)_va;
@@ -1713,7 +2102,8 @@ inline ::flatbuffers::Offset<DebugEvent> CreateDebugEvent(::flatbuffers::FlatBuf
       _event);
 }
 
-inline bool VerifyEvent(::flatbuffers::Verifier &verifier, const void *obj, Event type) {
+template <bool B>
+inline bool VerifyEvent(::flatbuffers::VerifierTemplate<B> &verifier, const void *obj, Event type) {
   switch (type) {
     case Event_NONE: {
       return true;
@@ -1766,11 +2156,20 @@ inline bool VerifyEvent(::flatbuffers::Verifier &verifier, const void *obj, Even
       auto ptr = reinterpret_cast<const Debugger::ReadRegisterResponse *>(obj);
       return verifier.VerifyTable(ptr);
     }
+    case Event_ApplicationExit: {
+      auto ptr = reinterpret_cast<const Debugger::ApplicationExit *>(obj);
+      return verifier.VerifyTable(ptr);
+    }
+    case Event_EmulationStatus: {
+      auto ptr = reinterpret_cast<const Debugger::EmulationStatus *>(obj);
+      return verifier.VerifyTable(ptr);
+    }
     default: return true;
   }
 }
 
-inline bool VerifyEventVector(::flatbuffers::Verifier &verifier, const ::flatbuffers::Vector<::flatbuffers::Offset<void>> *values, const ::flatbuffers::Vector<uint8_t> *types) {
+template <bool B>
+inline bool VerifyEventVector(::flatbuffers::VerifierTemplate<B> &verifier, const ::flatbuffers::Vector<::flatbuffers::Offset<void>> *values, const ::flatbuffers::Vector<uint8_t> *types) {
   if (!values || !types) return !values && !types;
   if (values->size() != types->size()) return false;
   for (::flatbuffers::uoffset_t i = 0; i < values->size(); ++i) {
@@ -1833,6 +2232,14 @@ inline void *EventUnion::UnPack(const void *obj, Event type, const ::flatbuffers
       auto ptr = reinterpret_cast<const Debugger::ReadRegisterResponse *>(obj);
       return ptr->UnPack(resolver);
     }
+    case Event_ApplicationExit: {
+      auto ptr = reinterpret_cast<const Debugger::ApplicationExit *>(obj);
+      return ptr->UnPack(resolver);
+    }
+    case Event_EmulationStatus: {
+      auto ptr = reinterpret_cast<const Debugger::EmulationStatus *>(obj);
+      return ptr->UnPack(resolver);
+    }
     default: return nullptr;
   }
 }
@@ -1888,6 +2295,14 @@ inline ::flatbuffers::Offset<void> EventUnion::Pack(::flatbuffers::FlatBufferBui
       auto ptr = reinterpret_cast<const Debugger::ReadRegisterResponseT *>(value);
       return CreateReadRegisterResponse(_fbb, ptr, _rehasher).Union();
     }
+    case Event_ApplicationExit: {
+      auto ptr = reinterpret_cast<const Debugger::ApplicationExitT *>(value);
+      return CreateApplicationExit(_fbb, ptr, _rehasher).Union();
+    }
+    case Event_EmulationStatus: {
+      auto ptr = reinterpret_cast<const Debugger::EmulationStatusT *>(value);
+      return CreateEmulationStatus(_fbb, ptr, _rehasher).Union();
+    }
     default: return 0;
   }
 }
@@ -1940,6 +2355,14 @@ inline EventUnion::EventUnion(const EventUnion &u) : type(u.type), value(nullptr
     }
     case Event_ReadRegisterResponse: {
       value = new Debugger::ReadRegisterResponseT(*reinterpret_cast<Debugger::ReadRegisterResponseT *>(u.value));
+      break;
+    }
+    case Event_ApplicationExit: {
+      value = new Debugger::ApplicationExitT(*reinterpret_cast<Debugger::ApplicationExitT *>(u.value));
+      break;
+    }
+    case Event_EmulationStatus: {
+      value = new Debugger::EmulationStatusT(*reinterpret_cast<Debugger::EmulationStatusT *>(u.value));
       break;
     }
     default:
@@ -2009,6 +2432,16 @@ inline void EventUnion::Reset() {
       delete ptr;
       break;
     }
+    case Event_ApplicationExit: {
+      auto ptr = reinterpret_cast<Debugger::ApplicationExitT *>(value);
+      delete ptr;
+      break;
+    }
+    case Event_EmulationStatus: {
+      auto ptr = reinterpret_cast<Debugger::EmulationStatusT *>(value);
+      delete ptr;
+      break;
+    }
     default: break;
   }
   value = nullptr;
@@ -2031,14 +2464,16 @@ inline Debugger::DebugEvent *GetMutableSizePrefixedDebugEvent(void *buf) {
   return ::flatbuffers::GetMutableSizePrefixedRoot<Debugger::DebugEvent>(buf);
 }
 
+template <bool B = false>
 inline bool VerifyDebugEventBuffer(
-    ::flatbuffers::Verifier &verifier) {
-  return verifier.VerifyBuffer<Debugger::DebugEvent>(nullptr);
+    ::flatbuffers::VerifierTemplate<B> &verifier) {
+  return verifier.template VerifyBuffer<Debugger::DebugEvent>(nullptr);
 }
 
+template <bool B = false>
 inline bool VerifySizePrefixedDebugEventBuffer(
-    ::flatbuffers::Verifier &verifier) {
-  return verifier.VerifySizePrefixedBuffer<Debugger::DebugEvent>(nullptr);
+    ::flatbuffers::VerifierTemplate<B> &verifier) {
+  return verifier.template VerifySizePrefixedBuffer<Debugger::DebugEvent>(nullptr);
 }
 
 inline void FinishDebugEventBuffer(

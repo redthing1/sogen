@@ -14,12 +14,7 @@ import {
   ContextMenuSeparator,
   ContextMenuLabel,
 } from "@/components/ui/context-menu";
-
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { TextTooltip } from "./text-tooltip";
 
 export enum FolderElementType {
   Folder = 0,
@@ -35,6 +30,7 @@ type ClickHandler = (element: FolderElement) => void;
 type CreateFolderHandler = () => void;
 type RemoveElementHandler = (element: FolderElement) => void;
 type RenameElementHandler = (element: FolderElement) => void;
+type DownloadElementHandler = (element: FolderElement) => void;
 type AddFilesHandler = () => void;
 type IconReader = (element: FolderElement) => string | null;
 
@@ -45,6 +41,7 @@ export interface FolderProps {
   createFolderHandler: CreateFolderHandler;
   removeElementHandler: RemoveElementHandler;
   renameElementHandler: RenameElementHandler;
+  downloadElementHandler: DownloadElementHandler;
   addFilesHandler: AddFilesHandler;
 }
 
@@ -66,7 +63,7 @@ function getIcon(
     return (
       <div className={className}>
         <div className="w-full h-full flex items-center">
-          <img className="rounded-sm" src={icon} />
+          <img className="rounded-lg folder-icon" src={icon} />
         </div>
       </div>
     );
@@ -131,18 +128,22 @@ function renderElementWithContext(element: FolderElement, props: FolderProps) {
   return (
     <ContextMenu>
       <ContextMenuTrigger>
-        <Tooltip delayDuration={700}>
-          <TooltipTrigger asChild>
-            {renderElement(element, props)}
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>{element.name}</p>
-          </TooltipContent>
-        </Tooltip>
+        <TextTooltip tooltip={element.name}>
+          {renderElement(element, props)}
+        </TextTooltip>
       </ContextMenuTrigger>
       <ContextMenuContent>
         <ContextMenuLabel>{trimFilename(element.name)}</ContextMenuLabel>
         <ContextMenuSeparator />
+        {element.type != FolderElementType.File ? (
+          <></>
+        ) : (
+          <ContextMenuItem
+            onClick={() => props.downloadElementHandler(element)}
+          >
+            Download
+          </ContextMenuItem>
+        )}
         <ContextMenuItem onClick={() => props.renameElementHandler(element)}>
           Rename
         </ContextMenuItem>

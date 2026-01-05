@@ -13,17 +13,22 @@
 #include "kusd_mmio.hpp"
 #include "windows_objects.hpp"
 #include "emulator_thread.hpp"
+#include "port.hpp"
 
 #include "apiset/apiset.hpp"
 
-#define PEB_SEGMENT_SIZE (20 << 20) // 20 MB
-#define GS_SEGMENT_SIZE  (1 << 20)  // 1 MB
+#define PEB_SEGMENT_SIZE        (20 << 20) // 20 MB
+#define GS_SEGMENT_SIZE         (1 << 20)  // 1 MB
 
-#define STACK_SIZE       0x40000ULL
+#define STACK_SIZE              0x40000ULL // 256KB
 
-#define GDT_ADDR         0x30000
-#define GDT_LIMIT        0x1000
-#define GDT_ENTRY_SIZE   0x8
+#define GDT_ADDR                0x35000
+#define GDT_LIMIT               0x1000
+#define GDT_ENTRY_SIZE          0x8
+
+// TODO: Get rid of that
+#define WOW64_NATIVE_STACK_SIZE 0x8000
+#define WOW64_32BIT_STACK_SIZE  (1 << 20)
 
 struct emulator_settings;
 struct application_settings;
@@ -59,18 +64,18 @@ struct process_context
     process_context(x86_64_emulator& emu, memory_manager& memory, utils::clock& clock, callbacks& cb)
         : callbacks_(&cb),
           base_allocator(emu),
-          peb(emu),
-          process_params(emu),
+          peb64(emu),
+          process_params64(emu),
           kusd(memory, clock)
     {
     }
 
-    void setup(x86_64_emulator& emu, memory_manager& memory, registry_manager& registry,
-               const application_settings& app_settings, const mapped_module& executable, const mapped_module& ntdll,
-               const apiset::container& apiset_container);
+    void setup(x86_64_emulator& emu, memory_manager& memory, registry_manager& registry, const application_settings& app_settings,
+               const mapped_module& executable, const mapped_module& ntdll, const apiset::container& apiset_container,
+               const mapped_module* ntdll32 = nullptr);
 
-    handle create_thread(memory_manager& memory, uint64_t start_address, uint64_t argument, uint64_t stack_size,
-                         bool suspended);
+    handle create_thread(memory_manager& memory, uint64_t start_address, uint64_t argument, uint64_t stack_size, uint32_t create_flags,
+                         bool initial_thread = false);
 
     std::optional<uint16_t> find_atom(std::u16string_view name);
     uint16_t add_or_find_atom(std::u16string name);
@@ -81,12 +86,12 @@ struct process_context
     void serialize(utils::buffer_serializer& buffer) const;
     void deserialize(utils::buffer_deserializer& buffer);
 
+    // WOW64 support flag - set during process setup based on executable architecture
+    bool is_wow64_process{false};
+
     generic_handle_store* get_handle_store(handle handle);
 
     callbacks* callbacks_{};
-
-    uint64_t current_ip{0};
-    uint64_t previous_ip{0};
 
     uint64_t shared_section_address{0};
     uint64_t shared_section_size{0};
@@ -97,8 +102,8 @@ struct process_context
 
     emulator_allocator base_allocator;
 
-    emulator_object<PEB64> peb;
-    emulator_object<RTL_USER_PROCESS_PARAMETERS64> process_params;
+    emulator_object<PEB64> peb64;
+    emulator_object<RTL_USER_PROCESS_PARAMETERS64> process_params64;
     kusd_mmio kusd;
 
     uint64_t ntdll_image_base{};
@@ -106,13 +111,19 @@ struct process_context
     uint64_t rtl_user_thread_start{};
     uint64_t ki_user_apc_dispatcher{};
     uint64_t ki_user_exception_dispatcher{};
+    uint64_t instrumentation_callback{};
+
+    // For WOW64 processes
+    std::optional<emulator_object<PEB32>> peb32;
+    std::optional<emulator_object<RTL_USER_PROCESS_PARAMETERS32>> process_params32;
+    std::optional<uint64_t> rtl_user_thread_start32{};
 
     handle_store<handle_types::event, event> events{};
     handle_store<handle_types::file, file> files{};
     handle_store<handle_types::section, section> sections{};
     handle_store<handle_types::device, io_device_container> devices{};
     handle_store<handle_types::semaphore, semaphore> semaphores{};
-    handle_store<handle_types::port, port> ports{};
+    handle_store<handle_types::port, port_container> ports{};
     handle_store<handle_types::mutant, mutant> mutants{};
     handle_store<handle_types::window, window> windows{};
     handle_store<handle_types::timer, timer> timers{};
@@ -124,4 +135,10 @@ struct process_context
     uint32_t spawned_thread_count{0};
     handle_store<handle_types::thread, emulator_thread> threads{};
     emulator_thread* active_thread{nullptr};
+
+    // Extended parameters from last NtMapViewOfSectionEx call
+    // These can be used by other syscalls like NtAllocateVirtualMemoryEx
+    uint64_t last_extended_params_numa_node{0};
+    uint32_t last_extended_params_attributes{0};
+    uint16_t last_extended_params_image_machine{IMAGE_FILE_MACHINE_UNKNOWN};
 };

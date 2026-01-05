@@ -1,20 +1,26 @@
-<img src="./docs/images/cover.png" />
 <h1 align="center">
-	Sogen
+	<img src="https://momo5502.com/emulator/banner.png" height="200" />
 	<br>
 	<a href="https://github.com/momo5502/sogen?tab=GPL-2.0-1-ov-file"><img src="https://img.shields.io/github/license/momo5502/sogen?color=00B0F8"/></a>
 	<a href="https://github.com/momo5502/sogen/actions"><img src="https://img.shields.io/github/actions/workflow/status/momo5502/sogen/build.yml?branch=main&label=build"/></a>
 	<a href="https://github.com/momo5502/sogen/issues"><img src="https://img.shields.io/github/issues/momo5502/sogen?color=F8B000"/></a>
 	<img src="https://img.shields.io/github/commit-activity/m/momo5502/sogen?color=FF3131"/>  
+	<a href="https://deepwiki.com/momo5502/sogen"><img src="https://deepwiki.com/badge.svg"/></a>
 </h1>
 
 Sogen is a high-performance Windows user space emulator that operates at syscall level, providing full control over process execution through comprehensive hooking capabilities.
 
 Perfect for security research, malware analysis, and DRM research where fine-grained control over process execution is required.
 
-Built in C++ and powered by the [Unicorn Engine](https://github.com/unicorn-engine/unicorn) (or the [icicle-emu](https://github.com/icicle-emu/icicle-emu) 🆕).
+Built in C++ and powered by the [Unicorn Engine](https://github.com/unicorn-engine/unicorn) or the [icicle-emu](https://github.com/icicle-emu/icicle-emu).
 
 Try it out: <a href="https://sogen.dev">sogen.dev</a>
+
+<hr>
+
+> [!WARNING]  
+> Caution is advised when analyzing malware in Sogen, as host isolation might not be perfect.  
+> To mitigate potential risk, use the <a href="https://sogen.dev/#/playground">web version</a> to benefit from the additional safety provided by your browser's sandbox.
 
 ## Key Features
 
@@ -32,10 +38,6 @@ Try it out: <a href="https://sogen.dev">sogen.dev</a>
 	* Supports both full state serialization and ~~fast in-memory snapshots~~ (currently broken 😕)
 * 💻 __Debugging Interface__
 	* Implements GDB serial protocol for integration with common debugging tools (IDA Pro, GDB, LLDB, VS Code, ...)
-
-##
-> [!NOTE]  
-> The project is still in a very early, prototypical state. The code still needs a lot of cleanup and many features and syscalls need to be implemented. However, constant progress is being made :)
 
 ## Preview
 

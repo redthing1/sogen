@@ -31,10 +31,10 @@ endif()
 
 ##########################################
 
-if(MOMO_BUILD_AS_LIBRARY)
-    add_compile_definitions(MOMO_BUILD_AS_LIBRARY=1)
+if(SOGEN_BUILD_STATIC)
+    add_compile_definitions(SOGEN_BUILD_STATIC=1)
 else()
-    add_compile_definitions(MOMO_BUILD_AS_LIBRARY=0)
+    add_compile_definitions(SOGEN_BUILD_STATIC=0)
 endif()
 
 ##########################################
@@ -120,16 +120,34 @@ if(CMAKE_SYSTEM_NAME MATCHES "Emscripten")
   add_link_options(
     -fexceptions
     -sALLOW_MEMORY_GROWTH=1
-    -sASSERTIONS
+    $<$<CONFIG:Debug>:-sASSERTIONS>
     -sWASM_BIGINT
-    -sUSE_OFFSET_CONVERTER
-    -sMAXIMUM_MEMORY=4gb
+    #-sUSE_OFFSET_CONVERTER
     #-sEXCEPTION_CATCHING_ALLOWED=[..]
     -sEXIT_RUNTIME
     -sASYNCIFY
   )
 
+  if(MOMO_EMSCRIPTEN_MEMORY64)
+    momo_add_c_and_cxx_compile_options(
+      -sMEMORY64
+    )
+
+    add_link_options(
+      -sMAXIMUM_MEMORY=8gb
+      -sMEMORY64
+    )
+  else()
+    add_link_options(
+      -sMAXIMUM_MEMORY=4gb
+    )
+  endif()
+
   if(MOMO_EMSCRIPTEN_SUPPORT_NODEJS)
+    add_compile_definitions(
+      MOMO_EMSCRIPTEN_SUPPORT_NODEJS=1
+    )
+
     add_link_options(
       -lnodefs.js -sNODERAWFS=1
       -sENVIRONMENT=node
@@ -199,10 +217,33 @@ if(MOMO_ENABLE_SANITIZER)
 endif()
 
 ##########################################
-# Must be a dynamic runtime (/MD or /MDd) to enforce
-# shared allocators between emulator and implementation
+# MSVC Runtime Library Selection
+#
+# Default is dynamic runtime (/MD or /MDd) to enforce shared allocators
+# between emulator and implementation.
+#
+# Use SOGEN_STATIC_CRT=ON for static runtime (/MT or /MTd) when embedding
+# in projects that require it (e.g., IDA plugins).
+#
+# WARNING: Static CRT may cause heap corruption if memory is allocated
+# in one module and freed in another. Ensure allocation ownership is clear.
 
-set(CMAKE_MSVC_RUNTIME_LIBRARY MultiThreaded$<$<CONFIG:Debug>:Debug>DLL)
+option(SOGEN_STATIC_CRT "Use static CRT (/MT) instead of dynamic (/MD)" OFF)
+
+if(SOGEN_STATIC_CRT AND NOT SOGEN_BUILD_STATIC)
+  message(FATAL_ERROR
+    "SOGEN_STATIC_CRT=ON requires SOGEN_BUILD_STATIC=ON.\n"
+    "Static CRT with shared libraries causes heap corruption - "
+    "each DLL gets its own allocator, but sogen passes ownership across boundaries.")
+endif()
+
+if(SOGEN_STATIC_CRT)
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+elseif(DEFINED CMAKE_MSVC_RUNTIME_LIBRARY)
+  # Respect parent project's setting
+else()
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+endif()
 
 ##########################################
 

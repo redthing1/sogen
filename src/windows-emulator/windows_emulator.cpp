@@ -11,6 +11,7 @@
 #include "apiset/apiset.hpp"
 
 #include "network/static_socket_factory.hpp"
+#include "memory_permission_ext.hpp"
 
 constexpr auto MAX_INSTRUCTIONS_PER_TIME_SLICE = 0x20000;
 
@@ -51,6 +52,7 @@ namespace
     void perform_context_switch_work(windows_emulator& win_emu)
     {
         auto& threads = win_emu.process.threads;
+        auto*& active = win_emu.process.active_thread;
 
         for (auto it = threads.begin(); it != threads.end();)
         {
@@ -58,6 +60,11 @@ namespace
             {
                 ++it;
                 continue;
+            }
+
+            if (active == &it->second)
+            {
+                active = nullptr;
             }
 
             const auto [new_it, deleted] = threads.erase(it);
@@ -106,6 +113,8 @@ namespace
         {
             return;
         }
+
+        thread.setup_if_necessary(win_emu.emu(), win_emu.process);
 
         win_emu.callbacks.on_generic_activity("APC Dispatch");
 
@@ -251,8 +260,7 @@ namespace
         }
     };
 
-    std::unique_ptr<utils::clock> get_clock(emulator_interfaces& interfaces, const uint64_t& instructions,
-                                            const bool use_relative_time)
+    std::unique_ptr<utils::clock> get_clock(emulator_interfaces& interfaces, const uint64_t& instructions, const bool use_relative_time)
     {
         if (interfaces.clock)
         {
@@ -282,16 +290,15 @@ namespace
 }
 
 windows_emulator::windows_emulator(std::unique_ptr<x86_64_emulator> emu, application_settings app_settings,
-                                   const emulator_settings& settings, emulator_callbacks callbacks,
-                                   emulator_interfaces interfaces)
+                                   const emulator_settings& settings, emulator_callbacks callbacks, emulator_interfaces interfaces)
     : windows_emulator(std::move(emu), settings, std::move(callbacks), std::move(interfaces))
 {
     fixup_application_settings(app_settings);
     this->application_settings_ = std::move(app_settings);
 }
 
-windows_emulator::windows_emulator(std::unique_ptr<x86_64_emulator> emu, const emulator_settings& settings,
-                                   emulator_callbacks callbacks, emulator_interfaces interfaces)
+windows_emulator::windows_emulator(std::unique_ptr<x86_64_emulator> emu, const emulator_settings& settings, emulator_callbacks callbacks,
+                                   emulator_interfaces interfaces)
     : emu_(std::move(emu)),
       clock_(get_clock(interfaces, this->executed_instructions_, settings.use_relative_time)),
       socket_factory_(get_socket_factory(interfaces)),
@@ -344,8 +351,10 @@ void windows_emulator::setup_process(const application_settings& app_settings)
     const auto& emu = this->emu();
     auto& context = this->process;
 
-    this->mod_manager.map_main_modules(app_settings.application, R"(C:\Windows\System32\ntdll.dll)",
-                                       R"(C:\Windows\System32\win32u.dll)", this->log);
+    this->mod_manager.map_main_modules(app_settings.application, R"(C:\Windows\System32)", R"(C:\Windows\SysWOW64)", this->log);
+
+    // Set WOW64 flag based on the detected execution mode
+    context.is_wow64_process = (this->mod_manager.get_execution_mode() == execution_mode::wow64_32bit);
 
     const auto* executable = this->mod_manager.executable;
     const auto* ntdll = this->mod_manager.ntdll;
@@ -353,15 +362,17 @@ void windows_emulator::setup_process(const application_settings& app_settings)
 
     const auto apiset_data = apiset::obtain(this->emulation_root);
 
-    this->process.setup(this->emu(), this->memory, this->registry, app_settings, *executable, *ntdll, apiset_data);
+    this->process.setup(this->emu(), this->memory, this->registry, app_settings, *executable, *ntdll, apiset_data,
+                        this->mod_manager.wow64_modules_.ntdll32);
 
     const auto ntdll_data = emu.read_memory(ntdll->image_base, static_cast<size_t>(ntdll->size_of_image));
     const auto win32u_data = emu.read_memory(win32u->image_base, static_cast<size_t>(win32u->size_of_image));
 
     this->dispatcher.setup(ntdll->exports, ntdll_data, win32u->exports, win32u_data);
 
-    const auto main_thread_id =
-        context.create_thread(this->memory, this->mod_manager.executable->entry_point, 0, 0, false);
+    const auto main_thread_id = context.create_thread(this->memory, this->mod_manager.executable->entry_point, 0,
+                                                      this->mod_manager.executable->size_of_stack_commit, 0, true);
+
     switch_to_thread(*this, main_thread_id);
 }
 
@@ -420,8 +431,8 @@ void windows_emulator::on_instruction_execution(const uint64_t address)
         this->yield_thread();
     }
 
-    this->process.previous_ip = this->process.current_ip;
-    this->process.current_ip = this->emu().read_instruction_pointer();
+    thread.previous_ip = thread.current_ip;
+    thread.current_ip = this->emu().read_instruction_pointer();
 
     this->callbacks.on_instruction(address);
 }
@@ -434,9 +445,11 @@ void windows_emulator::setup_hooks()
     });
 
     this->emu().hook_instruction(x86_hookable_instructions::rdtscp, [&] {
+        this->callbacks.on_rdtscp();
+
         const auto ticks = this->clock_->timestamp_counter();
-        this->emu().reg(x86_register::rax, ticks & 0xFFFFFFFF);
-        this->emu().reg(x86_register::rdx, (ticks >> 32) & 0xFFFFFFFF);
+        this->emu().reg(x86_register::rax, static_cast<uint32_t>(ticks));
+        this->emu().reg(x86_register::rdx, static_cast<uint32_t>(ticks >> 32));
 
         // Return the IA32_TSC_AUX value in RCX (low 32 bits)
         auto tsc_aux = 0; // Need to replace this with proper CPUID later
@@ -446,14 +459,19 @@ void windows_emulator::setup_hooks()
     });
 
     this->emu().hook_instruction(x86_hookable_instructions::rdtsc, [&] {
+        this->callbacks.on_rdtsc();
+
         const auto ticks = this->clock_->timestamp_counter();
-        this->emu().reg(x86_register::rax, ticks & 0xFFFFFFFF);
-        this->emu().reg(x86_register::rdx, (ticks >> 32) & 0xFFFFFFFF);
+        this->emu().reg(x86_register::rax, static_cast<uint32_t>(ticks));
+        this->emu().reg(x86_register::rdx, static_cast<uint32_t>(ticks >> 32));
+
         return instruction_hook_continuation::skip_instruction;
     });
 
     // TODO: Unicorn needs this - This should be handled in the backend
     this->emu().hook_instruction(x86_hookable_instructions::invalid, [&] {
+        // TODO: Unify icicle & unicorn handling
+        dispatch_illegal_instruction_violation(*this);
         return instruction_hook_continuation::skip_instruction; //
     });
 
@@ -464,7 +482,7 @@ void windows_emulator::setup_hooks()
         switch (interrupt)
         {
         case 0:
-            dispatch_integer_division_by_zero(this->emu(), this->process);
+            dispatch_integer_division_by_zero(*this);
             return;
         case 1:
             if ((eflags & 0x100) != 0)
@@ -473,19 +491,19 @@ void windows_emulator::setup_hooks()
             }
 
             this->callbacks.on_suspicious_activity("Singlestep");
-            dispatch_single_step(this->emu(), this->process);
+            dispatch_single_step(*this);
             return;
         case 3:
             this->callbacks.on_suspicious_activity("Breakpoint");
-            dispatch_breakpoint(this->emu(), this->process);
+            dispatch_breakpoint(*this);
             return;
         case 6:
             this->callbacks.on_suspicious_activity("Illegal instruction");
-            dispatch_illegal_instruction_violation(this->emu(), this->process);
+            dispatch_illegal_instruction_violation(*this);
             return;
         case 45:
             this->callbacks.on_suspicious_activity("DbgPrint");
-            dispatch_breakpoint(this->emu(), this->process);
+            dispatch_breakpoint(*this);
             return;
         default:
             if (this->callbacks.on_generic_activity)
@@ -497,12 +515,35 @@ void windows_emulator::setup_hooks()
         }
     });
 
-    this->emu().hook_memory_violation([&](const uint64_t address, const size_t size, const memory_operation operation,
-                                          const memory_violation_type type) {
-        this->callbacks.on_memory_violate(address, size, operation, type);
-        dispatch_access_violation(this->emu(), this->process, address, operation);
-        return memory_violation_continuation::resume;
-    });
+    this->emu().hook_memory_violation(
+        [&](const uint64_t address, const size_t size, const memory_operation operation, const memory_violation_type type) {
+            if (this->emu().reg<uint16_t>(x86_register::cs) == 0x33)
+            {
+                // loading gs selector only works in 64-bit mode
+                const auto required_gs_base = this->current_thread().gs_segment->get_base();
+                const auto actual_gs_base = this->emu().get_segment_base(x86_register::gs);
+                if (actual_gs_base != required_gs_base)
+                {
+                    this->emu().set_segment_base(x86_register::gs, required_gs_base);
+                    return memory_violation_continuation::restart;
+                }
+            }
+
+            auto region = this->memory.get_region_info(address);
+            if (region.permissions.is_guarded())
+            {
+                // Unset the GUARD_PAGE flag and dispatch a STATUS_GUARD_PAGE_VIOLATION
+                this->memory.protect_memory(region.allocation_base, region.length, region.permissions & ~memory_permission_ext::guard);
+                dispatch_guard_page_violation(*this, address, operation);
+            }
+            else
+            {
+                this->callbacks.on_memory_violate(address, size, operation, type);
+                dispatch_access_violation(*this, address, operation);
+            }
+
+            return memory_violation_continuation::resume;
+        });
 
     this->emu().hook_memory_execution([&](const uint64_t address) {
         this->on_instruction_execution(address); //
