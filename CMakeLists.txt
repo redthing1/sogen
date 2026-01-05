@@ -5,6 +5,7 @@ cmake_minimum_required(VERSION 3.26.4)
 option(MOMO_ENABLE_AVX2 "Enable AVX2 support" ON)
 option(MOMO_ENABLE_SANITIZER "Enable sanitizer" OFF)
 option(MOMO_ENABLE_CLANG_TIDY "Enable clang-tidy checks" OFF)
+option(MOMO_ENABLE_IPO "Enable interprocedural optimization (LTO)" ON)
 option(MOMO_ENABLE_RUST_CODE "Enable code parts written in rust" ON)
 option(MOMO_EMSCRIPTEN_MEMORY64 "Enable memory 64 support for emscripten builds" OFF)
 option(MOMO_EMSCRIPTEN_SUPPORT_NODEJS "Enable Node.js filesystem for emscripten compilation" OFF)
@@ -68,9 +69,16 @@ momo_add_subdirectory_and_get_targets("src" OWN_TARGETS)
 
 momo_targets_set_folder("dependencies" ${EXTERNAL_TARGETS})
 
+if(MOMO_ENABLE_IPO AND NOT MINGW AND NOT CMAKE_SYSTEM_NAME MATCHES "Emscripten")
+  set_property(TARGET ${OWN_TARGETS} PROPERTY INTERPROCEDURAL_OPTIMIZATION ON)
+  set_property(TARGET ${EXTERNAL_TARGETS} PROPERTY INTERPROCEDURAL_OPTIMIZATION OFF)
+endif()
+
 momo_targets_exclude_from_all(${EXTERNAL_TARGETS})
 momo_targets_disable_warnings(${EXTERNAL_TARGETS})
 
 momo_targets_expose_includes(${OWN_TARGETS})
 momo_targets_set_warnings_as_errors(${OWN_TARGETS})
 momo_targets_enable_clang_tidy(${OWN_TARGETS})
+
+##########################################

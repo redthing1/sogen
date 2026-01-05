@@ -25,7 +25,7 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 ##########################################
 
-if(NOT MINGW AND NOT CMAKE_SYSTEM_NAME MATCHES "Emscripten")
+if(MOMO_ENABLE_IPO AND NOT MINGW AND NOT CMAKE_SYSTEM_NAME MATCHES "Emscripten")
   set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
 endif()
 
@@ -55,8 +55,13 @@ endif()
 ##########################################
 
 if(UNIX)
+  if(NOT BUILD_SHARED_LIBS)
+    momo_add_c_and_cxx_compile_options(
+      -fvisibility=hidden
+    )
+  endif()
+
   momo_add_c_and_cxx_compile_options(
-    -fvisibility=hidden
     -ftrivial-auto-var-init=zero
   )
 endif()
