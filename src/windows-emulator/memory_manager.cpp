@@ -342,6 +342,10 @@ bool memory_manager::commit_memory(const uint64_t address, const size_t size, co
                 committed_regions[map_start] = committed_region{static_cast<size_t>(map_length), permissions};
             }
 
+            // Update protection for existing committed region when re-committing
+            this->apply_memory_protection(sub_region.first, sub_region.second.length, effective_permission);
+            sub_region.second.permissions = permissions;
+
             last_region_start = sub_region.first;
             last_region = &sub_region.second;
         }
