@@ -67,7 +67,8 @@ struct process_context
           base_allocator(emu),
           peb64(emu),
           process_params64(emu),
-          kusd(memory, clock)
+          kusd(memory, clock),
+          user_handles(memory)
     {
     }
 
@@ -126,7 +127,7 @@ struct process_context
     std::optional<emulator_object<RTL_USER_PROCESS_PARAMETERS32>> process_params32;
     std::optional<uint64_t> rtl_user_thread_start32{};
 
-    user_handle_table user_handles{};
+    user_handle_table user_handles;
     handle default_monitor_handle{};
     handle_store<handle_types::event, event> events{};
     handle_store<handle_types::file, file> files{};

@@ -420,7 +420,7 @@ void process_context::setup(x86_64_emulator& emu, memory_manager& memory, regist
 
     this->default_register_set = emu.save_registers();
 
-    this->user_handles.setup(memory);
+    this->user_handles.setup();
 
     auto [h, monitor_obj] = this->user_handles.allocate_object<USER_MONITOR>(handle_types::monitor);
     this->default_monitor_handle = h;
@@ -464,6 +464,7 @@ void process_context::serialize(utils::buffer_serializer& buffer) const
     buffer.write(this->kusd);
 
     buffer.write(this->is_wow64_process);
+    buffer.write(this->windows_build_number);
     buffer.write(this->ntdll_image_base);
     buffer.write(this->ldr_initialize_thunk);
     buffer.write(this->rtl_user_thread_start);
@@ -512,6 +513,7 @@ void process_context::deserialize(utils::buffer_deserializer& buffer)
     buffer.read(this->kusd);
 
     buffer.read(this->is_wow64_process);
+    buffer.read(this->windows_build_number);
     buffer.read(this->ntdll_image_base);
     buffer.read(this->ldr_initialize_thunk);
     buffer.read(this->rtl_user_thread_start);

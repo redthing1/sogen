@@ -7,24 +7,28 @@ class user_handle_table
   public:
     static constexpr uint32_t MAX_HANDLES = 0xFFFF;
 
-    void setup(memory_manager& memory)
+    user_handle_table(memory_manager& memory)
+        : memory_(&memory)
     {
-        memory_ = &memory;
+    }
+
+    void setup()
+    {
         used_indices_.resize(MAX_HANDLES, false);
 
         const auto server_info_size = static_cast<size_t>(page_align_up(sizeof(USER_SERVERINFO)));
-        server_info_addr_ = memory.allocate_memory(server_info_size, memory_permission::read);
+        server_info_addr_ = memory_->allocate_memory(server_info_size, memory_permission::read);
 
         const auto display_info_size = static_cast<size_t>(page_align_up(sizeof(USER_DISPINFO)));
-        display_info_addr_ = memory.allocate_memory(display_info_size, memory_permission::read);
+        display_info_addr_ = memory_->allocate_memory(display_info_size, memory_permission::read);
 
-        const emulator_object<USER_SERVERINFO> srv_obj(memory, server_info_addr_);
+        const emulator_object<USER_SERVERINFO> srv_obj(*memory_, server_info_addr_);
         srv_obj.access([&](USER_SERVERINFO& srv) {
             srv.cHandleEntries = MAX_HANDLES - 1; //
         });
 
         const auto handle_table_size = static_cast<size_t>(page_align_up(sizeof(USER_HANDLEENTRY) * MAX_HANDLES));
-        handle_table_addr_ = memory.allocate_memory(handle_table_size, memory_permission::read);
+        handle_table_addr_ = memory_->allocate_memory(handle_table_size, memory_permission::read);
     }
 
     emulator_object<USER_SHAREDINFO> get_server_info() const
