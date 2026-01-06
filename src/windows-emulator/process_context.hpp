@@ -70,7 +70,7 @@ struct process_context
     {
     }
 
-    void setup(x86_64_emulator& emu, memory_manager& memory, registry_manager& registry, const application_settings& app_settings,
+    void setup(x86_64_emulator& emu, memory_manager& memory, registry_manager& registry, const file_system& file_system, const application_settings& app_settings,
                const mapped_module& executable, const mapped_module& ntdll, const apiset::container& apiset_container,
                const mapped_module* ntdll32 = nullptr);
 

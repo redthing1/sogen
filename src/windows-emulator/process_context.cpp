@@ -177,9 +177,9 @@ namespace
         return env_map;
     }
 
-    void create_known_dlls_section_objects(std::unordered_map<std::u16string, section>& knowndlls_sections, bool is_wow64)
+    void create_known_dlls_section_objects(std::unordered_map<std::u16string, section>& knowndlls_sections, const file_system& file_system, bool is_wow64)
     {
-        std::filesystem::path known_dlls_fs_root_path;
+        windows_path known_dlls_fs_root_path;
         std::u16string known_dlls_objmgn_root_path;
 
         if (is_wow64)
@@ -219,7 +219,7 @@ namespace
 
             const auto known_dll_fs_path = known_dlls_fs_root_path / known_dll_name;
             auto known_dll_objmgn_path = known_dlls_objmgn_root_path + u"\\" + known_dll_name;
-            const auto file_size = std::filesystem::file_size(known_dll_fs_path);
+            const auto file_size = std::filesystem::file_size(file_system.translate(known_dll_fs_path));
 
             utils::string::to_lower_inplace(known_dll_objmgn_path);
             s.name = known_dll_objmgn_path;
@@ -233,7 +233,7 @@ namespace
     }
 }
 
-void process_context::setup(x86_64_emulator& emu, memory_manager& memory, registry_manager& registry,
+void process_context::setup(x86_64_emulator& emu, memory_manager& memory, registry_manager& registry, const file_system& file_system,
                             const application_settings& app_settings, const mapped_module& executable, const mapped_module& ntdll,
                             const apiset::container& apiset_container, const mapped_module* ntdll32)
 {
@@ -438,7 +438,7 @@ void process_context::setup(x86_64_emulator& emu, memory_manager& memory, regist
         }
     }
 
-    create_known_dlls_section_objects(this->knowndlls_sections, is_wow64_process);
+    create_known_dlls_section_objects(this->knowndlls_sections, file_system, is_wow64_process);
 
     this->ntdll_image_base = ntdll.image_base;
     this->ldr_initialize_thunk = ntdll.find_export("LdrInitializeThunk");
