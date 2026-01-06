@@ -177,7 +177,8 @@ namespace
         return env_map;
     }
 
-    void create_known_dlls_section_objects(std::unordered_map<std::u16string, section>& knowndlls_sections, const file_system& file_system, bool is_wow64)
+    void create_known_dlls_section_objects(std::unordered_map<std::u16string, section>& knowndlls_sections, const file_system& file_system,
+                                           bool is_wow64)
     {
         windows_path known_dlls_fs_root_path;
         std::u16string known_dlls_objmgn_root_path;
@@ -218,8 +219,15 @@ namespace
             section s{};
 
             const auto known_dll_fs_path = known_dlls_fs_root_path / known_dll_name;
+
+            auto local_file = file_system.translate(known_dll_fs_path);
+            if (!std::filesystem::exists(local_file))
+            {
+                continue;
+            }
+
             auto known_dll_objmgn_path = known_dlls_objmgn_root_path + u"\\" + known_dll_name;
-            const auto file_size = std::filesystem::file_size(file_system.translate(known_dll_fs_path));
+            const auto file_size = std::filesystem::file_size(local_file);
 
             utils::string::to_lower_inplace(known_dll_objmgn_path);
             s.name = known_dll_objmgn_path;

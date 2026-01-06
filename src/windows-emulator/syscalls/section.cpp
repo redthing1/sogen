@@ -225,10 +225,8 @@ namespace syscalls
             return STATUS_NOT_SUPPORTED;
         }
 
-        bool is_known_dll = (attributes.RootDirectory == KNOWN_DLLS_DIRECTORY 
-                             || attributes.RootDirectory == KNOWN_DLLS32_DIRECTORY 
-                             || filename.starts_with(u"\\KnownDlls") 
-                             || filename.starts_with(u"\\KnownDlls32"));
+        bool is_known_dll = (attributes.RootDirectory == KNOWN_DLLS_DIRECTORY || attributes.RootDirectory == KNOWN_DLLS32_DIRECTORY ||
+                             filename.starts_with(u"\\KnownDlls") || filename.starts_with(u"\\KnownDlls32"));
 
         if (!is_known_dll && attributes.RootDirectory != BASE_NAMED_OBJECTS_DIRECTORY)
         {
