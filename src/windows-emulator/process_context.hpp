@@ -101,6 +101,11 @@ struct process_context
     {
         return windows_build_number < 26040;
     }
+    uint64_t gdi_shared_table_address{0};
+    uint32_t gdi_cookie{0};
+    uint32_t gdi_next_handle_index{0x2000};
+
+    generic_handle_store* get_handle_store(handle handle);
 
     callbacks* callbacks_{};
 
