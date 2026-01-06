@@ -178,11 +178,14 @@ namespace syscalls
                                   OBJECT_INFORMATION_CLASS object_information_class,
                                   emulator_pointer object_information, ULONG object_information_length,
                                   emulator_object<ULONG> return_length);
+    NTSTATUS handle_NtCompareObjects(const syscall_context& c, handle first, handle second);
     NTSTATUS handle_NtWaitForMultipleObjects(const syscall_context& c, ULONG count, emulator_object<handle> handles,
                                              WAIT_TYPE wait_type, BOOLEAN alertable,
                                              emulator_object<LARGE_INTEGER> timeout);
     NTSTATUS handle_NtWaitForSingleObject(const syscall_context& c, handle h, BOOLEAN alertable,
                                           emulator_object<LARGE_INTEGER> timeout);
+    NTSTATUS handle_NtWaitForMultipleObjects32(const syscall_context& c, ULONG count, emulator_object<uint32_t> handles, WAIT_TYPE wait_type,
+                                               BOOLEAN alertable, emulator_object<LARGE_INTEGER> timeout);
     NTSTATUS handle_NtSetInformationObject();
     NTSTATUS handle_NtQuerySecurityObject(const syscall_context& c, handle /*h*/,
                                           SECURITY_INFORMATION /*security_information*/,
@@ -1108,8 +1111,10 @@ void syscall_dispatcher::add_handlers(std::map<std::string, syscall_handler>& ha
     add_handler(NtGetCurrentProcessorNumberEx);
     add_handler(NtGetCurrentProcessorNumber);
     add_handler(NtQueryObject);
+    add_handler(NtCompareObjects);
     add_handler(NtQueryAttributesFile);
     add_handler(NtWaitForMultipleObjects);
+    add_handler(NtWaitForMultipleObjects32);
     add_handler(NtCreateMutant);
     add_handler(NtReleaseMutant);
     add_handler(NtDuplicateToken);
