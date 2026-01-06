@@ -1,13 +1,14 @@
 #pragma once
 
 #include <cstdint>
+#include "compiler.hpp"
 
 // NOLINTBEGIN(modernize-use-using)
 
 #ifdef OS_WINDOWS
 
 #include "../utils/win.hpp"
-#include "winnt.h"
+#include <winnt.h>
 
 #else
 
