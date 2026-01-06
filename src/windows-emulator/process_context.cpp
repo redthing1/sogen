@@ -176,6 +176,61 @@ namespace
 
         return env_map;
     }
+
+    void create_known_dlls_section_objects(std::unordered_map<std::u16string, section>& knowndlls_sections, bool is_wow64)
+    {
+        std::filesystem::path known_dlls_fs_root_path;
+        std::u16string known_dlls_objmgn_root_path;
+
+        if (is_wow64)
+        {
+            known_dlls_fs_root_path = "C:\\Windows\\SysWOW64";
+            known_dlls_objmgn_root_path = u"\\KnownDlls32";
+        }
+        else
+        {
+            known_dlls_fs_root_path = "C:\\Windows\\System32";
+            known_dlls_objmgn_root_path = u"\\KnownDlls";
+        }
+
+        std::vector<std::u16string> known_dll_names = {u"advapi32.dll",  u"bcrypt.dll",    u"bcryptPrimitives.dll",
+                                                       u"cfgmgr32.dll",  u"clbcatq.dll",   u"combase.dll",
+                                                       u"COMCTL32.dll",  u"COMDLG32.dll",  u"coml2.dll",
+                                                       u"CRYPT32.dll",   u"difxapi.dll",   u"gdi32.dll",
+                                                       u"gdi32full.dll", u"gdiplus.dll",   u"IMAGEHLP.dll",
+                                                       u"IMM32.dll",     u"kernel32.dll",  u"kernelbase.dll",
+                                                       u"MSCTF.dll",     u"msvcp_win.dll", u"MSVCRT.dll",
+                                                       u"NORMALIZ.dll",  u"NSI.dll",       u"ntdll.dll",
+                                                       u"ole32.dll",     u"OLEAUT32.dll",  u"PSAPI.DLL",
+                                                       u"rpcrt4.dll",    u"sechost.dll",   u"Setupapi.dll",
+                                                       u"SHCORE.dll",    u"SHELL32.dll",   u"SHLWAPI.dll",
+                                                       u"ucrtbase.dll",  u"user32.dll",    u"win32u.dll",
+                                                       u"WINTRUST.dll",  u"WLDAP32.dll",   u"wow64.dll",
+                                                       u"wow64cpu.dll",  u"wow64win.dll",  u"WS2_32.dll"};
+
+        for (const auto& known_dll_name : known_dll_names)
+        {
+            if (is_wow64 && known_dll_name.starts_with(u"wow64"))
+            {
+                continue;
+            }
+
+            section s{};
+
+            const auto known_dll_fs_path = known_dlls_fs_root_path / known_dll_name;
+            auto known_dll_objmgn_path = known_dlls_objmgn_root_path + u"\\" + known_dll_name;
+            const auto file_size = std::filesystem::file_size(known_dll_fs_path);
+
+            utils::string::to_lower_inplace(known_dll_objmgn_path);
+            s.name = known_dll_objmgn_path;
+            s.file_name = known_dll_fs_path.u16string();
+            s.maximum_size = file_size;
+            s.section_page_protection = PAGE_EXECUTE_READ;
+            s.allocation_attributes = SEC_IMAGE;
+
+            knowndlls_sections[known_dll_objmgn_path] = s;
+        }
+    }
 }
 
 void process_context::setup(x86_64_emulator& emu, memory_manager& memory, registry_manager& registry,
@@ -382,6 +437,8 @@ void process_context::setup(x86_64_emulator& emu, memory_manager& memory, regist
             this->rtl_user_thread_start32 = ntdll32->find_export("RtlUserThreadStart");
         }
     }
+
+    create_known_dlls_section_objects(this->knowndlls_sections, is_wow64_process);
 
     this->ntdll_image_base = ntdll.image_base;
     this->ldr_initialize_thunk = ntdll.find_export("LdrInitializeThunk");

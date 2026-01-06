@@ -220,6 +220,11 @@ mapped_module* module_manager::map_module_core(const pe_detection_result& detect
         [[maybe_unused]] auto& strategy = strategy_factory_.get_strategy(detection_result.architecture);
         mapped_module mod = mapper();
         mod.is_static = is_static;
+        
+        if (!mod.path.empty())
+        {
+            this->module_load_count[mod.path]++;
+        }
 
         const auto image_base = mod.image_base;
         const auto entry = this->modules_.try_emplace(image_base, std::move(mod));
@@ -446,22 +451,37 @@ void module_manager::map_main_modules(const windows_path& executable_path, const
     }
 }
 
-mapped_module* module_manager::map_module(const windows_path& file, const logger& logger, const bool is_static)
+std::optional<uint64_t> module_manager::get_module_load_count_by_path(const std::filesystem::path& path)
 {
-    return this->map_local_module(this->file_sys_->translate(file), logger, is_static);
+    auto local_file = weakly_canonical(absolute(path));
+
+    if (!module_load_count.contains(local_file))
+    {
+        return {};
+    }
+
+    return module_load_count[local_file];
+}
+
+mapped_module* module_manager::map_module(const windows_path& file, const logger& logger, const bool is_static, bool allow_duplicate)
+{
+    return this->map_local_module(this->file_sys_->translate(file), logger, is_static, allow_duplicate);
 }
 
 // Refactored map_local_module using the new architecture
-mapped_module* module_manager::map_local_module(const std::filesystem::path& file, const logger& logger, const bool is_static)
+mapped_module* module_manager::map_local_module(const std::filesystem::path& file, const logger& logger, const bool is_static, bool allow_duplicate)
 {
     auto local_file = weakly_canonical(absolute(file));
 
-    // Check if module is already loaded
-    for (auto& mod : this->modules_ | std::views::values)
+    if (!allow_duplicate)
     {
-        if (mod.path == local_file)
+        // Check if module is already loaded
+        for (auto& mod : this->modules_ | std::views::values)
         {
-            return &mod;
+            if (mod.path == local_file)
+            {
+                return &mod;
+            }
         }
     }
 
@@ -480,14 +500,17 @@ mapped_module* module_manager::map_local_module(const std::filesystem::path& fil
 
 // Refactored map_memory_module using the new architecture
 mapped_module* module_manager::map_memory_module(uint64_t base_address, uint64_t image_size, const std::string& module_name,
-                                                 const logger& logger, bool is_static)
+                                                 const logger& logger, bool is_static, bool allow_duplicate)
 {
-    // Check if module is already loaded at this address
-    for (auto& mod : this->modules_ | std::views::values)
+    if (!allow_duplicate)
     {
-        if (mod.image_base == base_address)
+        // Check if module is already loaded at this address
+        for (auto& mod : this->modules_ | std::views::values)
         {
-            return &mod;
+            if (mod.image_base == base_address)
+            {
+                return &mod;
+            }
         }
     }
 

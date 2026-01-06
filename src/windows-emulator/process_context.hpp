@@ -129,6 +129,7 @@ struct process_context
     handle_store<handle_types::timer, timer> timers{};
     handle_store<handle_types::registry, registry_key, 2> registry_keys{};
     std::map<uint16_t, atom_entry> atoms{};
+    std::unordered_map<std::u16string, section> knowndlls_sections;
 
     std::vector<std::byte> default_register_set{};
 

@@ -225,8 +225,12 @@ namespace syscalls
             return STATUS_NOT_SUPPORTED;
         }
 
-        if (attributes.RootDirectory != KNOWN_DLLS_DIRECTORY && attributes.RootDirectory != KNOWN_DLLS32_DIRECTORY &&
-            attributes.RootDirectory != BASE_NAMED_OBJECTS_DIRECTORY && !filename.starts_with(u"\\KnownDlls"))
+        bool is_known_dll = (attributes.RootDirectory == KNOWN_DLLS_DIRECTORY 
+                             || attributes.RootDirectory == KNOWN_DLLS32_DIRECTORY 
+                             || filename.starts_with(u"\\KnownDlls") 
+                             || filename.starts_with(u"\\KnownDlls32"));
+
+        if (!is_known_dll && attributes.RootDirectory != BASE_NAMED_OBJECTS_DIRECTORY)
         {
             c.win_emu.log.error("Unsupported section\n");
             c.emu.stop();
@@ -234,6 +238,19 @@ namespace syscalls
         }
 
         utils::string::to_lower_inplace(filename);
+
+        if (is_known_dll)
+        {
+            auto& knowndlls_sections = c.win_emu.process.knowndlls_sections;
+            if (!knowndlls_sections.contains(filename))
+            {
+                return STATUS_OBJECT_NAME_NOT_FOUND;
+            }
+
+            auto knowndll_section = knowndlls_sections[filename];
+            section_handle.write(c.proc.sections.store(knowndll_section));
+            return STATUS_SUCCESS;
+        }
 
         for (auto& section_entry : c.proc.sections)
         {
@@ -334,7 +351,7 @@ namespace syscalls
 
         if (section_entry->is_image())
         {
-            const auto* binary = c.win_emu.mod_manager.map_module(section_entry->file_name, c.win_emu.log);
+            const auto* binary = c.win_emu.mod_manager.map_module(section_entry->file_name, c.win_emu.log, false, true);
             if (!binary)
             {
                 return STATUS_FILE_INVALID;
@@ -349,6 +366,11 @@ namespace syscalls
             }
 
             base_address.write(binary->image_base);
+
+            if (c.win_emu.mod_manager.get_module_load_count_by_path(section_entry->file_name) > 1)
+            {
+                return STATUS_IMAGE_NOT_AT_BASE;
+            }
 
             return STATUS_SUCCESS;
         }
