@@ -267,6 +267,11 @@ namespace syscalls
                || h.value.type == handle_types::event;
     }
 
+    NTSTATUS handle_NtCompareObjects(const syscall_context&, const handle first, const handle second)
+    {
+        return (first == second) ? STATUS_SUCCESS : STATUS_NOT_SAME_OBJECT;
+    }
+
     NTSTATUS handle_NtWaitForMultipleObjects(const syscall_context& c, const ULONG count, const emulator_object<handle> handles,
                                              const WAIT_TYPE wait_type, const BOOLEAN alertable,
                                              const emulator_object<LARGE_INTEGER> timeout)
