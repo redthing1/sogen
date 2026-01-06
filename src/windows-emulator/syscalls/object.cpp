@@ -176,6 +176,11 @@ namespace syscalls
         return STATUS_NOT_SUPPORTED;
     }
 
+    NTSTATUS handle_NtCompareObjects(const syscall_context&, const handle first, const handle second)
+    {
+        return (first == second) ? STATUS_SUCCESS : STATUS_NOT_SAME_OBJECT;
+    }
+
     bool is_awaitable_object_type(const handle h)
     {
         return h.value.type == handle_types::thread       //
