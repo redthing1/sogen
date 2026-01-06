@@ -20,9 +20,20 @@ namespace syscalls
 
             if (c.emu.try_read_memory(parameters, &params, sizeof(params)))
             {
-                std::u16string message =
-                    read_unicode_string(c.emu, emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>>{c.emu, params[0]});
-                c.win_emu.log.error("Error Message: %s\n", u16_to_u8(message).c_str());
+                UNICODE_STRING<EmulatorTraits<Emu64>> unicode{};
+                if (params[0] != 0 && c.emu.try_read_memory(params[0], &unicode, sizeof(unicode)))
+                {
+                    const auto length = static_cast<size_t>(unicode.Length);
+                    std::u16string message{};
+                    if (unicode.Buffer != 0 && length > 0 && length < 0x10000)
+                    {
+                        message.resize(length / sizeof(char16_t));
+                        if (c.emu.try_read_memory(unicode.Buffer, message.data(), length))
+                        {
+                            c.win_emu.log.error("Error Message: %s\n", u16_to_u8(message).c_str());
+                        }
+                    }
+                }
             }
         }
 
