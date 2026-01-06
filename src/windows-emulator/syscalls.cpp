@@ -233,6 +233,9 @@ namespace syscalls
                                     emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>> value_name,
                                     KEY_VALUE_INFORMATION_CLASS key_value_information_class, uint64_t key_value_information, ULONG length,
                                     emulator_object<ULONG> result_length);
+    NTSTATUS handle_NtQueryMultipleValueKey(const syscall_context& c, handle key_handle, emulator_object<KEY_VALUE_ENTRY> value_entries,
+                                            ULONG entry_count, uint64_t value_buffer, emulator_object<ULONG> buffer_length,
+                                            emulator_object<ULONG> required_buffer_length);
     NTSTATUS handle_NtCreateKey(const syscall_context& c, emulator_object<handle> key_handle, ACCESS_MASK desired_access,
                                 emulator_object<OBJECT_ATTRIBUTES<EmulatorTraits<Emu64>>> object_attributes, ULONG /*title_index*/,
                                 emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>> /*class*/, ULONG /*create_options*/,
@@ -1159,6 +1162,7 @@ void syscall_dispatcher::add_handlers(std::map<std::string, syscall_handler>& ha
     add_handler(NtSetInformationFile);
     add_handler(NtUserRegisterWindowMessage);
     add_handler(NtQueryValueKey);
+    add_handler(NtQueryMultipleValueKey);
     add_handler(NtQueryKey);
     add_handler(NtGetNlsSectionPtr);
     add_handler(NtAccessCheck);
