@@ -158,8 +158,8 @@ namespace syscalls
     NTSTATUS handle_NtCompareObjects(const syscall_context& c, handle first, handle second);
     NTSTATUS handle_NtWaitForMultipleObjects(const syscall_context& c, ULONG count, emulator_object<handle> handles, WAIT_TYPE wait_type,
                                              BOOLEAN alertable, emulator_object<LARGE_INTEGER> timeout);
-    NTSTATUS handle_NtWaitForMultipleObjects32(const syscall_context& c, ULONG count, emulator_object<uint32_t> handles, WAIT_TYPE wait_type,
-                                               BOOLEAN alertable, emulator_object<LARGE_INTEGER> timeout);
+    NTSTATUS handle_NtWaitForMultipleObjects32(const syscall_context& c, ULONG count, emulator_object<uint32_t> handles,
+                                               WAIT_TYPE wait_type, BOOLEAN alertable, emulator_object<LARGE_INTEGER> timeout);
     NTSTATUS handle_NtWaitForSingleObject(const syscall_context& c, handle h, BOOLEAN alertable, emulator_object<LARGE_INTEGER> timeout);
     NTSTATUS handle_NtSetInformationObject();
     NTSTATUS handle_NtQuerySecurityObject(const syscall_context& c, handle /*h*/, SECURITY_INFORMATION /*security_information*/,
