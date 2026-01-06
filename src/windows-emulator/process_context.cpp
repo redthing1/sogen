@@ -449,7 +449,6 @@ void process_context::serialize(utils::buffer_serializer& buffer) const
     buffer.write(this->instrumentation_callback);
     buffer.write(this->gdi_shared_table_address);
     buffer.write(this->gdi_cookie);
-    buffer.write(this->gdi_next_handle_index);
 
     buffer.write(this->events);
     buffer.write(this->files);
@@ -498,7 +497,6 @@ void process_context::deserialize(utils::buffer_deserializer& buffer)
     buffer.read(this->instrumentation_callback);
     buffer.read(this->gdi_shared_table_address);
     buffer.read(this->gdi_cookie);
-    buffer.read(this->gdi_next_handle_index);
 
     buffer.read(this->events);
     buffer.read(this->files);
