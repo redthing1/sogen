@@ -326,7 +326,8 @@ namespace
                     break;
                 }
 
-				auto known_dll_dep_name = buffer.as_string(static_cast<size_t>(rva_to_raw(import_directory_vbase, import_directory_rbase, descriptor.Name)));
+                auto known_dll_dep_name =
+                    buffer.as_string(static_cast<size_t>(rva_to_raw(import_directory_vbase, import_directory_rbase, descriptor.Name)));
 
                 utils::string::to_lower_inplace(known_dll_dep_name);
                 auto known_dll_dep_name_16 = u8_to_u16(known_dll_dep_name);
