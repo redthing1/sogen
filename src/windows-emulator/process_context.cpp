@@ -290,7 +290,7 @@ namespace
             auto file = utils::io::read_file(known_dll_path);
             {
                 section s;
-                s.file_name = known_dll_path.u16string();
+                s.file_name = (system_root_path / known_dll_name).u16string();
                 s.maximum_size = page_align_up(std::filesystem::file_size(s.file_name));
                 s.allocation_attributes = SEC_IMAGE;
                 s.section_page_protection = PAGE_EXECUTE;
@@ -354,7 +354,7 @@ namespace
                     auto known_dll_dep_file = utils::io::read_file(known_dll_dep_path);
 
                     section s;
-                    s.file_name = known_dll_dep_path.u16string();
+                    s.file_name = (system_root_path / known_dll_dep_name_16).u16string();
                     s.maximum_size = page_align_up(std::filesystem::file_size(s.file_name));
                     s.allocation_attributes = SEC_IMAGE;
                     s.section_page_protection = PAGE_EXECUTE;
