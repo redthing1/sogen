@@ -444,10 +444,45 @@ void emulator_thread::setup_registers(x86_64_emulator& emu, const process_contex
     // Handle WOW64 process setup
     if (context.is_wow64_process && this->wow64_cpu_reserved.has_value())
     {
-        // Set up WOW64 context with proper EIP
+        bool is_initial_thread = false;
+        if (this->teb32.has_value())
+        {
+            this->teb32->access([&](TEB32& teb32) { is_initial_thread = teb32.InitialThread != 0; });
+        }
+
+        const bool skip_loader = (this->create_flags & THREAD_CREATE_FLAGS_SKIP_LOADER_INIT) != 0;
+        const bool use_loader = is_initial_thread && !skip_loader && context.ldr_initialize_thunk32.has_value() &&
+                                context.rtl_user_thread_start32.has_value() && context.ntdll32_image_base.has_value();
+
+        // Set up WOW64 context with proper entry point
         this->wow64_cpu_reserved->access([&](WOW64_CPURESERVED& ctx) {
-            // Set EIP to RtlUserThreadStart in 32-bit ntdll if available
-            if (context.rtl_user_thread_start32.has_value())
+            if (use_loader)
+            {
+                WOW64_CONTEXT initial_context = ctx.Context;
+                initial_context.Eip = static_cast<uint32_t>(context.rtl_user_thread_start32.value());
+                initial_context.Eax = static_cast<uint32_t>(this->start_address);
+                initial_context.Ebx = static_cast<uint32_t>(this->argument);
+
+                uint32_t stack = initial_context.Esp;
+                stack = static_cast<uint32_t>(align_down(static_cast<uint64_t>(stack) - sizeof(WOW64_CONTEXT), 0x10));
+                this->memory_ptr->write_memory(stack, &initial_context, sizeof(initial_context));
+                const uint32_t context_ptr = stack;
+                const uint32_t ntdll_base32 = static_cast<uint32_t>(context.ntdll32_image_base.value());
+
+                auto push_u32 = [this](uint32_t& sp, const uint32_t value) {
+                    sp -= sizeof(uint32_t);
+                    this->memory_ptr->write_memory(sp, &value, sizeof(value));
+                };
+
+                // Construct stack
+                push_u32(stack, ntdll_base32); // arg2: ntdll image base
+                push_u32(stack, context_ptr);  // arg1: PCONTEXT32
+                push_u32(stack, 0);            // return address (LdrInitializeThunk does not return)
+
+                ctx.Context.Esp = stack;
+                ctx.Context.Eip = static_cast<uint32_t>(context.ldr_initialize_thunk32.value());
+            }
+            else if (context.rtl_user_thread_start32.has_value())
             {
                 ctx.Context.Eip = static_cast<uint32_t>(context.rtl_user_thread_start32.value());
                 ctx.Context.Ebx = static_cast<uint32_t>(this->argument);

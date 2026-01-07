@@ -405,9 +405,23 @@ void process_context::setup(x86_64_emulator& emu, memory_manager& memory, regist
             // TODO: Initialize other PEB32 fields as needed
         });
 
+        this->ldr_initialize_thunk32.reset();
+        this->rtl_user_thread_start32.reset();
         if (ntdll32 != nullptr)
         {
-            this->rtl_user_thread_start32 = ntdll32->find_export("RtlUserThreadStart");
+            this->ntdll32_image_base = ntdll32->image_base;
+
+            const auto ldr_initialize_thunk32 = ntdll32->find_export("LdrInitializeThunk");
+            if (ldr_initialize_thunk32 != 0)
+            {
+                this->ldr_initialize_thunk32 = ldr_initialize_thunk32;
+            }
+
+            const auto rtl_user_thread_start32 = ntdll32->find_export("RtlUserThreadStart");
+            if (rtl_user_thread_start32 != 0)
+            {
+                this->rtl_user_thread_start32 = rtl_user_thread_start32;
+            }
         }
     }
 
@@ -468,6 +482,8 @@ void process_context::serialize(utils::buffer_serializer& buffer) const
     buffer.write(this->ntdll_image_base);
     buffer.write(this->ldr_initialize_thunk);
     buffer.write(this->rtl_user_thread_start);
+    buffer.write_optional(this->ntdll32_image_base);
+    buffer.write_optional(this->ldr_initialize_thunk32);
     buffer.write_optional(this->rtl_user_thread_start32);
     buffer.write(this->ki_user_apc_dispatcher);
     buffer.write(this->ki_user_exception_dispatcher);
@@ -517,6 +533,8 @@ void process_context::deserialize(utils::buffer_deserializer& buffer)
     buffer.read(this->ntdll_image_base);
     buffer.read(this->ldr_initialize_thunk);
     buffer.read(this->rtl_user_thread_start);
+    buffer.read_optional(this->ntdll32_image_base);
+    buffer.read_optional(this->ldr_initialize_thunk32);
     buffer.read_optional(this->rtl_user_thread_start32);
     buffer.read(this->ki_user_apc_dispatcher);
     buffer.read(this->ki_user_exception_dispatcher);
