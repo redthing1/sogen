@@ -291,7 +291,7 @@ namespace
             {
                 section s;
                 s.file_name = (system_root_path / known_dll_name).u16string();
-                s.maximum_size = page_align_up(std::filesystem::file_size(s.file_name));
+                s.maximum_size = page_align_up(std::filesystem::file_size(local_system_root_path / known_dll_name));
                 s.allocation_attributes = SEC_IMAGE;
                 s.section_page_protection = PAGE_EXECUTE;
                 s.cache_image_info_from_filedata(file);
@@ -355,7 +355,7 @@ namespace
 
                     section s;
                     s.file_name = (system_root_path / known_dll_dep_name_16).u16string();
-                    s.maximum_size = page_align_up(std::filesystem::file_size(s.file_name));
+                    s.maximum_size = page_align_up(std::filesystem::file_size(known_dll_dep_path));
                     s.allocation_attributes = SEC_IMAGE;
                     s.section_page_protection = PAGE_EXECUTE;
                     s.cache_image_info_from_filedata(known_dll_dep_file);
