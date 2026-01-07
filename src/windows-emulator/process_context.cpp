@@ -236,7 +236,6 @@ namespace
         const auto* api_set_data = reinterpret_cast<const API_SET_NAMESPACE*>(apiset_container.data.data());
         auto apiset = get_apiset_namespace_table(api_set_data);
 
-        std::unordered_set<std::u16string> visited_dlls;
         windows_path system_root_path;
         std::filesystem::path local_system_root_path;
 
@@ -287,10 +286,6 @@ namespace
             }
 
             utils::string::to_lower_inplace(known_dll_name);
-            if (visited_dlls.contains(known_dll_name))
-            {
-                continue;
-            }
 
             auto file = utils::io::read_file(known_dll_path);
             {
@@ -367,8 +362,6 @@ namespace
                     knowndlls_section_objects[known_dll_dep_name_16] = s;
                 }
             }
-
-            visited_dlls.insert(known_dll_name);
         }
     }
 }
