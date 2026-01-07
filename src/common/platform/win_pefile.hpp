@@ -537,7 +537,7 @@ namespace winpe
         auto next_section_offset = winpe::get_first_section_offset(nt_headers, nt_headers_offset);
         for (size_t i = 0; i < nt_headers.FileHeader.NumberOfSections; i++)
         {
-            const auto section = buffer.as<IMAGE_SECTION_HEADER>(next_section_offset).get();
+            const auto section = buffer.as<IMAGE_SECTION_HEADER>(static_cast<size_t>(next_section_offset)).get();
             auto section_va_start = section.VirtualAddress;
             auto section_va_end = section.VirtualAddress + section.Misc.VirtualSize;
 
