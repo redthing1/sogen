@@ -119,7 +119,7 @@ namespace syscalls
         }
 
         utils::string::to_lower_inplace(filename);
-     
+
         if (is_known_dll)
         {
             auto& knowndlls_sections = c.win_emu.process.knowndlls_sections;

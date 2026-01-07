@@ -506,7 +506,7 @@ namespace winpe
         pe32,
         pe64
     };
-    
+
     template <typename T>
     inline uint64_t get_first_section_offset(const PENTHeaders_t<T>& nt_headers, const uint64_t nt_headers_offset)
     {
@@ -528,8 +528,8 @@ namespace winpe
     }
 
     template <typename T>
-    IMAGE_SECTION_HEADER get_section_header_by_rva(const utils::safe_buffer_accessor<const std::byte>& buffer, const PENTHeaders_t<T>& nt_headers,
-                                                   uint64_t nt_headers_offset, uint64_t rva)
+    IMAGE_SECTION_HEADER get_section_header_by_rva(const utils::safe_buffer_accessor<const std::byte>& buffer,
+                                                   const PENTHeaders_t<T>& nt_headers, uint64_t nt_headers_offset, uint64_t rva)
     {
         IMAGE_SECTION_HEADER section_header = {};
 

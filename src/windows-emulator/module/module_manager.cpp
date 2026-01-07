@@ -220,7 +220,7 @@ mapped_module* module_manager::map_module_core(const pe_detection_result& detect
         [[maybe_unused]] auto& strategy = strategy_factory_.get_strategy(detection_result.architecture);
         mapped_module mod = mapper();
         mod.is_static = is_static;
-        
+
         if (!mod.path.empty())
         {
             this->module_load_count[mod.path]++;
@@ -469,7 +469,8 @@ mapped_module* module_manager::map_module(const windows_path& file, const logger
 }
 
 // Refactored map_local_module using the new architecture
-mapped_module* module_manager::map_local_module(const std::filesystem::path& file, const logger& logger, const bool is_static, bool allow_duplicate)
+mapped_module* module_manager::map_local_module(const std::filesystem::path& file, const logger& logger, const bool is_static,
+                                                bool allow_duplicate)
 {
     auto local_file = weakly_canonical(absolute(file));
 
