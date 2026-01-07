@@ -278,7 +278,7 @@ namespace
             }
 
             auto known_dll_name = std::u16string(data_ptr, char_count - 1);
-			auto known_dll_path = system_root_path / known_dll_name;
+            auto known_dll_path = system_root_path / known_dll_name;
             auto local_known_dll_path = local_system_root_path / known_dll_name;
 
             if (!std::filesystem::exists(local_known_dll_path))
@@ -291,10 +291,10 @@ namespace
             {
                 section s;
                 s.file_name = known_dll_path.u16string();
-				s.maximum_size = 0;
+                s.maximum_size = 0;
                 s.allocation_attributes = SEC_IMAGE;
                 s.section_page_protection = PAGE_EXECUTE;
-                // s.cache_image_info_from_filedata(file);
+                s.cache_image_info_from_filedata(file);
                 knowndlls_section_objects[known_dll_name] = s;
             }
 
@@ -350,16 +350,16 @@ namespace
                 }
 
                 {
-                    auto known_dll_dep_path = local_system_root_path / known_dll_dep_name_16;
-                    auto known_dll_dep_file = utils::io::read_file(known_dll_dep_path);
+                    auto local_known_dll_dep_path = local_system_root_path / known_dll_dep_name_16;
+                    auto known_dll_dep_path = system_root_path / known_dll_dep_name_16;
+                    auto known_dll_dep_file = utils::io::read_file(local_known_dll_dep_path);
 
                     section s;
-                    s.file_name = (system_root_path / known_dll_dep_name_16).u16string();
-					s.maximum_size = 0;
+                    s.file_name = known_dll_dep_path.u16string();
+                    s.maximum_size = 0;
                     s.allocation_attributes = SEC_IMAGE;
                     s.section_page_protection = PAGE_EXECUTE;
-                    // s.cache_image_info_from_filedata(known_dll_dep_file);
-
+                    s.cache_image_info_from_filedata(known_dll_dep_file);
                     knowndlls_section_objects[known_dll_dep_name_16] = s;
                 }
             }
