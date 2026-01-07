@@ -302,7 +302,7 @@ namespace
 
             const auto dos_header = buffer.as<PEDosHeader_t>(0).get();
             const auto nt_headers_offset = dos_header.e_lfanew;
-            const auto nt_headers = buffer.as<PENTHeaders_t<T>>(nt_headers_offset).get();
+            const auto nt_headers = buffer.as<PENTHeaders_t<T>>(static_cast<size_t>(nt_headers_offset)).get();
 
             const auto& import_directory_entry = winpe::get_data_directory_by_index(nt_headers, IMAGE_DIRECTORY_ENTRY_IMPORT);
             if (!import_directory_entry.VirtualAddress)
@@ -326,7 +326,7 @@ namespace
                     break;
                 }
 
-                auto known_dll_dep_name = buffer.as_string(rva_to_raw(import_directory_vbase, import_directory_rbase, descriptor.Name));
+				auto known_dll_dep_name = buffer.as_string(static_cast<size_t>(rva_to_raw(import_directory_vbase, import_directory_rbase, descriptor.Name)));
 
                 utils::string::to_lower_inplace(known_dll_dep_name);
                 auto known_dll_dep_name_16 = u8_to_u16(known_dll_dep_name);
