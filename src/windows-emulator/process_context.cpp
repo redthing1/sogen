@@ -278,23 +278,23 @@ namespace
             }
 
             auto known_dll_name = std::u16string(data_ptr, char_count - 1);
-            auto known_dll_path = local_system_root_path / known_dll_name;
+			auto known_dll_path = system_root_path / known_dll_name;
+            auto local_known_dll_path = local_system_root_path / known_dll_name;
 
-            if (!std::filesystem::exists(known_dll_path))
+            if (!std::filesystem::exists(local_known_dll_path))
             {
                 continue;
             }
 
             utils::string::to_lower_inplace(known_dll_name);
-
-            auto file = utils::io::read_file(known_dll_path);
+            auto file = utils::io::read_file(local_known_dll_path);
             {
                 section s;
-                s.file_name = (system_root_path / known_dll_name).u16string();
-                s.maximum_size = page_align_up(std::filesystem::file_size(local_system_root_path / known_dll_name));
+                s.file_name = known_dll_path.u16string();
+				s.maximum_size = 0;
                 s.allocation_attributes = SEC_IMAGE;
                 s.section_page_protection = PAGE_EXECUTE;
-                s.cache_image_info_from_filedata(file);
+                // s.cache_image_info_from_filedata(file);
                 knowndlls_section_objects[known_dll_name] = s;
             }
 
@@ -355,10 +355,10 @@ namespace
 
                     section s;
                     s.file_name = (system_root_path / known_dll_dep_name_16).u16string();
-                    s.maximum_size = page_align_up(std::filesystem::file_size(known_dll_dep_path));
+					s.maximum_size = 0;
                     s.allocation_attributes = SEC_IMAGE;
                     s.section_page_protection = PAGE_EXECUTE;
-                    s.cache_image_info_from_filedata(known_dll_dep_file);
+                    // s.cache_image_info_from_filedata(known_dll_dep_file);
 
                     knowndlls_section_objects[known_dll_dep_name_16] = s;
                 }
