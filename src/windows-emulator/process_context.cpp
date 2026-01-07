@@ -179,6 +179,32 @@ namespace
         return env_map;
     }
 
+	uint32_t read_windows_build(registry_manager& registry)
+    {
+        const auto key = registry.get_key({R"(\Registry\Machine\Software\Microsoft\Windows NT\CurrentVersion)"});
+
+        if (!key)
+        {
+            return 0;
+        }
+
+        for (size_t i = 0; const auto value = registry.get_value(*key, i); ++i)
+        {
+            if (value->type != REG_SZ)
+            {
+                continue;
+            }
+
+            if (value->name == "CurrentBuildNumber" || value->name == "CurrentBuild")
+            {
+                const auto* s = reinterpret_cast<const char16_t*>(value->data.data());
+                return static_cast<uint32_t>(std::strtoul(u16_to_u8(s).c_str(), nullptr, 10));
+            }
+        }
+
+        return 0;
+    }
+
     std::unordered_map<std::u16string, std::u16string> get_apiset_namespace_table(const API_SET_NAMESPACE* api_set_map)
     {
         std::unordered_map<std::u16string, std::u16string> apiset;
@@ -202,113 +228,113 @@ namespace
         return apiset;
     }
 
-    template <typename T>
-    void create_known_dlls_section_objects(
-        std::unordered_map<std::u16string, section>& knowndlls_section_objects,
-        registry_manager& registry,
-        const apiset::container& apiset_container,
-        const file_system& file_system, 
-        bool is_wow64)
-    {
-        const auto* api_set_data = reinterpret_cast<const API_SET_NAMESPACE*>(apiset_container.data.data());
-        auto apiset = get_apiset_namespace_table(api_set_data);
+	template<typename T>
+	void create_known_dlls_section_objects(
+		std::unordered_map<std::u16string, section>& knowndlls_section_objects,
+		registry_manager& registry,
+		const apiset::container& apiset_container,
+		const file_system& file_system,
+		bool is_wow64)
+	{
+		const auto* api_set_data = reinterpret_cast<const API_SET_NAMESPACE*>(apiset_container.data.data());
+		auto apiset = get_apiset_namespace_table(api_set_data);
 
 		std::unordered_set<std::u16string> visited_dlls;
-        windows_path system_root_path;
-        std::filesystem::path local_system_root_path;
+		windows_path system_root_path;
+		std::filesystem::path local_system_root_path;
 
-        if (is_wow64)
-        {
-            system_root_path = "C:\\Windows\\SysWOW64";
-        }
-        else
-        {
-            system_root_path = "C:\\Windows\\System32";
-        }
+		if (is_wow64)
+		{
+			system_root_path = "C:\\Windows\\SysWOW64";
+		}
+		else
+		{
+			system_root_path = "C:\\Windows\\System32";
+		}
 
-        std::optional<registry_key> knowndlls_key = registry.get_key({R"(\Registry\Machine\System\CurrentControlSet\Control\Session Manager\KnownDLLs)"});
-        if (!knowndlls_key)
-        {
-            return;
-        }
+		std::optional<registry_key> knowndlls_key = registry.get_key( { R"(\Registry\Machine\System\CurrentControlSet\Control\Session Manager\KnownDLLs)" });
+		if (!knowndlls_key)
+		{
+			return;
+		}
 
-        local_system_root_path = file_system.translate(system_root_path);
-        for (size_t i = 0; const auto value_opt = registry.get_value(*knowndlls_key, i); i++)
-        {
-            const auto& value = *value_opt;
+		local_system_root_path = file_system.translate(system_root_path);
+		for (size_t i = 0; const auto value_opt = registry.get_value(*knowndlls_key, i); i++)
+		{
+			const auto& value = *value_opt;
 
-            if (value.type != REG_SZ && value.type != REG_EXPAND_SZ)
-            {
-                continue;
-            }
+			if (value.type != REG_SZ && value.type != REG_EXPAND_SZ)
+			{
+				continue;
+			}
 
-            if (value.data.empty() || value.data.size() % 2 != 0)
-            {
-                continue;
-            }
+			if (value.data.empty() || value.data.size() % 2 != 0)
+			{
+				continue;
+			}
 
-            const auto char_count = value.data.size() / sizeof(char16_t);
-            const auto* data_ptr = reinterpret_cast<const char16_t*>(value.data.data());
-            if (data_ptr[char_count - 1] != u'\0')
-            {
-                continue;
-            }
+			const auto char_count = value.data.size() / sizeof(char16_t);
+			const auto* data_ptr = reinterpret_cast<const char16_t*>(value.data.data());
+			if (data_ptr[char_count - 1] != u'\0')
+			{
+				continue;
+			}
 
-            auto known_dll_name = std::u16string(data_ptr, char_count - 1);
-            auto known_dll_path = local_system_root_path / known_dll_name;
+			auto known_dll_name = std::u16string(data_ptr, char_count - 1);
+			auto known_dll_path = local_system_root_path / known_dll_name;
 
-            if (!std::filesystem::exists(known_dll_path))
-            {
-                continue;
-            }
+			if (!std::filesystem::exists(known_dll_path))
+			{
+				continue;
+			}
 
-            utils::string::to_lower_inplace(known_dll_name);
+			utils::string::to_lower_inplace(known_dll_name);
 			if (visited_dlls.contains(known_dll_name))
 			{
 				continue;
 			}
 
-            auto file = utils::io::read_file(known_dll_path);
-            {
-                section s;
-                s.file_name = known_dll_path.u16string();
-                s.maximum_size = page_align_up(std::filesystem::file_size(s.file_name));
-                s.allocation_attributes = SEC_IMAGE;
-                s.section_page_protection = PAGE_EXECUTE;
-                s.cache_image_info_from_filedata(file);
-                knowndlls_section_objects[known_dll_name] = s;
-            }
+			auto file = utils::io::read_file(known_dll_path);
+			{
+				section s;
+				s.file_name = known_dll_path.u16string();
+				s.maximum_size = page_align_up(std::filesystem::file_size(s.file_name));
+				s.allocation_attributes = SEC_IMAGE;
+				s.section_page_protection = PAGE_EXECUTE;
+				s.cache_image_info_from_filedata(file);
+				knowndlls_section_objects[known_dll_name] = s;
+			}
 
-            utils::safe_buffer_accessor<const std::byte> buffer{file};
+			utils::safe_buffer_accessor<const std::byte> buffer { file };
 
-            const auto dos_header = buffer.as<PEDosHeader_t>(0).get();
-            const auto nt_headers_offset = dos_header.e_lfanew;
-            const auto nt_headers = buffer.as<PENTHeaders_t<T>>(nt_headers_offset).get();
+			const auto dos_header = buffer.as<PEDosHeader_t>(0).get();
+			const auto nt_headers_offset = dos_header.e_lfanew;
+			const auto nt_headers = buffer.as<PENTHeaders_t<T>>(nt_headers_offset).get();
 
-            const auto& import_directory_entry = winpe::get_data_directory_by_index(nt_headers, IMAGE_DIRECTORY_ENTRY_IMPORT);
-            if (!import_directory_entry.VirtualAddress)
-            {
-                continue;
-            }
+			const auto& import_directory_entry = winpe::get_data_directory_by_index(nt_headers, IMAGE_DIRECTORY_ENTRY_IMPORT);
+			if (!import_directory_entry.VirtualAddress)
+			{
+				continue;
+			}
 
-            const auto section_with_import_descs = winpe::get_section_header_by_rva(buffer, nt_headers, nt_headers_offset, import_directory_entry.VirtualAddress);
-            auto import_directory_vbase = section_with_import_descs.VirtualAddress;
-            auto import_directory_rbase = section_with_import_descs.PointerToRawData;
+			const auto section_with_import_descs = winpe::get_section_header_by_rva(buffer, nt_headers, nt_headers_offset, import_directory_entry.VirtualAddress);
+			auto import_directory_vbase = section_with_import_descs.VirtualAddress;
+			auto import_directory_rbase = section_with_import_descs.PointerToRawData;
 
-            uint64_t import_directory_raw = rva_to_raw(import_directory_vbase, import_directory_rbase, import_directory_entry.VirtualAddress);
-            auto import_descriptors = buffer.as<IMAGE_IMPORT_DESCRIPTOR>(import_directory_raw);
-            for (size_t import_desc_index = 0;; import_desc_index++)
-            {
-                const auto descriptor = import_descriptors.get(import_desc_index);
-                if (!descriptor.Name)
-                {
+			uint64_t import_directory_raw = rva_to_raw(import_directory_vbase, import_directory_rbase, import_directory_entry.VirtualAddress);
+			auto import_descriptors = buffer.as<IMAGE_IMPORT_DESCRIPTOR>(import_directory_raw);
+			for (size_t import_desc_index = 0;; import_desc_index++)
+			{
+				const auto descriptor = import_descriptors.get(import_desc_index);
+				if (!descriptor.Name)
+				{
 					break;
-                }
+				}
 
-                auto known_dll_dep_name = buffer.as_string(rva_to_raw(import_directory_vbase, import_directory_rbase, descriptor.Name));
+				auto known_dll_dep_name = buffer.as_string(rva_to_raw(import_directory_vbase, import_directory_rbase, descriptor.Name));
                 
-                utils::string::to_lower_inplace(known_dll_dep_name);
-                auto known_dll_dep_name_16 = u8_to_u16(known_dll_dep_name);
+				utils::string::to_lower_inplace(known_dll_dep_name);
+				auto known_dll_dep_name_16 = u8_to_u16(known_dll_dep_name);
 
 				if (known_dll_dep_name_16.starts_with(u"api-") || known_dll_dep_name_16.starts_with(u"ext-"))
 				{
@@ -327,30 +353,32 @@ namespace
 					continue;
 				}
 
-                {
-                    auto known_dll_dep_path = local_system_root_path / known_dll_dep_name_16;
-                    auto file = utils::io::read_file(known_dll_dep_path);
+				{
+					auto known_dll_dep_path = local_system_root_path / known_dll_dep_name_16;
+					auto file = utils::io::read_file(known_dll_dep_path);
 
 					section s;
-                    s.file_name = known_dll_dep_path.u16string();
-                    s.maximum_size = page_align_up(std::filesystem::file_size(s.file_name));
-                    s.allocation_attributes = SEC_IMAGE;
-                    s.section_page_protection = PAGE_EXECUTE;
-                    s.cache_image_info_from_filedata(file);
+					s.file_name = known_dll_dep_path.u16string();
+					s.maximum_size = page_align_up(std::filesystem::file_size(s.file_name));
+					s.allocation_attributes = SEC_IMAGE;
+					s.section_page_protection = PAGE_EXECUTE;
+					s.cache_image_info_from_filedata(file);
                     
-                    knowndlls_section_objects[known_dll_dep_name_16] = s;
-                }
-            }
+					knowndlls_section_objects[known_dll_dep_name_16] = s;
+				}
+			}
 
 			visited_dlls.insert(known_dll_name);
-        }
-    }
+		}
+	}
 }
 
 void process_context::setup(x86_64_emulator& emu, memory_manager& memory, registry_manager& registry, const file_system& file_system,
                             const application_settings& app_settings, const mapped_module& executable, const mapped_module& ntdll,
                             const apiset::container& apiset_container, const mapped_module* ntdll32)
 {
+    this->windows_build_number = read_windows_build(registry);
+
     setup_gdt(emu, memory);
 
     this->kusd.setup();
@@ -569,6 +597,34 @@ void process_context::setup(x86_64_emulator& emu, memory_manager& memory, regist
     this->instrumentation_callback = 0;
 
     this->default_register_set = emu.save_registers();
+
+    this->user_handles.setup();
+
+    auto [h, monitor_obj] = this->user_handles.allocate_object<USER_MONITOR>(handle_types::monitor);
+    this->default_monitor_handle = h;
+    monitor_obj.access([&](USER_MONITOR& monitor) {
+        monitor.hmon = h.bits;
+        monitor.rcMonitor = {.left = 0, .top = 0, .right = 1920, .bottom = 1080};
+        monitor.rcWork = monitor.rcMonitor;
+        if (this->is_older_windows_build())
+        {
+            monitor.b20.monitorDpi = 96;
+            monitor.b20.nativeDpi = monitor.b20.monitorDpi;
+            monitor.b20.cachedDpi = monitor.b20.monitorDpi;
+            monitor.b20.rcMonitorDpiAware = monitor.rcMonitor;
+        }
+        else
+        {
+            monitor.b26.monitorDpi = 96;
+            monitor.b26.nativeDpi = monitor.b26.monitorDpi;
+        }
+    });
+
+    const auto user_display_info = this->user_handles.get_display_info();
+    user_display_info.access([&](USER_DISPINFO& display_info) {
+        display_info.dwMonitorCount = 1;
+        display_info.pPrimaryMonitor = monitor_obj.value();
+    });
 }
 
 void process_context::serialize(utils::buffer_serializer& buffer) const
@@ -586,6 +642,7 @@ void process_context::serialize(utils::buffer_serializer& buffer) const
     buffer.write(this->kusd);
 
     buffer.write(this->is_wow64_process);
+    buffer.write(this->windows_build_number);
     buffer.write(this->ntdll_image_base);
     buffer.write(this->ldr_initialize_thunk);
     buffer.write(this->rtl_user_thread_start);
@@ -594,6 +651,8 @@ void process_context::serialize(utils::buffer_serializer& buffer) const
     buffer.write(this->ki_user_exception_dispatcher);
     buffer.write(this->instrumentation_callback);
 
+    buffer.write(this->user_handles);
+    buffer.write(this->default_monitor_handle);
     buffer.write(this->events);
     buffer.write(this->files);
     buffer.write(this->sections);
@@ -632,6 +691,7 @@ void process_context::deserialize(utils::buffer_deserializer& buffer)
     buffer.read(this->kusd);
 
     buffer.read(this->is_wow64_process);
+    buffer.read(this->windows_build_number);
     buffer.read(this->ntdll_image_base);
     buffer.read(this->ldr_initialize_thunk);
     buffer.read(this->rtl_user_thread_start);
@@ -640,6 +700,8 @@ void process_context::deserialize(utils::buffer_deserializer& buffer)
     buffer.read(this->ki_user_exception_dispatcher);
     buffer.read(this->instrumentation_callback);
 
+    buffer.read(this->user_handles);
+    buffer.read(this->default_monitor_handle);
     buffer.read(this->events);
     buffer.read(this->files);
     buffer.read(this->sections);
