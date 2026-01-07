@@ -211,13 +211,13 @@ namespace
 
         for (size_t i = 0; i < api_set_map->Count; i++)
         {
-            const auto entry = reinterpret_cast<const PAPI_SET_NAMESPACE_ENTRY>(
+            const auto* entry = reinterpret_cast<const PAPI_SET_NAMESPACE_ENTRY>(
                 reinterpret_cast<uint64_t>(api_set_map) + api_set_map->EntryOffset + i * sizeof(API_SET_NAMESPACE_ENTRY));
 
             std::u16string name(reinterpret_cast<const char16_t*>(reinterpret_cast<uint64_t>(api_set_map) + entry->NameOffset),
                                 entry->NameLength / sizeof(char16_t));
 
-            const auto value = reinterpret_cast<const PAPI_SET_VALUE_ENTRY>(reinterpret_cast<uint64_t>(api_set_map) + entry->ValueOffset +
+            const auto* value = reinterpret_cast<const PAPI_SET_VALUE_ENTRY>(reinterpret_cast<uint64_t>(api_set_map) + entry->ValueOffset +
                                                                             (entry->ValueCount - 1) * sizeof(API_SET_VALUE_ENTRY));
             std::u16string base_name(reinterpret_cast<const char16_t*>(reinterpret_cast<uint64_t>(api_set_map) + value->ValueOffset),
                                      value->ValueLength / sizeof(char16_t));
