@@ -119,23 +119,36 @@ namespace syscalls
         }
 
         utils::string::to_lower_inplace(filename);
-
-        if (is_known_dll)
+        if (is_known_dll && filename.starts_with(u"win32u.dll"))
         {
-            auto& knowndlls_sections = c.win_emu.process.knowndlls_sections;
+            return STATUS_OBJECT_NAME_NOT_FOUND;
+        }
+
+        if (attributes.RootDirectory == KNOWN_DLLS_DIRECTORY || filename.starts_with(u"\\knowndlls\\"))
+        {
+            auto& knowndlls_sections = c.win_emu.process.knowndlls64_sections;
 
             if (filename.starts_with(u"\\knowndlls\\"))
             {
                 filename = std::u16string_view(filename).substr(11, filename.length() - 11);
             }
-            else if (filename.starts_with(u"\\knowndlls32\\"))
-            {
-                filename = std::u16string_view(filename).substr(13, filename.length() - 13);
-            }
 
-            if (filename == u"win32u.dll")
+            if (!knowndlls_sections.contains(filename))
             {
                 return STATUS_OBJECT_NAME_NOT_FOUND;
+            }
+
+            auto knowndll_section = knowndlls_sections[filename];
+            section_handle.write(c.proc.sections.store(knowndll_section));
+            return STATUS_SUCCESS;
+        }
+        else if (attributes.RootDirectory == KNOWN_DLLS32_DIRECTORY || filename.starts_with(u"\\knowndlls32\\"))
+        {
+            auto& knowndlls_sections = c.win_emu.process.knowndlls32_sections;
+
+            if (filename.starts_with(u"\\knowndlls32\\"))
+            {
+                filename = std::u16string_view(filename).substr(13, filename.length() - 13);
             }
 
             if (!knowndlls_sections.contains(filename))

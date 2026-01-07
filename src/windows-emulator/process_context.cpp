@@ -574,14 +574,8 @@ void process_context::setup(x86_64_emulator& emu, memory_manager& memory, regist
         }
     }
 
-    if (is_wow64_process)
-    {
-        create_known_dlls_section_objects<uint32_t>(this->knowndlls_sections, registry, apiset_container, file_system, is_wow64_process);
-    }
-    else
-    {
-        create_known_dlls_section_objects<uint64_t>(this->knowndlls_sections, registry, apiset_container, file_system, is_wow64_process);
-    }
+    create_known_dlls_section_objects<uint32_t>(this->knowndlls32_sections, registry, apiset_container, file_system, true);
+    create_known_dlls_section_objects<uint64_t>(this->knowndlls64_sections, registry, apiset_container, file_system, false);
 
     this->ntdll_image_base = ntdll.image_base;
     this->ldr_initialize_thunk = ntdll.find_export("LdrInitializeThunk");

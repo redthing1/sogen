@@ -34,6 +34,7 @@
 struct emulator_settings;
 struct application_settings;
 
+using knowndlls_map = std::unordered_map<std::u16string, section>;
 struct process_context
 {
     struct callbacks
@@ -140,7 +141,9 @@ struct process_context
     handle_store<handle_types::timer, timer> timers{};
     handle_store<handle_types::registry, registry_key, 2> registry_keys{};
     std::map<uint16_t, atom_entry> atoms{};
-    std::unordered_map<std::u16string, section> knowndlls_sections;
+
+    knowndlls_map knowndlls32_sections;
+    knowndlls_map knowndlls64_sections;
 
     std::vector<std::byte> default_register_set{};
 
