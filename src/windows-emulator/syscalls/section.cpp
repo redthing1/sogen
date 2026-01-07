@@ -276,6 +276,12 @@ namespace syscalls
 
             base_address.write(binary->image_base);
 
+            // Should return STATUS_IMAGE_MACHINE_TYPE_MISMATCH if a 64-bit process tried to map a 32-bit PE.
+            if (!c.win_emu.process.is_wow64_process && binary->machine == IMAGE_FILE_MACHINE_I386)
+            {
+                return STATUS_IMAGE_MACHINE_TYPE_MISMATCH;
+            }
+
             if (c.win_emu.mod_manager.get_module_load_count_by_path(section_entry->file_name) > 1)
             {
                 return STATUS_IMAGE_NOT_AT_BASE;
