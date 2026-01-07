@@ -317,7 +317,7 @@ namespace
 
             uint64_t import_directory_raw =
                 rva_to_raw(import_directory_vbase, import_directory_rbase, import_directory_entry.VirtualAddress);
-            auto import_descriptors = buffer.as<IMAGE_IMPORT_DESCRIPTOR>(import_directory_raw);
+            auto import_descriptors = buffer.as<IMAGE_IMPORT_DESCRIPTOR>(static_cast<size_t>(import_directory_raw));
             for (size_t import_desc_index = 0;; import_desc_index++)
             {
                 const auto descriptor = import_descriptors.get(import_desc_index);
