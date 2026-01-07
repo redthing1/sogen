@@ -408,6 +408,8 @@ inline std::u16string read_unicode_string(emulator& emu, const uint64_t uc_strin
     return read_unicode_string(emu, emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>>{emu, uc_string});
 }
 
+/// Retrieves function arguments from registers or stack memory. This function assumes the caller has already allocated
+/// stack space and that RSP currently points to the return address.
 inline uint64_t get_function_argument(x86_64_emulator& emu, const size_t index, const bool is_syscall = false)
 {
     bool use_32bit_stack = false;
@@ -441,6 +443,8 @@ inline uint64_t get_function_argument(x86_64_emulator& emu, const size_t index, 
     }
 }
 
+/// Sets function arguments in registers or stack memory. This function does not modify RSP and assumes the caller has already allocated
+/// stack space and that RSP currently points to the return address.
 inline void set_function_argument(x86_64_emulator& emu, const size_t index, const uint64_t value, const bool is_syscall = false)
 {
     bool use_32bit_stack = false;
