@@ -350,14 +350,14 @@ namespace
 
                 {
                     auto known_dll_dep_path = local_system_root_path / known_dll_dep_name_16;
-                    auto file = utils::io::read_file(known_dll_dep_path);
+                    auto known_dll_dep_file = utils::io::read_file(known_dll_dep_path);
 
                     section s;
                     s.file_name = known_dll_dep_path.u16string();
                     s.maximum_size = page_align_up(std::filesystem::file_size(s.file_name));
                     s.allocation_attributes = SEC_IMAGE;
                     s.section_page_protection = PAGE_EXECUTE;
-                    s.cache_image_info_from_filedata(file);
+                    s.cache_image_info_from_filedata(known_dll_dep_file);
 
                     knowndlls_section_objects[known_dll_dep_name_16] = s;
                 }
