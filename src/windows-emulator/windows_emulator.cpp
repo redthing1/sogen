@@ -351,10 +351,7 @@ void windows_emulator::setup_process(const application_settings& app_settings)
     const auto& emu = this->emu();
     auto& context = this->process;
 
-    this->mod_manager.map_main_modules(app_settings.application, R"(C:\Windows\System32)", R"(C:\Windows\SysWOW64)", this->log);
-
-    // Set WOW64 flag based on the detected execution mode
-    context.is_wow64_process = (this->mod_manager.get_execution_mode() == execution_mode::wow64_32bit);
+    this->mod_manager.map_main_modules(app_settings.application, this->registry, context, this->log);
 
     const auto* executable = this->mod_manager.executable;
     const auto* ntdll = this->mod_manager.ntdll;

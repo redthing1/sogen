@@ -176,40 +176,12 @@ namespace
 
         return env_map;
     }
-
-    uint32_t read_windows_build(registry_manager& registry)
-    {
-        const auto key = registry.get_key({R"(\Registry\Machine\Software\Microsoft\Windows NT\CurrentVersion)"});
-
-        if (!key)
-        {
-            return 0;
-        }
-
-        for (size_t i = 0; const auto value = registry.get_value(*key, i); ++i)
-        {
-            if (value->type != REG_SZ)
-            {
-                continue;
-            }
-
-            if (value->name == "CurrentBuildNumber" || value->name == "CurrentBuild")
-            {
-                const auto* s = reinterpret_cast<const char16_t*>(value->data.data());
-                return static_cast<uint32_t>(std::strtoul(u16_to_u8(s).c_str(), nullptr, 10));
-            }
-        }
-
-        return 0;
-    }
 }
 
 void process_context::setup(x86_64_emulator& emu, memory_manager& memory, registry_manager& registry,
                             const application_settings& app_settings, const mapped_module& executable, const mapped_module& ntdll,
                             const apiset::container& apiset_container, const mapped_module* ntdll32)
 {
-    this->windows_build_number = read_windows_build(registry);
-
     setup_gdt(emu, memory);
 
     this->kusd.setup();
@@ -428,7 +400,7 @@ void process_context::setup(x86_64_emulator& emu, memory_manager& memory, regist
         monitor.hmon = h.bits;
         monitor.rcMonitor = {.left = 0, .top = 0, .right = 1920, .bottom = 1080};
         monitor.rcWork = monitor.rcMonitor;
-        if (this->is_older_windows_build())
+        if (this->is_build_before(26040))
         {
             monitor.b20.monitorDpi = 96;
             monitor.b20.nativeDpi = monitor.b20.monitorDpi;
@@ -465,6 +437,7 @@ void process_context::serialize(utils::buffer_serializer& buffer) const
 
     buffer.write(this->is_wow64_process);
     buffer.write(this->windows_build_number);
+    buffer.write(this->windows_update_build_revision_number);
     buffer.write(this->ntdll_image_base);
     buffer.write(this->ldr_initialize_thunk);
     buffer.write(this->rtl_user_thread_start);
@@ -514,6 +487,7 @@ void process_context::deserialize(utils::buffer_deserializer& buffer)
 
     buffer.read(this->is_wow64_process);
     buffer.read(this->windows_build_number);
+    buffer.read(this->windows_update_build_revision_number);
     buffer.read(this->ntdll_image_base);
     buffer.read(this->ldr_initialize_thunk);
     buffer.read(this->rtl_user_thread_start);
