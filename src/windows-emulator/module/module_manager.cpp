@@ -386,7 +386,7 @@ void module_manager::load_wow64_modules(const windows_path& executable_path, con
         return;
     }
 
-    this->memory_->write_memory(ldr_init_block_addr, &init_block, init_block_size);
+    this->memory_->write_memory(ldr_init_block_addr, &init_block, static_cast<size_t>(init_block_size));
 
     logger.info("Successfully initialized LdrSystemDllInitBlock at 0x%" PRIx64 "\n", ldr_init_block_addr);
 

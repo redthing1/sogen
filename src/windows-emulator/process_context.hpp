@@ -99,28 +99,36 @@ struct process_context
     bool is_build_before(uint32_t build, std::optional<uint32_t> ubr = std::nullopt) const
     {
         if (windows_build_number != build)
+        {
             return windows_build_number < build;
+        }
         return ubr.has_value() && windows_update_build_revision_number < *ubr;
     }
 
     bool is_build_before_or_equal(uint32_t build, std::optional<uint32_t> ubr = std::nullopt) const
     {
         if (windows_build_number != build)
+        {
             return windows_build_number < build;
+        }
         return !ubr.has_value() || windows_update_build_revision_number <= *ubr;
     }
 
     bool is_build_after_or_equal(uint32_t build, std::optional<uint32_t> ubr = std::nullopt) const
     {
         if (windows_build_number != build)
+        {
             return windows_build_number > build;
+        }
         return !ubr.has_value() || windows_update_build_revision_number >= *ubr;
     }
 
     bool is_build_after(uint32_t build, std::optional<uint32_t> ubr = std::nullopt) const
     {
         if (windows_build_number != build)
+        {
             return windows_build_number > build;
+        }
         return ubr.has_value() && windows_update_build_revision_number > *ubr;
     }
 
@@ -133,13 +141,21 @@ struct process_context
     uint64_t get_system_dll_init_block_size() const
     {
         if (is_build_after_or_equal(WINDOWS_VERSION::WINDOWS_11_24H2))
+        {
             return PS_SYSTEM_DLL_INIT_BLOCK_SIZE_V3;
+        }
         if (is_build_after_or_equal(WINDOWS_VERSION::WINDOWS_10_2004))
+        {
             return PS_SYSTEM_DLL_INIT_BLOCK_SIZE_V3_2004;
+        }
         if (is_build_after_or_equal(WINDOWS_VERSION::WINDOWS_10_1709))
+        {
             return PS_SYSTEM_DLL_INIT_BLOCK_SIZE_V2;
+        }
         if (is_build_after_or_equal(WINDOWS_VERSION::WINDOWS_10_1703))
+        {
             return PS_SYSTEM_DLL_INIT_BLOCK_SIZE_V2_1703;
+        }
         return PS_SYSTEM_DLL_INIT_BLOCK_SIZE_V1;
     }
 
