@@ -454,14 +454,16 @@ void process_context::setup_callback_hook(windows_emulator& win_emu, memory_mana
     uint64_t sentinel_addr = this->callback_sentinel_addr;
     if (!sentinel_addr)
     {
-        auto sentinel_obj = this->base_allocator.reserve_page_aligned<uint8_t>();
+        using sentinel_type = std::array<uint8_t, 2>;
+        constexpr sentinel_type sentinel_opcodes{0x90, 0xC3}; // NOP, RET
+
+        auto sentinel_obj = this->base_allocator.reserve_page_aligned<sentinel_type>();
         sentinel_addr = sentinel_obj.value();
         this->callback_sentinel_addr = sentinel_addr;
 
-        const uint8_t ret_opcode = 0xC3;
-        win_emu.emu().write_memory(sentinel_addr, &ret_opcode, 1);
+        win_emu.emu().write_memory(sentinel_addr, sentinel_opcodes.data(), sentinel_opcodes.size());
 
-        const auto sentinel_aligned_length = page_align_up(sentinel_addr + 1) - sentinel_addr;
+        const auto sentinel_aligned_length = page_align_up(sentinel_addr + sentinel_opcodes.size()) - sentinel_addr;
         memory.protect_memory(sentinel_addr, static_cast<size_t>(sentinel_aligned_length), memory_permission::all);
     }
 
@@ -492,7 +494,7 @@ void process_context::setup_callback_hook(windows_emulator& win_emu, memory_mana
         win_emu.dispatcher.dispatch_completion(win_emu, frame.handler_id, guest_result);
 
         uint64_t target_rip = emu.reg(x86_register::rip);
-        emu.reg(x86_register::rip, this->callback_sentinel_addr);
+        emu.reg(x86_register::rip, this->callback_sentinel_addr + 1);
 
         const bool new_callback_dispatched = t->callback_stack.size() > callbacks_before;
         if (!new_callback_dispatched)
