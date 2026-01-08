@@ -217,6 +217,11 @@ namespace
             std::u16string name(reinterpret_cast<const char16_t*>(reinterpret_cast<uint64_t>(api_set_map) + entry->NameOffset),
                                 entry->NameLength / sizeof(char16_t));
 
+			if (!entry->ValueCount)
+			{
+				continue;
+			}
+
             const auto* value = reinterpret_cast<const API_SET_VALUE_ENTRY*>(reinterpret_cast<uint64_t>(api_set_map) + entry->ValueOffset +
                                                                              (entry->ValueCount - 1) * sizeof(API_SET_VALUE_ENTRY));
             std::u16string base_name(reinterpret_cast<const char16_t*>(reinterpret_cast<uint64_t>(api_set_map) + value->ValueOffset),
@@ -570,7 +575,7 @@ void process_context::setup(x86_64_emulator& emu, memory_manager& memory, regist
             this->rtl_user_thread_start32 = ntdll32->find_export("RtlUserThreadStart");
         }
     }
-
+	
     const auto* api_set_data = reinterpret_cast<const API_SET_NAMESPACE*>(apiset_container.data.data());
     auto apiset = get_apiset_namespace_table(api_set_data);
     create_known_dlls_section_objects<uint32_t>(this->knowndlls32_sections, apiset, registry, file_system, true);
