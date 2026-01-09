@@ -420,7 +420,7 @@ void process_context::setup(x86_64_emulator& emu, memory_manager& memory, regist
 
     this->default_register_set = emu.save_registers();
 
-    this->user_handles.setup();
+    this->user_handles.setup(is_wow64_process);
 
     auto [h, monitor_obj] = this->user_handles.allocate_object<USER_MONITOR>(handle_types::monitor);
     this->default_monitor_handle = h;
