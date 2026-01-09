@@ -318,7 +318,7 @@ namespace
             auto import_directory_rbase = section_with_import_descs.PointerToRawData;
 
             uint64_t import_directory_raw =
-                rva_to_raw(import_directory_vbase, import_directory_rbase, import_directory_entry.VirtualAddress);
+                rva_to_file_offset(import_directory_vbase, import_directory_rbase, import_directory_entry.VirtualAddress);
             auto import_descriptors = buffer.as<IMAGE_IMPORT_DESCRIPTOR>(static_cast<size_t>(import_directory_raw));
             for (size_t import_desc_index = 0;; import_desc_index++)
             {
@@ -328,8 +328,8 @@ namespace
                     break;
                 }
 
-                auto known_dll_dep_name =
-                    buffer.as_string(static_cast<size_t>(rva_to_raw(import_directory_vbase, import_directory_rbase, descriptor.Name)));
+                auto known_dll_dep_name = buffer.as_string(
+                    static_cast<size_t>(rva_to_file_offset(import_directory_vbase, import_directory_rbase, descriptor.Name)));
 
                 utils::string::to_lower_inplace(known_dll_dep_name);
                 auto known_dll_dep_name_16 = u8_to_u16(known_dll_dep_name);

@@ -659,7 +659,6 @@ namespace winpe
         return std::make_error_code(std::errc::executable_format_error);
     }
 
-    // Helper function to parse PE headers and extract image information
     template <typename T>
     inline bool parse_pe_headers(const std::vector<std::byte>& file_data, pe_image_basic_info& info)
     {
@@ -674,18 +673,15 @@ namespace winpe
             return false;
         }
 
-        // First check if we can read up to the optional header magic
         if (file_data.size() < dos_header->e_lfanew + sizeof(uint32_t) + sizeof(PEFileHeader_t) + sizeof(uint16_t))
         {
             return false;
         }
 
-        // Read the magic number from the optional header
         const auto* magic_ptr =
             reinterpret_cast<const uint16_t*>(file_data.data() + dos_header->e_lfanew + sizeof(uint32_t) + sizeof(PEFileHeader_t));
         const uint16_t magic = *magic_ptr;
 
-        // Check if the magic matches the expected type
         constexpr uint16_t expected_magic = (sizeof(T) == sizeof(uint32_t))
                                                 ? static_cast<uint16_t>(PEOptionalHeader_t<std::uint32_t>::k_Magic)
                                                 : static_cast<uint16_t>(PEOptionalHeader_t<std::uint64_t>::k_Magic);
@@ -695,7 +691,6 @@ namespace winpe
             return false;
         }
 
-        // Now check the full NT headers size
         if (file_data.size() < dos_header->e_lfanew + sizeof(PENTHeaders_t<T>))
         {
             return false;
@@ -710,7 +705,6 @@ namespace winpe
         const auto& file_header = nt_headers->FileHeader;
         const auto& optional_header = nt_headers->OptionalHeader;
 
-        // Extract information from headers
         info.machine = static_cast<uint16_t>(file_header.Machine);
         info.image_characteristics = file_header.Characteristics;
 
@@ -726,10 +720,8 @@ namespace winpe
         info.loader_flags = optional_header.LoaderFlags;
         info.checksum = optional_header.CheckSum;
 
-        // Check if image contains code
         info.has_code = (optional_header.SizeOfCode > 0) || (optional_header.AddressOfEntryPoint != 0);
 
-        // Also check section characteristics for code sections
         const auto sections_offset = dos_header->e_lfanew + sizeof(uint32_t) + sizeof(PEFileHeader_t) + file_header.SizeOfOptionalHeader;
         if (file_data.size() >= sections_offset + sizeof(IMAGE_SECTION_HEADER) * file_header.NumberOfSections)
         {

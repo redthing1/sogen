@@ -120,12 +120,6 @@ namespace syscalls
 
         utils::string::to_lower_inplace(filename);
 
-        // Workaround for win32u.dll
-        if (is_known_dll && filename.starts_with(u"win32u.dll"))
-        {
-            return STATUS_OBJECT_NAME_NOT_FOUND;
-        }
-
         if (attributes.RootDirectory == KNOWN_DLLS_DIRECTORY || filename.starts_with(u"\\knowndlls\\"))
         {
             auto& knowndlls_sections = c.win_emu.process.knowndlls64_sections;
