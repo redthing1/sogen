@@ -144,8 +144,8 @@ namespace syscalls
             section_handle.write(c.proc.sections.store(knowndll_section));
             return STATUS_SUCCESS;
         }
-        
-		if (attributes.RootDirectory == KNOWN_DLLS32_DIRECTORY || filename.starts_with(u"\\knowndlls32\\"))
+
+        if (attributes.RootDirectory == KNOWN_DLLS32_DIRECTORY || filename.starts_with(u"\\knowndlls32\\"))
         {
             auto& knowndlls_sections = c.win_emu.process.knowndlls32_sections;
 
