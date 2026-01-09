@@ -119,8 +119,8 @@ namespace syscalls
         }
 
         utils::string::to_lower_inplace(filename);
-		
-		// Workaround for win32u.dll
+
+        // Workaround for win32u.dll
         if (is_known_dll && filename.starts_with(u"win32u.dll"))
         {
             return STATUS_OBJECT_NAME_NOT_FOUND;
