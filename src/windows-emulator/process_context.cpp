@@ -3,6 +3,7 @@
 
 #include "emulator_utils.hpp"
 #include "windows_emulator.hpp"
+#include "version/windows_version_manager.hpp"
 
 namespace
 {
@@ -178,13 +179,13 @@ namespace
     }
 }
 
-void process_context::setup(x86_64_emulator& emu, memory_manager& memory, registry_manager& registry,
+void process_context::setup(x86_64_emulator& emu, memory_manager& memory, registry_manager& registry, windows_version_manager& version,
                             const application_settings& app_settings, const mapped_module& executable, const mapped_module& ntdll,
                             const apiset::container& apiset_container, const mapped_module* ntdll32)
 {
     setup_gdt(emu, memory);
 
-    this->kusd.setup();
+    this->kusd.setup(version);
 
     this->base_allocator = create_allocator(memory, PEB_SEGMENT_SIZE, this->is_wow64_process);
     auto& allocator = this->base_allocator;
@@ -276,8 +277,9 @@ void process_context::setup(x86_64_emulator& emu, memory_manager& memory, regist
         p.ImageSubsystemMajorVersion = 6;
 
         p.OSPlatformId = 2;
-        p.OSMajorVersion = 0x0000000a;
-        p.OSBuildNumber = 0x00006c51;
+        p.OSMajorVersion = version.get_major_version();
+        p.OSMinorVersion = version.get_minor_version();
+        p.OSBuildNumber = static_cast<USHORT>(version.get_windows_build_number());
 
         // p.AnsiCodePageData = allocator.reserve<CPTABLEINFO>().value();
         // p.OemCodePageData = allocator.reserve<CPTABLEINFO>().value();
@@ -367,8 +369,9 @@ void process_context::setup(x86_64_emulator& emu, memory_manager& memory, regist
             p32.ImageSubsystemMajorVersion = 6;
 
             p32.OSPlatformId = 2;
-            p32.OSMajorVersion = 0x0a;
-            p32.OSBuildNumber = 0x6c51;
+            p32.OSMajorVersion = version.get_major_version();
+            p32.OSMinorVersion = version.get_minor_version();
+            p32.OSBuildNumber = static_cast<USHORT>(version.get_windows_build_number());
 
             // Initialize NLS tables for 32-bit processes
             // These need to be in 32-bit addressable space
@@ -400,7 +403,7 @@ void process_context::setup(x86_64_emulator& emu, memory_manager& memory, regist
         monitor.hmon = h.bits;
         monitor.rcMonitor = {.left = 0, .top = 0, .right = 1920, .bottom = 1080};
         monitor.rcWork = monitor.rcMonitor;
-        if (this->is_build_before(26040))
+        if (version.is_build_before(26040))
         {
             monitor.b20.monitorDpi = 96;
             monitor.b20.nativeDpi = monitor.b20.monitorDpi;
@@ -436,8 +439,6 @@ void process_context::serialize(utils::buffer_serializer& buffer) const
     buffer.write(this->kusd);
 
     buffer.write(this->is_wow64_process);
-    buffer.write(this->windows_build_number);
-    buffer.write(this->windows_update_build_revision_number);
     buffer.write(this->ntdll_image_base);
     buffer.write(this->ldr_initialize_thunk);
     buffer.write(this->rtl_user_thread_start);
@@ -486,8 +487,6 @@ void process_context::deserialize(utils::buffer_deserializer& buffer)
     buffer.read(this->kusd);
 
     buffer.read(this->is_wow64_process);
-    buffer.read(this->windows_build_number);
-    buffer.read(this->windows_update_build_revision_number);
     buffer.read(this->ntdll_image_base);
     buffer.read(this->ldr_initialize_thunk);
     buffer.read(this->rtl_user_thread_start);

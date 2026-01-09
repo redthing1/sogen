@@ -8,6 +8,7 @@
 
 class logger;
 class registry_manager;
+class windows_version_manager;
 struct process_context;
 
 // Execution mode for the emulated process
@@ -80,13 +81,6 @@ class pe_architecture_detector
     static execution_mode determine_execution_mode(winpe::pe_arch executable_arch);
 };
 
-struct system_information
-{
-    windows_path system_root{};
-    uint32_t build_number{0};
-    uint32_t update_build_revision{0};
-};
-
 class module_manager
 {
   public:
@@ -100,7 +94,8 @@ class module_manager
 
     module_manager(memory_manager& memory, file_system& file_sys, callbacks& cb);
 
-    void map_main_modules(const windows_path& executable_path, registry_manager& registry, process_context& context, const logger& logger);
+    void map_main_modules(const windows_path& executable_path, windows_version_manager& version, process_context& context,
+                          const logger& logger);
 
     mapped_module* map_module(const windows_path& file, const logger& logger, bool is_static = false);
     mapped_module* map_local_module(const std::filesystem::path& file, const logger& logger, bool is_static = false);
@@ -194,13 +189,11 @@ class module_manager
     // Execution mode detection
     execution_mode detect_execution_mode(const windows_path& executable_path, const logger& logger);
 
-    static void get_system_information_from_registry(registry_manager& registry, system_information& info, const logger& logger);
-
     // Module loading helpers
     void load_native_64bit_modules(const windows_path& executable_path, const windows_path& ntdll_path, const windows_path& win32u_path,
                                    const logger& logger);
     void load_wow64_modules(const windows_path& executable_path, const windows_path& ntdll_path, const windows_path& win32u_path,
-                            const windows_path& ntdll32_path, process_context& context, const logger& logger);
+                            const windows_path& ntdll32_path, windows_version_manager& version, const logger& logger);
 
     void install_wow64_heaven_gate(const logger& logger);
 

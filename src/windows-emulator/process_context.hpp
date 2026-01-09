@@ -33,6 +33,7 @@
 
 struct emulator_settings;
 struct application_settings;
+class windows_version_manager;
 
 struct process_context
 {
@@ -72,9 +73,9 @@ struct process_context
     {
     }
 
-    void setup(x86_64_emulator& emu, memory_manager& memory, registry_manager& registry, const application_settings& app_settings,
-               const mapped_module& executable, const mapped_module& ntdll, const apiset::container& apiset_container,
-               const mapped_module* ntdll32 = nullptr);
+    void setup(x86_64_emulator& emu, memory_manager& memory, registry_manager& registry, windows_version_manager& version,
+               const application_settings& app_settings, const mapped_module& executable, const mapped_module& ntdll,
+               const apiset::container& apiset_container, const mapped_module* ntdll32 = nullptr);
 
     handle create_thread(memory_manager& memory, uint64_t start_address, uint64_t argument, uint64_t stack_size, uint32_t create_flags,
                          bool initial_thread = false);
@@ -92,72 +93,6 @@ struct process_context
 
     // WOW64 support flag - set during process setup based on executable architecture
     bool is_wow64_process{false};
-
-    uint32_t windows_build_number{0};
-    uint32_t windows_update_build_revision_number{0};
-
-    bool is_build_before(uint32_t build, std::optional<uint32_t> ubr = std::nullopt) const
-    {
-        if (windows_build_number != build)
-        {
-            return windows_build_number < build;
-        }
-        return ubr.has_value() && windows_update_build_revision_number < *ubr;
-    }
-
-    bool is_build_before_or_equal(uint32_t build, std::optional<uint32_t> ubr = std::nullopt) const
-    {
-        if (windows_build_number != build)
-        {
-            return windows_build_number < build;
-        }
-        return !ubr.has_value() || windows_update_build_revision_number <= *ubr;
-    }
-
-    bool is_build_after_or_equal(uint32_t build, std::optional<uint32_t> ubr = std::nullopt) const
-    {
-        if (windows_build_number != build)
-        {
-            return windows_build_number > build;
-        }
-        return !ubr.has_value() || windows_update_build_revision_number >= *ubr;
-    }
-
-    bool is_build_after(uint32_t build, std::optional<uint32_t> ubr = std::nullopt) const
-    {
-        if (windows_build_number != build)
-        {
-            return windows_build_number > build;
-        }
-        return ubr.has_value() && windows_update_build_revision_number > *ubr;
-    }
-
-    bool is_build_within(uint32_t start_build, uint32_t end_build, std::optional<uint32_t> start_ubr = std::nullopt,
-                         std::optional<uint32_t> end_ubr = std::nullopt) const
-    {
-        return is_build_after_or_equal(start_build, start_ubr) && is_build_before(end_build, end_ubr);
-    }
-
-    uint64_t get_system_dll_init_block_size() const
-    {
-        if (is_build_after_or_equal(WINDOWS_VERSION::WINDOWS_11_24H2))
-        {
-            return PS_SYSTEM_DLL_INIT_BLOCK_SIZE_V3;
-        }
-        if (is_build_after_or_equal(WINDOWS_VERSION::WINDOWS_10_2004))
-        {
-            return PS_SYSTEM_DLL_INIT_BLOCK_SIZE_V3_2004;
-        }
-        if (is_build_after_or_equal(WINDOWS_VERSION::WINDOWS_10_1709))
-        {
-            return PS_SYSTEM_DLL_INIT_BLOCK_SIZE_V2;
-        }
-        if (is_build_after_or_equal(WINDOWS_VERSION::WINDOWS_10_1703))
-        {
-            return PS_SYSTEM_DLL_INIT_BLOCK_SIZE_V2_1703;
-        }
-        return PS_SYSTEM_DLL_INIT_BLOCK_SIZE_V1;
-    }
 
     callbacks* callbacks_{};
 

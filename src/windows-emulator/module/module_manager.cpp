@@ -4,7 +4,7 @@
 #include "platform/win_pefile.hpp"
 #include "windows-emulator/logger.hpp"
 #include "../wow64_heaven_gate.hpp"
-#include "../registry/registry_manager.hpp"
+#include "../version/windows_version_manager.hpp"
 #include "../process_context.hpp"
 
 #include <serialization_helper.hpp>
@@ -207,52 +207,6 @@ module_manager::module_manager(memory_manager& memory, file_system& file_sys, ca
 {
 }
 
-void module_manager::get_system_information_from_registry(registry_manager& registry, system_information& info, const logger& logger)
-{
-    constexpr auto version_key_path = R"(\Registry\Machine\Software\Microsoft\Windows NT\CurrentVersion)";
-
-    const auto version_key = registry.get_key({version_key_path});
-    if (!version_key)
-    {
-        throw std::runtime_error("Failed to get CurrentVersion registry key");
-    }
-
-    for (size_t i = 0; const auto value = registry.get_value(*version_key, i); ++i)
-    {
-        if (value->name == "SystemRoot" && value->type == REG_SZ && !value->data.empty())
-        {
-            const auto* data_ptr = reinterpret_cast<const char16_t*>(value->data.data());
-            const auto char_count = value->data.size() / sizeof(char16_t);
-            std::u16string system_root(data_ptr, char_count > 0 && data_ptr[char_count - 1] == u'\0' ? char_count - 1 : char_count);
-            info.system_root = windows_path{system_root};
-        }
-        else if ((value->name == "CurrentBuildNumber" || value->name == "CurrentBuild") && value->type == REG_SZ)
-        {
-            const auto* s = reinterpret_cast<const char16_t*>(value->data.data());
-            info.build_number = static_cast<uint32_t>(std::strtoul(u16_to_u8(s).c_str(), nullptr, 10));
-        }
-        else if (value->name == "UBR" && value->type == REG_DWORD && value->data.size() >= sizeof(uint32_t))
-        {
-            info.update_build_revision = *reinterpret_cast<const uint32_t*>(value->data.data());
-        }
-    }
-
-    if (info.system_root.u16string().empty())
-    {
-        throw std::runtime_error("SystemRoot not found in registry");
-    }
-
-    if (info.build_number == 0)
-    {
-        logger.error("Failed to get CurrentBuildNumber from registry\n");
-    }
-
-    if (info.update_build_revision == 0)
-    {
-        logger.error("Failed to get UBR from registry\n");
-    }
-}
-
 // Core mapping logic to eliminate code duplication
 mapped_module* module_manager::map_module_core(const pe_detection_result& detection_result, const std::function<mapped_module()>& mapper,
                                                const logger& logger, bool is_static)
@@ -307,7 +261,7 @@ void module_manager::load_native_64bit_modules(const windows_path& executable_pa
 
 // WOW64 module loading
 void module_manager::load_wow64_modules(const windows_path& executable_path, const windows_path& ntdll_path,
-                                        const windows_path& win32u_path, const windows_path& ntdll32_path, process_context& context,
+                                        const windows_path& win32u_path, const windows_path& ntdll32_path, windows_version_manager& version,
                                         const logger& logger)
 {
     logger.info("Loading WOW64 modules for 32-bit application\n");
@@ -328,7 +282,7 @@ void module_manager::load_wow64_modules(const windows_path& executable_path, con
     }
 
     PS_SYSTEM_DLL_INIT_BLOCK init_block = {};
-    const auto init_block_size = context.get_system_dll_init_block_size();
+    const auto init_block_size = version.get_system_dll_init_block_size();
 
     init_block.Size = static_cast<ULONG>(init_block_size);
 
@@ -463,16 +417,12 @@ void module_manager::install_wow64_heaven_gate(const logger& logger)
     }
 }
 
-void module_manager::map_main_modules(const windows_path& executable_path, registry_manager& registry, process_context& context,
+void module_manager::map_main_modules(const windows_path& executable_path, windows_version_manager& version, process_context& context,
                                       const logger& logger)
 {
-    system_information sys_info{};
-    module_manager::get_system_information_from_registry(registry, sys_info, logger);
-    const auto system32_path = sys_info.system_root / "System32";
-    const auto syswow64_path = sys_info.system_root / "SysWOW64";
-
-    context.windows_build_number = sys_info.build_number;
-    context.windows_update_build_revision_number = sys_info.update_build_revision;
+    const auto& system_root = version.get_system_root();
+    const auto system32_path = system_root / "System32";
+    const auto syswow64_path = system_root / "SysWOW64";
 
     current_execution_mode_ = detect_execution_mode(executable_path, logger);
     context.is_wow64_process = (current_execution_mode_ == execution_mode::wow64_32bit);
@@ -484,7 +434,7 @@ void module_manager::map_main_modules(const windows_path& executable_path, regis
         break;
 
     case execution_mode::wow64_32bit:
-        load_wow64_modules(executable_path, system32_path / "ntdll.dll", system32_path / "win32u.dll", syswow64_path / "ntdll.dll", context,
+        load_wow64_modules(executable_path, system32_path / "ntdll.dll", system32_path / "win32u.dll", syswow64_path / "ntdll.dll", version,
                            logger);
         break;
 
