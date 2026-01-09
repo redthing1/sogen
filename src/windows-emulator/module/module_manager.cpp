@@ -469,10 +469,10 @@ mapped_module* module_manager::map_module(const windows_path& file, const logger
 
     if (local_file.filename() == "win32u.dll")
     {
-        return this->map_local_module(this->file_sys_->translate(file), logger, is_static, false);
+        return this->map_local_module(local_file, logger, is_static, false);
     }
 
-    return this->map_local_module(this->file_sys_->translate(file), logger, is_static, allow_duplicate);
+    return this->map_local_module(local_file, logger, is_static, allow_duplicate);
 }
 
 // Refactored map_local_module using the new architecture
