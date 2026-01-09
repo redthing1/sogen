@@ -119,7 +119,7 @@ namespace syscalls
         }
 
         utils::string::to_lower_inplace(filename);
-        if (is_known_dll && (filename.starts_with(u"win32u.dll") || filename.starts_with(u"ntdll.dll")))
+        if (is_known_dll && (filename.starts_with(u"win32u.dll"))
         {
             return STATUS_OBJECT_NAME_NOT_FOUND;
         }

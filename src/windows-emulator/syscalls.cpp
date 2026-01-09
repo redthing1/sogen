@@ -363,8 +363,8 @@ namespace syscalls
                                             emulator_object<ULONG> return_length);
     NTSTATUS handle_NtQuerySecurityAttributesToken();
     NTSTATUS handle_NtAdjustPrivilegesToken();
-    NTSTATUS handle_NtFlushInstructionCache(const syscall_context& c, const handle process_handle,
-                                            const emulator_object<uint64_t> base_address, const uint64_t region_size);
+    NTSTATUS handle_NtFlushInstructionCache(const syscall_context& c, handle process_handle, const emulator_object<uint64_t> base_address,
+                                            uint64_t region_size);
 
     NTSTATUS handle_NtQueryPerformanceCounter(const syscall_context& c, const emulator_object<LARGE_INTEGER> performance_counter,
                                               const emulator_object<LARGE_INTEGER> performance_frequency)
