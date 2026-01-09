@@ -12,15 +12,17 @@ class user_handle_table
     {
     }
 
-    void setup()
+    void setup(const bool is_wow64_process)
     {
+        this->is_wow64_process_ = is_wow64_process;
+
         used_indices_.resize(MAX_HANDLES, false);
 
         const auto server_info_size = static_cast<size_t>(page_align_up(sizeof(USER_SERVERINFO)));
-        server_info_addr_ = memory_->allocate_memory(server_info_size, memory_permission::read);
+        server_info_addr_ = this->allocate_memory(server_info_size, memory_permission::read);
 
         const auto display_info_size = static_cast<size_t>(page_align_up(sizeof(USER_DISPINFO)));
-        display_info_addr_ = memory_->allocate_memory(display_info_size, memory_permission::read);
+        display_info_addr_ = this->allocate_memory(display_info_size, memory_permission::read);
 
         const emulator_object<USER_SERVERINFO> srv_obj(*memory_, server_info_addr_);
         srv_obj.access([&](USER_SERVERINFO& srv) {
@@ -28,7 +30,7 @@ class user_handle_table
         });
 
         const auto handle_table_size = static_cast<size_t>(page_align_up(sizeof(USER_HANDLEENTRY) * MAX_HANDLES));
-        handle_table_addr_ = memory_->allocate_memory(handle_table_size, memory_permission::read);
+        handle_table_addr_ = this->allocate_memory(handle_table_size, memory_permission::read);
     }
 
     emulator_object<USER_SHAREDINFO> get_server_info() const
@@ -52,7 +54,7 @@ class user_handle_table
         const auto index = find_free_index();
 
         const auto alloc_size = static_cast<size_t>(page_align_up(sizeof(T)));
-        const auto alloc_ptr = memory_->allocate_memory(alloc_size, memory_permission::read);
+        const auto alloc_ptr = this->allocate_memory(alloc_size, memory_permission::read);
         const emulator_object<T> alloc_obj(*memory_, alloc_ptr);
 
         const emulator_object<USER_HANDLEENTRY> handle_table_obj(*memory_, handle_table_addr_);
@@ -93,6 +95,7 @@ class user_handle_table
         buffer.write(handle_table_addr_);
         buffer.write(display_info_addr_);
         buffer.write_vector(used_indices_);
+        buffer.write(is_wow64_process_);
     }
 
     void deserialize(utils::buffer_deserializer& buffer)
@@ -101,6 +104,7 @@ class user_handle_table
         buffer.read(handle_table_addr_);
         buffer.read(display_info_addr_);
         buffer.read_vector(used_indices_);
+        buffer.read(is_wow64_process_);
     }
 
   private:
@@ -129,11 +133,19 @@ class user_handle_table
         }
     }
 
+    uint64_t allocate_memory(const size_t size, const nt_memory_permission permissions)
+    {
+        const auto allocation_base = this->is_wow64_process_ ? DEFAULT_ALLOCATION_ADDRESS_32BIT : DEFAULT_ALLOCATION_ADDRESS_64BIT;
+        const auto base = memory_->find_free_allocation_base(size, allocation_base);
+        return memory_->allocate_memory(size, permissions, false, base);
+    }
+
     uint64_t server_info_addr_{};
     uint64_t handle_table_addr_{};
     uint64_t display_info_addr_{};
     std::vector<bool> used_indices_{};
     memory_manager* memory_{};
+    bool is_wow64_process_{};
 };
 
 template <handle_types::type Type, typename T>
