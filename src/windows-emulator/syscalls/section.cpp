@@ -285,8 +285,7 @@ namespace syscalls
                 return STATUS_IMAGE_MACHINE_TYPE_MISMATCH;
             }
 
-            auto local_file = c.win_emu.file_sys.translate(section_entry->file_name);
-            if (c.win_emu.mod_manager.get_module_load_count_by_path(local_file) > 1)
+            if (c.win_emu.mod_manager.get_module_load_count_by_path(section_entry->file_name) > 1)
             {
                 return STATUS_IMAGE_NOT_AT_BASE;
             }

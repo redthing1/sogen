@@ -221,7 +221,7 @@ mapped_module* module_manager::map_module_core(const pe_detection_result& detect
         mapped_module mod = mapper();
         mod.is_static = is_static;
 
-        if (!mod.path.empty())
+        if (!mod.path.empty() && mod.path.filename() != "win32u.dll")
         {
             this->module_load_count[mod.path]++;
         }
@@ -451,9 +451,9 @@ void module_manager::map_main_modules(const windows_path& executable_path, const
     }
 }
 
-std::optional<uint64_t> module_manager::get_module_load_count_by_path(const std::filesystem::path& path)
+std::optional<uint64_t> module_manager::get_module_load_count_by_path(const windows_path& path)
 {
-    auto local_file = weakly_canonical(absolute(path));
+    auto local_file = std::filesystem::weakly_canonical(std::filesystem::absolute(this->file_sys_->translate(path)));
 
     if (!module_load_count.contains(local_file))
     {

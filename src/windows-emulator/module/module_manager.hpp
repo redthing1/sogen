@@ -94,7 +94,7 @@ class module_manager
     void map_main_modules(const windows_path& executable_path, const windows_path& system32_path, const windows_path& syswow64_path,
                           const logger& logger);
 
-    std::optional<uint64_t> get_module_load_count_by_path(const std::filesystem::path& path);
+    std::optional<uint64_t> get_module_load_count_by_path(const windows_path& path);
     mapped_module* map_module(const windows_path& file, const logger& logger, bool is_static = false, bool allow_duplicate = false);
     mapped_module* map_local_module(const std::filesystem::path& file, const logger& logger, bool is_static = false,
                                     bool allow_duplicate = false);
