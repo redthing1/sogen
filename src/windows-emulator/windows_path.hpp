@@ -256,6 +256,11 @@ class windows_path
         return !this->operator==(other);
     }
 
+	bool operator<(const windows_path& other) const
+	{
+		return this->string().length() < other.string().length();
+	}
+
     bool empty() const
     {
         return this->is_relative() && this->folders_.empty();

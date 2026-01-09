@@ -531,7 +531,7 @@ mapped_module* module_manager::map_memory_module(uint64_t base_address, uint64_t
 void module_manager::serialize(utils::buffer_serializer& buffer) const
 {
     buffer.write_map(this->modules_);
-    //buffer.write_map(this->module_load_count);
+    buffer.write_map(this->module_load_count);
 
     buffer.write(this->executable ? this->executable->image_base : 0);
     buffer.write(this->ntdll ? this->ntdll->image_base : 0);
@@ -549,7 +549,7 @@ void module_manager::serialize(utils::buffer_serializer& buffer) const
 void module_manager::deserialize(utils::buffer_deserializer& buffer)
 {
     buffer.read_map(this->modules_);
-    //buffer.read_map(this->module_load_count);
+	buffer.read_map(this->module_load_count);
     this->last_module_cache_ = this->modules_.end();
 
     const auto executable_base = buffer.read<uint64_t>();

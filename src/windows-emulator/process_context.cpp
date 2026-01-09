@@ -576,11 +576,10 @@ void process_context::setup(x86_64_emulator& emu, memory_manager& memory, regist
         }
     }
 
-	(void)file_system;
-    //const auto* api_set_data = reinterpret_cast<const API_SET_NAMESPACE*>(apiset_container.data.data());
-    //auto apiset = get_apiset_namespace_table(api_set_data);
-    //create_known_dlls_section_objects<uint32_t>(this->knowndlls32_sections, apiset, registry, file_system, true);
-    //create_known_dlls_section_objects<uint64_t>(this->knowndlls64_sections, apiset, registry, file_system, false);
+	const auto* api_set_data = reinterpret_cast<const API_SET_NAMESPACE*>(apiset_container.data.data());
+	auto apiset = get_apiset_namespace_table(api_set_data);
+	create_known_dlls_section_objects<uint32_t>(this->knowndlls32_sections, apiset, registry, file_system, true);
+	create_known_dlls_section_objects<uint64_t>(this->knowndlls64_sections, apiset, registry, file_system, false);
 
     this->ntdll_image_base = ntdll.image_base;
     this->ldr_initialize_thunk = ntdll.find_export("LdrInitializeThunk");
@@ -657,8 +656,8 @@ void process_context::serialize(utils::buffer_serializer& buffer) const
     buffer.write(this->timers);
     buffer.write(this->registry_keys);
     buffer.write_map(this->atoms);
-    //buffer.write_map(this->knowndlls32_sections);
-    //buffer.write_map(this->knowndlls64_sections);
+    buffer.write_map(this->knowndlls32_sections);
+    buffer.write_map(this->knowndlls64_sections);
 
     buffer.write(this->last_extended_params_numa_node);
     buffer.write(this->last_extended_params_attributes);
@@ -708,8 +707,8 @@ void process_context::deserialize(utils::buffer_deserializer& buffer)
     buffer.read(this->timers);
     buffer.read(this->registry_keys);
     buffer.read_map(this->atoms);
-    //buffer.read_map(this->knowndlls32_sections);
-    //buffer.read_map(this->knowndlls64_sections);
+    buffer.read_map(this->knowndlls32_sections);
+    buffer.read_map(this->knowndlls64_sections);
 
     buffer.read(this->last_extended_params_numa_node);
     buffer.read(this->last_extended_params_attributes);

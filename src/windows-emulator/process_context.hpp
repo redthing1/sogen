@@ -34,7 +34,7 @@
 struct emulator_settings;
 struct application_settings;
 
-using knowndlls_map = std::unordered_map<std::u16string, section>;
+using knowndlls_map = std::map<std::u16string, section>;
 struct process_context
 {
     struct callbacks
