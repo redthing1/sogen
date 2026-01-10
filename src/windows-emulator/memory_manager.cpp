@@ -122,6 +122,7 @@ memory_stats memory_manager::compute_memory_stats() const
 void memory_manager::serialize_memory_state(utils::buffer_serializer& buffer, const bool is_snapshot) const
 {
     buffer.write_atomic(this->layout_version_);
+    buffer.write(this->default_allocation_address_);
     buffer.write_map(this->reserved_regions_);
 
     if (is_snapshot)
@@ -157,6 +158,7 @@ void memory_manager::deserialize_memory_state(utils::buffer_deserializer& buffer
     }
 
     buffer.read_atomic(this->layout_version_);
+    buffer.read(this->default_allocation_address_);
     buffer.read_map(this->reserved_regions_);
 
     if (is_snapshot)
