@@ -866,8 +866,10 @@ bool process_context::is_knowndll_section_exists(const std::u16string& name, boo
     if (is_32bit)
     {
         return knowndlls32_sections.contains(lname);
+        return knowndlls32_sections.contains(lname);
     }
 
+    return knowndlls64_sections.contains(lname);
     return knowndlls64_sections.contains(lname);
 }
 
@@ -877,17 +879,17 @@ std::optional<section> process_context::get_knowndll_section_by_name(const std::
 
     if (is_32bit)
     {
-		if (auto section = knowndlls32_sections.find(lname); section != knowndlls32_sections.end())
-		{
-			return section->second;
-		}
+        if (auto section = knowndlls32_sections.find(lname); section != knowndlls32_sections.end())
+        {
+            return section->second;
+        }
     }
     else
     {
-		if (auto section = knowndlls64_sections.find(lname); section != knowndlls64_sections.end())
-		{
-			return section->second;
-		}
+        if (auto section = knowndlls64_sections.find(lname); section != knowndlls64_sections.end())
+        {
+            return section->second;
+        }
     }
 
     return {};
@@ -899,10 +901,10 @@ void process_context::add_knowndll_section(const std::u16string& name, const sec
 
     if (is_32bit)
     {
-        this->knowndlls32_sections[lname] = section;
+        knowndlls32_sections[lname] = section;
     }
     else
     {
-        this->knowndlls64_sections[lname] = section;
+        knowndlls64_sections[lname] = section;
     }
 }

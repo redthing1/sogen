@@ -90,9 +90,9 @@ struct process_context
     template <typename T>
     void build_knowndlls_section_table(registry_manager& registry, const file_system& file_system, bool is_32bit);
 
-	std::optional<section> get_knowndll_section_by_name(const std::u16string& name, bool is_32bit) const;
-	void add_knowndll_section(const std::u16string& name, const section& section, bool is_32bit);
-	bool is_knowndll_section_exists(const std::u16string& name, bool is_32bit) const;
+    std::optional<section> get_knowndll_section_by_name(const std::u16string& name, bool is_32bit) const;
+    void add_knowndll_section(const std::u16string& name, const section& section, bool is_32bit);
+    bool is_knowndll_section_exists(const std::u16string& name, bool is_32bit) const;
 
     void serialize(utils::buffer_serializer& buffer) const;
     void deserialize(utils::buffer_deserializer& buffer);
