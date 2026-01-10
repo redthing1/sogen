@@ -3,6 +3,7 @@
 #include "cpu_context.hpp"
 #include "emulator_utils.hpp"
 #include "syscall_utils.hpp"
+#include "user_callback_dispatch.hpp"
 
 #include <numeric>
 #include <cwctype>
@@ -1009,6 +1010,47 @@ namespace syscalls
         return STATUS_UNSUCCESSFUL;
     }
 
+    BOOL handle_NtUserEnumDisplayMonitors(const syscall_context& c, const hdc hdc_in, const uint64_t clip_rect_ptr, const uint64_t callback,
+                                          const uint64_t param)
+    {
+        if (!callback)
+        {
+            return FALSE;
+        }
+
+        const auto hmon = c.win_emu.process.default_monitor_handle.bits;
+        const auto display_info = c.proc.user_handles.get_display_info().read();
+
+        if (clip_rect_ptr)
+        {
+            RECT clip{};
+            c.emu.read_memory(clip_rect_ptr, &clip, sizeof(clip));
+
+            const emulator_object<USER_MONITOR> monitor_obj(c.emu, display_info.pPrimaryMonitor);
+            const auto monitor = monitor_obj.read();
+
+            auto effective_rc{monitor.rcMonitor};
+            effective_rc.left = std::max(effective_rc.left, clip.left);
+            effective_rc.top = std::max(effective_rc.top, clip.top);
+            effective_rc.right = std::min(effective_rc.right, clip.right);
+            effective_rc.bottom = std::min(effective_rc.bottom, clip.bottom);
+            if (effective_rc.right <= effective_rc.left || effective_rc.bottom <= effective_rc.top)
+            {
+                return TRUE;
+            }
+        }
+
+        const uint64_t rect_ptr = display_info.pPrimaryMonitor + offsetof(USER_MONITOR, rcMonitor);
+        dispatch_user_callback(c, callback_id::NtUserEnumDisplayMonitors, callback, hmon, hdc_in, rect_ptr, param);
+        return {};
+    }
+
+    BOOL completion_NtUserEnumDisplayMonitors(const syscall_context&, BOOL guest_result, const hdc /*hdc_in*/,
+                                              const uint64_t /*clip_rect_ptr*/, const uint64_t /*callback*/, const uint64_t /*param*/)
+    {
+        return guest_result;
+    }
+
     NTSTATUS handle_NtAssociateWaitCompletionPacket()
     {
         return STATUS_SUCCESS;
@@ -1050,6 +1092,19 @@ namespace syscalls
         c.emu.write_memory(device_name, name.c_str(), (name.size() + 1) * sizeof(char16_t));
 
         return TRUE;
+    }
+
+    emulator_pointer handle_NtUserMapDesktopObject(const syscall_context& c, handle handle)
+    {
+        const auto index = handle.value.id;
+
+        if (index == 0 || index >= user_handle_table::MAX_HANDLES)
+        {
+            return 0;
+        }
+
+        const auto handle_entry = c.proc.user_handles.get_handle_table().read(static_cast<size_t>(index));
+        return handle_entry.pHead;
     }
 }
 
@@ -1240,6 +1295,7 @@ void syscall_dispatcher::add_handlers(std::map<std::string, syscall_handler>& ha
     add_handler(NtUserGetKeyboardType);
     add_handler(NtUserEnumDisplayDevices);
     add_handler(NtUserEnumDisplaySettings);
+    add_handler(NtUserEnumDisplayMonitors);
     add_handler(NtUserSetProp);
     add_handler(NtUserSetProp2);
     add_handler(NtUserChangeWindowMessageFilterEx);
@@ -1269,6 +1325,20 @@ void syscall_dispatcher::add_handlers(std::map<std::string, syscall_handler>& ha
     add_handler(NtNotifyChangeDirectoryFileEx);
     add_handler(NtUserGetHDevName);
     add_handler(NtFlushInstructionCache);
+    add_handler(NtUserMapDesktopObject);
 
 #undef add_handler
+}
+
+void syscall_dispatcher::add_callbacks()
+{
+#define add_callback(syscall)                                                                                        \
+    do                                                                                                               \
+    {                                                                                                                \
+        this->callbacks_[callback_id::syscall] = make_callback_completion_handler<syscalls::completion_##syscall>(); \
+    } while (0)
+
+    add_callback(NtUserEnumDisplayMonitors);
+
+#undef add_callback
 }

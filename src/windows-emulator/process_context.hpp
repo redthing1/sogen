@@ -78,6 +78,8 @@ struct process_context
                const application_settings& app_settings, const mapped_module& executable, const mapped_module& ntdll,
                const apiset::container& apiset_container, const mapped_module* ntdll32 = nullptr);
 
+    void setup_callback_hook(windows_emulator& win_emu, memory_manager& memory);
+
     handle create_thread(memory_manager& memory, uint64_t start_address, uint64_t argument, uint64_t stack_size, uint32_t create_flags,
                          bool initial_thread = false);
 
@@ -159,6 +161,8 @@ struct process_context
     uint32_t spawned_thread_count{0};
     handle_store<handle_types::thread, emulator_thread> threads{};
     emulator_thread* active_thread{nullptr};
+
+    emulator_pointer callback_sentinel_addr{0};
 
     // Extended parameters from last NtMapViewOfSectionEx call
     // These can be used by other syscalls like NtAllocateVirtualMemoryEx

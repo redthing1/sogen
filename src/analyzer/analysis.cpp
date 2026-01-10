@@ -167,8 +167,15 @@ namespace
         const auto var_ptr = get_function_argument(win_emu.emu(), index);
         if (var_ptr && !is_int_resource(var_ptr))
         {
-            const auto str = read_string<CharType>(win_emu.memory, var_ptr);
-            print_string(win_emu.log, str);
+            try
+            {
+                const auto str = read_string<CharType>(win_emu.memory, var_ptr);
+                print_string(win_emu.log, str);
+            }
+            catch (...)
+            {
+                print_string(win_emu.log, "[failed to read]");
+            }
         }
     }
 
