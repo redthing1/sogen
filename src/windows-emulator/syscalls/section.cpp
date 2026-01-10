@@ -7,6 +7,8 @@
 
 namespace syscalls
 {
+	using namespace std::string_view_literals;
+
     NTSTATUS handle_NtCreateSection(const syscall_context& c, const emulator_object<handle> section_handle,
                                     const ACCESS_MASK /*desired_access*/,
                                     const emulator_object<OBJECT_ATTRIBUTES<EmulatorTraits<Emu64>>> object_attributes,

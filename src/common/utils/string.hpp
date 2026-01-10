@@ -8,8 +8,6 @@
 #include <algorithm>
 #include <string_view>
 
-using namespace std::string_view_literals;
-
 namespace utils::string
 {
 #ifdef __clang__
