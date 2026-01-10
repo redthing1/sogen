@@ -88,11 +88,11 @@ struct process_context
     const std::u16string* get_atom_name(uint16_t atom_id) const;
 
     template <typename T>
-    void build_knowndlls_section_table(registry_manager& registry, const file_system& file_system, bool is_wow64);
+    void build_knowndlls_section_table(registry_manager& registry, const file_system& file_system, bool is_32bit);
 
-    std::optional<section> get_knowndll_section_by_name(const std::u16string& name, bool is_32bit);
-    void add_knowndll_section(const std::u16string& name, section section, bool is_32bit);
-    bool is_knowndll_section_exists(const std::u16string& name, bool is_32bit);
+	std::optional<section> get_knowndll_section_by_name(const std::u16string& name, bool is_32bit) const;
+	void add_knowndll_section(const std::u16string& name, const section& section, bool is_32bit);
+	bool is_knowndll_section_exists(const std::u16string& name, bool is_32bit) const;
 
     void serialize(utils::buffer_serializer& buffer) const;
     void deserialize(utils::buffer_deserializer& buffer);
