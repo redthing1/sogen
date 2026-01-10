@@ -866,10 +866,8 @@ bool process_context::is_knowndll_section_exists(const std::u16string& name, boo
     if (is_32bit)
     {
         return knowndlls32_sections.contains(lname);
-        return knowndlls32_sections.contains(lname);
     }
 
-    return knowndlls64_sections.contains(lname);
     return knowndlls64_sections.contains(lname);
 }
 
