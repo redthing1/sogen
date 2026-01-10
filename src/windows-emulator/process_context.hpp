@@ -35,6 +35,7 @@ struct emulator_settings;
 struct application_settings;
 
 using knowndlls_map = std::map<std::u16string, section>;
+using apiset_map = std::unordered_map<std::u16string, std::u16string>;
 struct process_context
 {
     struct callbacks
@@ -85,6 +86,13 @@ struct process_context
     bool delete_atom(const std::u16string& name);
     bool delete_atom(uint16_t atom_id);
     const std::u16string* get_atom_name(uint16_t atom_id) const;
+
+    template <typename T>
+    void build_knowndlls_section_table(registry_manager& registry, const file_system& file_system, bool is_wow64);
+
+    std::optional<section> get_knowndll_section_by_name(const std::u16string& name, bool is_32bit);
+    void add_knowndll_section(const std::u16string& name, section section, bool is_32bit);
+    bool is_knowndll_section_exists(const std::u16string& name, bool is_32bit);
 
     void serialize(utils::buffer_serializer& buffer) const;
     void deserialize(utils::buffer_deserializer& buffer);
@@ -142,6 +150,7 @@ struct process_context
     handle_store<handle_types::registry, registry_key, 2> registry_keys{};
     std::map<uint16_t, atom_entry> atoms{};
 
+    apiset_map apiset;
     knowndlls_map knowndlls32_sections;
     knowndlls_map knowndlls64_sections;
 

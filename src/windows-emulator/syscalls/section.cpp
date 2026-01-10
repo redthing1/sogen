@@ -70,9 +70,10 @@ namespace syscalls
         const auto attributes = object_attributes.read();
 
         auto filename = read_unicode_string(c.emu, attributes.ObjectName);
+        auto filename_sv = std::u16string_view(filename);
         c.win_emu.callbacks.on_generic_access("Opening section", filename);
 
-        if (filename == u"\\Windows\\SharedSection")
+        if (utils::string::equals_ignore_case(filename_sv, u"\\Windows\\SharedSection"sv))
         {
             constexpr auto shared_section_size = 0x10000;
 
@@ -86,7 +87,7 @@ namespace syscalls
             return STATUS_SUCCESS;
         }
 
-        if (filename == u"DBWIN_BUFFER")
+        if (utils::string::equals_ignore_case(filename_sv, u"DBWIN_BUFFER"sv))
         {
             constexpr auto dbwin_buffer_section_size = 0x1000;
 
@@ -100,69 +101,56 @@ namespace syscalls
             return STATUS_SUCCESS;
         }
 
-        if (filename == u"windows_shell_global_counters"             //
-            || filename == u"Global\\__ComCatalogCache__"            //
-            || filename == u"{00020000-0000-1005-8005-0000C06B5161}" //
-            || filename == u"Global\\{00020000-0000-1005-8005-0000C06B5161}")
+        if (utils::string::equals_ignore_case(filename_sv, u"windows_shell_global_counters"sv) ||
+            utils::string::equals_ignore_case(filename_sv, u"Global\\__ComCatalogCache__"sv) ||
+            utils::string::equals_ignore_case(filename_sv, u"{00020000-0000-1005-8005-0000C06B5161}"sv) ||
+            utils::string::equals_ignore_case(filename_sv, u"Global\\{00020000-0000-1005-8005-0000C06B5161}"sv))
         {
             return STATUS_NOT_SUPPORTED;
         }
 
-        bool is_known_dll = (attributes.RootDirectory == KNOWN_DLLS_DIRECTORY || attributes.RootDirectory == KNOWN_DLLS32_DIRECTORY ||
-                             filename.starts_with(u"\\KnownDlls") || filename.starts_with(u"\\KnownDlls32"));
+        bool is_knowndll = (attributes.RootDirectory == KNOWN_DLLS32_DIRECTORY ||
+                            utils::string::starts_with_ignore_case(filename_sv, u"\\KnownDlls32\\"sv)) ||
+                           attributes.RootDirectory == KNOWN_DLLS_DIRECTORY ||
+                           utils::string::starts_with_ignore_case(filename_sv, u"\\KnownDlls\\"sv);
 
-        if (!is_known_dll && attributes.RootDirectory != BASE_NAMED_OBJECTS_DIRECTORY)
+        if (!is_knowndll && attributes.RootDirectory != BASE_NAMED_OBJECTS_DIRECTORY)
         {
             c.win_emu.log.error("Unsupported section\n");
             c.emu.stop();
             return STATUS_NOT_SUPPORTED;
         }
 
-        utils::string::to_lower_inplace(filename);
-
-        if (attributes.RootDirectory == KNOWN_DLLS_DIRECTORY || filename.starts_with(u"\\knowndlls\\"))
+        if (is_knowndll)
         {
-            auto& knowndlls_sections = c.win_emu.process.knowndlls64_sections;
+            bool is_knowndll32 = attributes.RootDirectory == KNOWN_DLLS32_DIRECTORY ||
+                                 utils::string::starts_with_ignore_case(filename_sv, u"\\KnownDlls32"sv);
 
-            if (filename.starts_with(u"\\knowndlls\\"))
+            if (utils::string::starts_with_ignore_case(filename_sv, u"\\KnownDlls32\\"sv))
             {
-                filename = std::u16string_view(filename).substr(11, filename.length() - 11);
+                filename = filename_sv.substr(13, filename.length() - 13);
             }
 
-            if (!knowndlls_sections.contains(filename))
+            else if (utils::string::starts_with_ignore_case(filename_sv, u"\\KnownDlls\\"sv))
+            {
+                filename = filename_sv.substr(11, filename.length() - 11);
+            }
+
+            auto section = c.win_emu.process.get_knowndll_section_by_name(filename, is_knowndll32);
+            if (!section.has_value())
             {
                 return STATUS_OBJECT_NAME_NOT_FOUND;
             }
 
-            auto knowndll_section = knowndlls_sections[filename];
-            section_handle.write(c.proc.sections.store(knowndll_section));
+            section_handle.write(c.proc.sections.store(section.value()));
             return STATUS_SUCCESS;
         }
 
-        if (attributes.RootDirectory == KNOWN_DLLS32_DIRECTORY || filename.starts_with(u"\\knowndlls32\\"))
+        for (auto& [handle, section] : c.proc.sections)
         {
-            auto& knowndlls_sections = c.win_emu.process.knowndlls32_sections;
-
-            if (filename.starts_with(u"\\knowndlls32\\"))
+            if (section.is_image() && utils::string::equals_ignore_case(section.file_name, filename))
             {
-                filename = std::u16string_view(filename).substr(13, filename.length() - 13);
-            }
-
-            if (!knowndlls_sections.contains(filename))
-            {
-                return STATUS_OBJECT_NAME_NOT_FOUND;
-            }
-
-            auto knowndll_section = knowndlls_sections[filename];
-            section_handle.write(c.proc.sections.store(knowndll_section));
-            return STATUS_SUCCESS;
-        }
-
-        for (auto& section_entry : c.proc.sections)
-        {
-            if (section_entry.second.is_image() && section_entry.second.name == filename)
-            {
-                section_handle.write(c.proc.sections.make_handle(section_entry.first));
+                section_handle.write(c.proc.sections.make_handle(handle));
                 return STATUS_SUCCESS;
             }
         }
