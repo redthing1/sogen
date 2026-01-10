@@ -4,6 +4,7 @@
 
 struct syscall_context;
 using syscall_handler = void (*)(const syscall_context& c);
+using callback_completion_handler = void (*)(const syscall_context& c, uint64_t guest_result);
 
 struct syscall_handler_entry
 {
@@ -22,6 +23,7 @@ class syscall_dispatcher
 
     void dispatch(windows_emulator& win_emu);
     static void dispatch_callback(windows_emulator& win_emu, std::string& syscall_name);
+    void dispatch_completion(windows_emulator& win_emu, callback_id callback_id, uint64_t guest_result);
 
     void serialize(utils::buffer_serializer& buffer) const;
     void deserialize(utils::buffer_deserializer& buffer);
@@ -36,7 +38,9 @@ class syscall_dispatcher
 
   private:
     std::map<uint64_t, syscall_handler_entry> handlers_{};
+    std::map<callback_id, callback_completion_handler> callbacks_{};
 
     static void add_handlers(std::map<std::string, syscall_handler>& handler_mapping);
     void add_handlers();
+    void add_callbacks();
 };

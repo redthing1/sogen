@@ -22,6 +22,7 @@ void syscall_dispatcher::deserialize(utils::buffer_deserializer& buffer)
 {
     buffer.read_map(this->handlers_);
     this->add_handlers();
+    this->add_callbacks();
 }
 
 void syscall_dispatcher::setup(const exported_symbols& ntdll_exports, const std::span<const std::byte> ntdll_data,
@@ -36,6 +37,7 @@ void syscall_dispatcher::setup(const exported_symbols& ntdll_exports, const std:
     map_syscalls(this->handlers_, win32u_syscalls);
 
     this->add_handlers();
+    this->add_callbacks();
 }
 
 void syscall_dispatcher::add_handlers()
@@ -137,6 +139,41 @@ void syscall_dispatcher::dispatch_callback(windows_emulator& win_emu, std::strin
         emu.reg<uint64_t>(x86_register::rip, context.instrumentation_callback - 2);
 
         emu.reg<uint64_t>(x86_register::r10, rip_old);
+    }
+}
+
+void syscall_dispatcher::dispatch_completion(windows_emulator& win_emu, callback_id callback_id, uint64_t guest_result)
+{
+    auto& emu = win_emu.emu();
+    const syscall_context c{
+        .win_emu = win_emu,
+        .emu = emu,
+        .proc = win_emu.process,
+        .write_status = true,
+    };
+
+    const auto entry = this->callbacks_.find(callback_id);
+
+    if (entry == this->callbacks_.end())
+    {
+        win_emu.log.error("Unknown callback: 0x%X\n", static_cast<uint32_t>(callback_id));
+        c.emu.stop();
+        return;
+    }
+
+    try
+    {
+        entry->second(c, guest_result);
+    }
+    catch (std::exception& e)
+    {
+        win_emu.log.error("Callback 0x%X threw an exception - %s\n", static_cast<int>(callback_id), e.what());
+        emu.stop();
+    }
+    catch (...)
+    {
+        win_emu.log.error("Callback 0x%X threw an unknown exception\n", static_cast<int>(callback_id));
+        emu.stop();
     }
 }
 

@@ -554,6 +554,7 @@ void windows_emulator::start(size_t count)
 {
     this->should_stop = false;
     this->setup_process_if_necessary();
+    this->process.setup_callback_hook(*this, this->memory);
 
     const auto use_count = count > 0;
     const auto start_instructions = this->executed_instructions_;
