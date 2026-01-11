@@ -23,7 +23,7 @@ struct USER_HANDLEENTRY
     uint64_t pHead;
     uint64_t pOwner;
     uint64_t unknown;
-    uint8_t bType;
+    EMULATOR_CAST(uint8_t, USER_HANDLETYPE) bType;
     uint8_t bFlags;
     uint16_t wUniq;
 };
@@ -31,10 +31,10 @@ static_assert(sizeof(USER_HANDLEENTRY) == 0x20);
 
 struct USER_SHAREDINFO
 {
-    uint64_t psi;
-    uint64_t aheList;
+    EMULATOR_CAST(uint64_t, USER_SERVERINFO*) psi;
+    EMULATOR_CAST(uint64_t, USER_HANDLEENTRY*) aheList;
     uint32_t HeEntrySize;
-    uint64_t pDispInfo;
+    EMULATOR_CAST(uint64_t, USER_DISPINFO*) pDispInfo;
     uint8_t unknown[0xFF];
 };
 
