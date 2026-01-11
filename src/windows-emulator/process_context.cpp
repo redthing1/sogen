@@ -503,7 +503,7 @@ void process_context::setup_callback_hook(windows_emulator& win_emu, memory_mana
             target_rip += 2;
         }
 
-        const uint64_t ret_stack_ptr = frame.rsp - sizeof(emulator_pointer);
+        const uint64_t ret_stack_ptr = emu.reg(x86_register::rsp) - sizeof(emulator_pointer);
         emu.write_memory(ret_stack_ptr, &target_rip, sizeof(target_rip));
         emu.reg(x86_register::rsp, ret_stack_ptr);
     });
