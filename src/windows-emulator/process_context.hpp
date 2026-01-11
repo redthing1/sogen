@@ -120,8 +120,6 @@ struct process_context
     // For WOW64 processes
     std::optional<emulator_object<PEB32>> peb32;
     std::optional<emulator_object<RTL_USER_PROCESS_PARAMETERS32>> process_params32;
-    std::optional<uint64_t> ntdll32_image_base{};
-    std::optional<uint64_t> ldr_initialize_thunk32{};
     std::optional<uint64_t> rtl_user_thread_start32{};
 
     handle_store<handle_types::event, event> events{};
