@@ -285,10 +285,6 @@ void module_manager::load_wow64_modules(const windows_path& executable_path, con
 
     // Set up LdrSystemDllInitBlock structure
     PS_SYSTEM_DLL_INIT_BLOCK init_block = {};
-    constexpr uint64_t symtem_dll_init_block_fix_size = 0xF0; // Wine or WIN10
-
-    // Basic structure initialization
-    init_block.Size = symtem_dll_init_block_fix_size;
 
     // Calculate relocation values
     // SystemDllWowRelocation = mapped_base - original_imagebase for 32-bit ntdll
@@ -344,8 +340,21 @@ void module_manager::load_wow64_modules(const windows_path& executable_path, con
         return;
     }
 
+    uint32_t image_size = 0;
+    if (!this->memory_->try_read_memory(ldr_init_block_addr, &image_size, sizeof(image_size)) || image_size == 0)
+    {
+        logger.error("Failed to read LdrSystemDllInitBlock size from 64-bit ntdll\n");
+        return;
+    }
+
+    init_block.Size = image_size;
+
+    std::vector<std::byte> init_bytes(image_size);
+    const auto copy_size = std::min(init_bytes.size(), sizeof(init_block));
+    std::memcpy(init_bytes.data(), &init_block, copy_size);
+
     // Write the initialized structure to the export address
-    this->memory_->write_memory(ldr_init_block_addr, &init_block, symtem_dll_init_block_fix_size);
+    this->memory_->write_memory(ldr_init_block_addr, init_bytes.data(), init_bytes.size());
 
     logger.info("Successfully initialized LdrSystemDllInitBlock at 0x%" PRIx64 "\n", ldr_init_block_addr);
 
