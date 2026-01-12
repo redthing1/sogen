@@ -33,7 +33,7 @@ class user_handle_table
         handle_table_addr_ = this->allocate_memory(handle_table_size, memory_permission::read);
     }
 
-    emulator_object<USER_SHAREDINFO> get_server_info() const
+    emulator_object<USER_SERVERINFO> get_server_info() const
     {
         return {*memory_, server_info_addr_};
     }

@@ -6,6 +6,7 @@
 //       In the real implementation, the kernel invokes ntdll!KiUserCallbackDispatcher and passes a callback
 //       index that refers to an entry in PEB->KernelCallbackTable. The dispatcher then looks up the function
 //       pointer in that table and invokes the corresponding user-mode callback.
+//       See Also: https://web.archive.org/web/20080717175308/http://www.nynaeve.net/?p=204
 
 template <typename... Args>
 void prepare_call_stack(x86_64_emulator& emu, uint64_t return_address, Args... args)
