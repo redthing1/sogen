@@ -344,7 +344,14 @@ void module_manager::load_wow64_modules(const windows_path& executable_path, con
         return;
     }
 
-    const auto write_size = static_cast<uint32_t>(system_dll_init_block_size);
+    uint32_t write_size = static_cast<uint32_t>(system_dll_init_block_size);
+    uint32_t image_size = 0;
+    if (this->memory_->try_read_memory(ldr_init_block_addr, &image_size, sizeof(image_size)) && image_size != 0 &&
+        image_size < write_size)
+    {
+        write_size = image_size;
+    }
+
     init_block.Size = write_size;
 
     // Write the initialized structure to the export address
