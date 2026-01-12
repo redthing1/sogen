@@ -223,7 +223,7 @@ mapped_module* module_manager::map_module_core(const pe_detection_result& detect
 
         if (!mod.path.empty())
         {
-            this->module_load_count[mod.path]++;
+            this->modules_load_count[mod.path]++;
         }
 
         const auto image_base = mod.image_base;
@@ -455,12 +455,12 @@ std::optional<uint64_t> module_manager::get_module_load_count_by_path(const wind
 {
     auto local_file = std::filesystem::weakly_canonical(std::filesystem::absolute(this->file_sys_->translate(path)));
 
-    if (!module_load_count.contains(local_file))
+    if (!modules_load_count.contains(local_file))
     {
         return {};
     }
 
-    return module_load_count[local_file];
+    return modules_load_count[local_file];
 }
 
 mapped_module* module_manager::map_module(const windows_path& file, const logger& logger, const bool is_static, bool allow_duplicate)
@@ -538,7 +538,7 @@ mapped_module* module_manager::map_memory_module(uint64_t base_address, uint64_t
 void module_manager::serialize(utils::buffer_serializer& buffer) const
 {
     buffer.write_map(this->modules_);
-    buffer.write_map(this->module_load_count);
+    buffer.write_map(this->modules_load_count);
 
     buffer.write(this->executable ? this->executable->image_base : 0);
     buffer.write(this->ntdll ? this->ntdll->image_base : 0);
@@ -556,7 +556,7 @@ void module_manager::serialize(utils::buffer_serializer& buffer) const
 void module_manager::deserialize(utils::buffer_deserializer& buffer)
 {
     buffer.read_map(this->modules_);
-    buffer.read_map(this->module_load_count);
+    buffer.read_map(this->modules_load_count);
     this->last_module_cache_ = this->modules_.end();
 
     const auto executable_base = buffer.read<uint64_t>();
@@ -595,6 +595,17 @@ bool module_manager::unmap(const uint64_t address)
 
     this->callbacks_->on_module_unload(mod->second);
     unmap_module(*this->memory_, mod->second);
+
+    auto module_load_count = this->modules_load_count[mod->second.path] - 1;
+    if (module_load_count == 0)
+    {
+        this->modules_load_count.erase(mod->second.path);
+    }
+    else
+    {
+        this->modules_load_count[mod->second.path] = module_load_count;
+    }
+
     this->modules_.erase(mod);
     this->last_module_cache_ = this->modules_.end();
 

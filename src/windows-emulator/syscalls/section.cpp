@@ -72,10 +72,9 @@ namespace syscalls
         const auto attributes = object_attributes.read();
 
         auto filename = read_unicode_string(c.emu, attributes.ObjectName);
-        auto filename_sv = std::u16string_view(filename);
         c.win_emu.callbacks.on_generic_access("Opening section", filename);
 
-        if (utils::string::equals_ignore_case(filename_sv, u"\\Windows\\SharedSection"sv))
+        if (utils::string::equals_ignore_case(filename, u"\\Windows\\SharedSection"sv))
         {
             constexpr auto shared_section_size = 0x10000;
 
@@ -89,7 +88,7 @@ namespace syscalls
             return STATUS_SUCCESS;
         }
 
-        if (utils::string::equals_ignore_case(filename_sv, u"DBWIN_BUFFER"sv))
+        if (utils::string::equals_ignore_case(filename, u"DBWIN_BUFFER"sv))
         {
             constexpr auto dbwin_buffer_section_size = 0x1000;
 
@@ -103,18 +102,18 @@ namespace syscalls
             return STATUS_SUCCESS;
         }
 
-        if (utils::string::equals_ignore_case(filename_sv, u"windows_shell_global_counters"sv) ||
-            utils::string::equals_ignore_case(filename_sv, u"Global\\__ComCatalogCache__"sv) ||
-            utils::string::equals_ignore_case(filename_sv, u"{00020000-0000-1005-8005-0000C06B5161}"sv) ||
-            utils::string::equals_ignore_case(filename_sv, u"Global\\{00020000-0000-1005-8005-0000C06B5161}"sv))
+        if (utils::string::equals_ignore_case(filename, u"windows_shell_global_counters"sv) ||
+            utils::string::equals_ignore_case(filename, u"Global\\__ComCatalogCache__"sv) ||
+            utils::string::equals_ignore_case(filename, u"{00020000-0000-1005-8005-0000C06B5161}"sv) ||
+            utils::string::equals_ignore_case(filename, u"Global\\{00020000-0000-1005-8005-0000C06B5161}"sv))
         {
             return STATUS_NOT_SUPPORTED;
         }
 
         bool is_knowndll = (attributes.RootDirectory == KNOWN_DLLS32_DIRECTORY ||
-                            utils::string::starts_with_ignore_case(filename_sv, u"\\KnownDlls32\\"sv)) ||
+                            utils::string::starts_with_ignore_case(filename, u"\\KnownDlls32\\"sv)) ||
                            attributes.RootDirectory == KNOWN_DLLS_DIRECTORY ||
-                           utils::string::starts_with_ignore_case(filename_sv, u"\\KnownDlls\\"sv);
+                           utils::string::starts_with_ignore_case(filename, u"\\KnownDlls\\"sv);
 
         if (!is_knowndll && attributes.RootDirectory != BASE_NAMED_OBJECTS_DIRECTORY)
         {
@@ -126,19 +125,21 @@ namespace syscalls
         if (is_knowndll)
         {
             bool is_knowndll32 = attributes.RootDirectory == KNOWN_DLLS32_DIRECTORY ||
-                                 utils::string::starts_with_ignore_case(filename_sv, u"\\KnownDlls32"sv);
+                                 utils::string::starts_with_ignore_case(filename, u"\\KnownDlls32\\"sv);
 
-            if (utils::string::starts_with_ignore_case(filename_sv, u"\\KnownDlls32\\"sv))
+            std::u16string knowndll_name = filename;
+
+            if (utils::string::starts_with_ignore_case(filename, u"\\KnownDlls32\\"sv))
             {
-                filename = filename_sv.substr(13, filename.length() - 13);
+                knowndll_name = filename.substr(13, filename.length() - 13);
             }
 
-            else if (utils::string::starts_with_ignore_case(filename_sv, u"\\KnownDlls\\"sv))
+            else if (utils::string::starts_with_ignore_case(filename, u"\\KnownDlls\\"sv))
             {
-                filename = filename_sv.substr(11, filename.length() - 11);
+                knowndll_name = filename.substr(11, filename.length() - 11);
             }
 
-            auto section = c.win_emu.process.get_knowndll_section_by_name(filename, is_knowndll32);
+            auto section = c.win_emu.process.get_knowndll_section_by_name(knowndll_name, is_knowndll32);
             if (!section.has_value())
             {
                 return STATUS_OBJECT_NAME_NOT_FOUND;
@@ -150,7 +151,7 @@ namespace syscalls
 
         for (auto& [handle, section] : c.proc.sections)
         {
-            if (section.is_image() && utils::string::equals_ignore_case(section.file_name, filename))
+            if (section.is_image() && utils::string::equals_ignore_case(section.name, filename))
             {
                 section_handle.write(c.proc.sections.make_handle(handle));
                 return STATUS_SUCCESS;

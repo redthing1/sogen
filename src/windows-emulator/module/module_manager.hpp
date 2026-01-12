@@ -159,7 +159,7 @@ class module_manager
     mapped_module* executable{};
     mapped_module* ntdll{};
     mapped_module* win32u{};
-    std::map<std::filesystem::path, uint64_t> module_load_count;
+    std::map<std::filesystem::path, uint64_t> modules_load_count;
 
     // WOW64-specific modules (for validation and future use)
     struct wow64_modules

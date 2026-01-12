@@ -3,8 +3,9 @@
 
 #include "emulator_utils.hpp"
 #include "windows_emulator.hpp"
-#include "utils/io.hpp"
-#include "utils/buffer_accessor.hpp"
+
+#include <utils/io.hpp>
+#include <utils/buffer_accessor.hpp>
 
 namespace
 {
@@ -205,9 +206,9 @@ namespace
         return 0;
     }
 
-    std::unordered_map<std::u16string, std::u16string> get_apiset_namespace_table(const API_SET_NAMESPACE* api_set_map)
+    apiset_map get_apiset_namespace_table(const API_SET_NAMESPACE* api_set_map)
     {
-        std::unordered_map<std::u16string, std::u16string> apiset;
+        apiset_map apiset;
 
         for (size_t i = 0; i < api_set_map->Count; i++)
         {
@@ -580,6 +581,7 @@ void process_context::serialize(utils::buffer_serializer& buffer) const
     buffer.write(this->timers);
     buffer.write(this->registry_keys);
     buffer.write_map(this->atoms);
+    buffer.write_map(this->apiset);
     buffer.write_map(this->knowndlls32_sections);
     buffer.write_map(this->knowndlls64_sections);
 
@@ -633,6 +635,7 @@ void process_context::deserialize(utils::buffer_deserializer& buffer)
     buffer.read(this->timers);
     buffer.read(this->registry_keys);
     buffer.read_map(this->atoms);
+    buffer.read_map(this->apiset);
     buffer.read_map(this->knowndlls32_sections);
     buffer.read_map(this->knowndlls64_sections);
 
@@ -814,7 +817,6 @@ void process_context::build_knowndlls_section_table(registry_manager& registry, 
         return;
     }
 
-    local_system_root_path = file_system.translate(system_root_path);
     for (size_t i = 0; const auto value_opt = registry.get_value(*knowndlls_key, i); i++)
     {
         const auto& value = *value_opt;
@@ -838,7 +840,7 @@ void process_context::build_knowndlls_section_table(registry_manager& registry, 
 
         auto known_dll_name = std::u16string(data_ptr, char_count - 1);
         auto known_dll_path = system_root_path / known_dll_name;
-        auto local_known_dll_path = local_system_root_path / known_dll_name;
+        auto local_known_dll_path = file_system.translate(system_root_path / known_dll_name);
 
         if (!std::filesystem::exists(local_known_dll_path))
         {
@@ -884,16 +886,14 @@ void process_context::build_knowndlls_section_table(registry_manager& registry, 
                 break;
             }
 
-            auto known_dll_dep_name =
-                buffer.as_string(static_cast<size_t>(rva_to_file_offset(import_directory_vbase, import_directory_rbase, descriptor.Name)));
+            auto known_dll_dep_name = u8_to_u16(
+                buffer.as_string(static_cast<size_t>(rva_to_file_offset(import_directory_vbase, import_directory_rbase, descriptor.Name))));
 
-            auto known_dll_dep_name_16 = u8_to_u16(known_dll_dep_name);
-
-            if (known_dll_dep_name_16.starts_with(u"api-") || known_dll_dep_name_16.starts_with(u"ext-"))
+            if (known_dll_dep_name.starts_with(u"api-") || known_dll_dep_name.starts_with(u"ext-"))
             {
-                if (this->apiset.contains(known_dll_dep_name_16))
+                if (this->apiset.contains(known_dll_dep_name))
                 {
-                    known_dll_dep_name_16 = apiset[known_dll_dep_name_16];
+                    known_dll_dep_name = apiset[known_dll_dep_name];
                 }
                 else
                 {
@@ -901,14 +901,14 @@ void process_context::build_knowndlls_section_table(registry_manager& registry, 
                 }
             }
 
-            if (is_knowndll_section_exists(known_dll_dep_name_16, is_32bit))
+            if (is_knowndll_section_exists(known_dll_dep_name, is_32bit))
             {
                 continue;
             }
 
             {
-                auto local_known_dll_dep_path = local_system_root_path / known_dll_dep_name_16;
-                auto known_dll_dep_path = system_root_path / known_dll_dep_name_16;
+                auto known_dll_dep_path = system_root_path / known_dll_dep_name;
+                auto local_known_dll_dep_path = file_system.translate(system_root_path / known_dll_dep_name);
                 auto known_dll_dep_file = utils::io::read_file(local_known_dll_dep_path);
 
                 section s;
@@ -917,7 +917,7 @@ void process_context::build_knowndlls_section_table(registry_manager& registry, 
                 s.allocation_attributes = SEC_IMAGE;
                 s.section_page_protection = PAGE_EXECUTE;
                 s.cache_image_info_from_filedata(known_dll_dep_file);
-                this->add_knowndll_section(known_dll_dep_name_16, s, is_32bit);
+                this->add_knowndll_section(known_dll_dep_name, s, is_32bit);
             }
         }
     }

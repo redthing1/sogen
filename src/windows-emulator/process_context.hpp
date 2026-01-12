@@ -35,7 +35,7 @@ struct emulator_settings;
 struct application_settings;
 
 using knowndlls_map = std::map<std::u16string, section>;
-using apiset_map = std::unordered_map<std::u16string, std::u16string>;
+using apiset_map = std::map<std::u16string, std::u16string>;
 struct process_context
 {
     struct callbacks
