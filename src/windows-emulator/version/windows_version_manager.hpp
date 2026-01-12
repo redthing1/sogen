@@ -29,8 +29,6 @@ class windows_version_manager
     bool is_build_within(uint32_t start_build, uint32_t end_build, std::optional<uint32_t> start_ubr = std::nullopt,
                          std::optional<uint32_t> end_ubr = std::nullopt) const;
 
-    uint64_t get_system_dll_init_block_size() const;
-
     void serialize(utils::buffer_serializer& buffer) const;
     void deserialize(utils::buffer_deserializer& buffer);
 

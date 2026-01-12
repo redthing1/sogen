@@ -13,6 +13,30 @@
 #include <algorithm>
 #include <vector>
 
+namespace
+{
+    uint64_t get_system_dll_init_block_size(const windows_version_manager& version)
+    {
+        if (version.is_build_after_or_equal(WINDOWS_VERSION::WINDOWS_11_24H2))
+        {
+            return PS_SYSTEM_DLL_INIT_BLOCK_SIZE_V3;
+        }
+        if (version.is_build_after_or_equal(WINDOWS_VERSION::WINDOWS_10_2004))
+        {
+            return PS_SYSTEM_DLL_INIT_BLOCK_SIZE_V3_2004;
+        }
+        if (version.is_build_after_or_equal(WINDOWS_VERSION::WINDOWS_10_1709))
+        {
+            return PS_SYSTEM_DLL_INIT_BLOCK_SIZE_V2;
+        }
+        if (version.is_build_after_or_equal(WINDOWS_VERSION::WINDOWS_10_1703))
+        {
+            return PS_SYSTEM_DLL_INIT_BLOCK_SIZE_V2_1703;
+        }
+        return PS_SYSTEM_DLL_INIT_BLOCK_SIZE_V1;
+    }
+}
+
 namespace utils
 {
     static void serialize(buffer_serializer& buffer, const exported_symbol& sym)
@@ -282,7 +306,7 @@ void module_manager::load_wow64_modules(const windows_path& executable_path, con
     }
 
     PS_SYSTEM_DLL_INIT_BLOCK init_block = {};
-    const auto init_block_size = version.get_system_dll_init_block_size();
+    const auto init_block_size = get_system_dll_init_block_size(version);
 
     init_block.Size = static_cast<ULONG>(init_block_size);
 

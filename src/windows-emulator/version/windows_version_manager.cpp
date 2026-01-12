@@ -100,27 +100,6 @@ bool windows_version_manager::is_build_within(uint32_t start_build, uint32_t end
     return is_build_after_or_equal(start_build, start_ubr) && is_build_before(end_build, end_ubr);
 }
 
-uint64_t windows_version_manager::get_system_dll_init_block_size() const
-{
-    if (is_build_after_or_equal(WINDOWS_VERSION::WINDOWS_11_24H2))
-    {
-        return PS_SYSTEM_DLL_INIT_BLOCK_SIZE_V3;
-    }
-    if (is_build_after_or_equal(WINDOWS_VERSION::WINDOWS_10_2004))
-    {
-        return PS_SYSTEM_DLL_INIT_BLOCK_SIZE_V3_2004;
-    }
-    if (is_build_after_or_equal(WINDOWS_VERSION::WINDOWS_10_1709))
-    {
-        return PS_SYSTEM_DLL_INIT_BLOCK_SIZE_V2;
-    }
-    if (is_build_after_or_equal(WINDOWS_VERSION::WINDOWS_10_1703))
-    {
-        return PS_SYSTEM_DLL_INIT_BLOCK_SIZE_V2_1703;
-    }
-    return PS_SYSTEM_DLL_INIT_BLOCK_SIZE_V1;
-}
-
 void windows_version_manager::serialize(utils::buffer_serializer& buffer) const
 {
     buffer.write(info_.major_version);
