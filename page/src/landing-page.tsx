@@ -91,7 +91,7 @@ export function LandingPage() {
       icon: <Shield className="h-6 w-6" />,
       title: "Security Research",
       description:
-        "Analyze malware and security vulnerabilities in a controlled environment",
+        "Analyze security vulnerabilities in a controlled environment",
     },
     {
       icon: <Lock className="h-6 w-6" />,

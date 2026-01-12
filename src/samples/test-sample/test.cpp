@@ -509,6 +509,74 @@ namespace
         return true;
     }
 
+    bool validate_primary_monitor(MONITORINFOEXA& mi)
+    {
+        if (std::string_view(mi.szDevice) != R"(\\.\DISPLAY1)")
+        {
+            return false;
+        }
+
+        if (mi.rcMonitor.left != 0 || mi.rcMonitor.top != 0 || mi.rcMonitor.right != 1920 || mi.rcMonitor.bottom != 1080)
+        {
+            return false;
+        }
+
+        if (!(mi.dwFlags & MONITORINFOF_PRIMARY))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    bool test_monitor_info()
+    {
+        const POINT pt = {0, 0};
+        const auto hMonitor = MonitorFromPoint(pt, MONITOR_DEFAULTTOPRIMARY);
+        if (!hMonitor)
+        {
+            return false;
+        }
+
+        MONITORINFOEXA mi;
+        mi.cbSize = sizeof(mi);
+
+        if (!GetMonitorInfoA(hMonitor, &mi))
+        {
+            return false;
+        }
+
+        return validate_primary_monitor(mi);
+    }
+
+    BOOL CALLBACK monitor_enum_proc(HMONITOR hMonitor, HDC, LPRECT, LPARAM dwData)
+    {
+        auto* valid = reinterpret_cast<bool*>(dwData);
+
+        MONITORINFOEXA mi;
+        mi.cbSize = sizeof(mi);
+
+        if (!GetMonitorInfoA(hMonitor, &mi))
+        {
+            return FALSE;
+        }
+
+        *valid = validate_primary_monitor(mi);
+
+        return *valid ? TRUE : FALSE;
+    }
+
+    bool test_user_callback()
+    {
+        bool valid = false;
+        if (!EnumDisplayMonitors(nullptr, nullptr, monitor_enum_proc, reinterpret_cast<LPARAM>(&valid)))
+        {
+            return false;
+        }
+
+        return valid;
+    }
+
     bool test_time_zone()
     {
         DYNAMIC_TIME_ZONE_INFORMATION current_dtzi = {};
@@ -908,6 +976,7 @@ int main(const int argc, const char* argv[])
     RUN_TEST(test_working_directory, "Working Directory")
     RUN_TEST(test_registry, "Registry")
     RUN_TEST(test_system_info, "System Info")
+    RUN_TEST(test_monitor_info, "Monitor Info")
     RUN_TEST(test_time_zone, "Time Zone")
     RUN_TEST(test_threads, "Threads")
     RUN_TEST(test_threads_winapi, "Threads WinAPI")
@@ -921,9 +990,9 @@ int main(const int argc, const char* argv[])
         RUN_TEST(test_interrupts, "Interrupts")
     }
     RUN_TEST(test_tls, "TLS")
-
     RUN_TEST(test_socket, "Socket")
     RUN_TEST(test_apc, "APC")
+    RUN_TEST(test_user_callback, "User Callback")
 
     return valid ? 0 : 1;
 }

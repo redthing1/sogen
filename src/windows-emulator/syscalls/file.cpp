@@ -1020,7 +1020,8 @@ namespace syscalls
             return STATUS_OBJECT_NAME_NOT_FOUND;
         }
 
-        const bool is_directory = std::filesystem::is_directory(c.win_emu.file_sys.translate(path), ec);
+        const auto host_path = c.win_emu.file_sys.translate(path);
+        const bool is_directory = std::filesystem::is_directory(host_path, ec);
 
         if (is_directory || create_options & FILE_DIRECTORY_FILE)
         {
@@ -1028,7 +1029,7 @@ namespace syscalls
 
             if (create_disposition & FILE_CREATE)
             {
-                create_directory(c.win_emu.file_sys.translate(path), ec);
+                create_directory(host_path, ec);
 
                 if (ec)
                 {
@@ -1047,6 +1048,27 @@ namespace syscalls
         }
 
         c.win_emu.callbacks.on_generic_access("Opening file", f.name);
+
+        const bool file_exists = std::filesystem::exists(host_path, ec);
+
+        if (create_disposition == FILE_CREATE && file_exists)
+        {
+            return STATUS_OBJECT_NAME_COLLISION;
+        }
+
+        if ((create_disposition == FILE_OVERWRITE || create_disposition == FILE_OPEN) && !file_exists)
+        {
+            return STATUS_OBJECT_NAME_NOT_FOUND;
+        }
+
+        if (create_disposition == FILE_OPEN_IF && !file_exists)
+        {
+            std::ofstream touch(host_path, std::ios::binary | std::ios::app);
+            if (!touch)
+            {
+                return STATUS_ACCESS_DENIED;
+            }
+        }
 
         std::u16string mode = map_mode(desired_access, create_disposition);
 

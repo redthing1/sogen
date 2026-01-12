@@ -7,6 +7,8 @@
 #include <system_error>
 #include <variant>
 
+#include "primitives.hpp"
+
 // NOLINTBEGIN(modernize-use-using,cppcoreguidelines-avoid-c-arrays,hicpp-avoid-c-arrays,modernize-avoid-c-arrays)
 
 #define IMAGE_DIRECTORY_ENTRY_EXPORT          0 // Export Directory

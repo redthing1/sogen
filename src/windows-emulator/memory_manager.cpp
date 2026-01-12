@@ -122,6 +122,7 @@ memory_stats memory_manager::compute_memory_stats() const
 void memory_manager::serialize_memory_state(utils::buffer_serializer& buffer, const bool is_snapshot) const
 {
     buffer.write_atomic(this->layout_version_);
+    buffer.write(this->default_allocation_address_);
     buffer.write_map(this->reserved_regions_);
 
     if (is_snapshot)
@@ -157,6 +158,7 @@ void memory_manager::deserialize_memory_state(utils::buffer_deserializer& buffer
     }
 
     buffer.read_atomic(this->layout_version_);
+    buffer.read(this->default_allocation_address_);
     buffer.read_map(this->reserved_regions_);
 
     if (is_snapshot)
@@ -341,6 +343,10 @@ bool memory_manager::commit_memory(const uint64_t address, const size_t size, co
                 this->map_memory(map_start, static_cast<size_t>(map_length), effective_permission);
                 committed_regions[map_start] = committed_region{static_cast<size_t>(map_length), permissions};
             }
+
+            // Update protection for existing committed region when re-committing
+            this->apply_memory_protection(sub_region.first, sub_region.second.length, effective_permission);
+            sub_region.second.permissions = permissions;
 
             last_region_start = sub_region.first;
             last_region = &sub_region.second;
