@@ -92,6 +92,8 @@ namespace syscalls
             return u"Window";
         case handle_types::timer:
             return u"Timer";
+        case handle_types::desktop:
+            return u"Desktop";
         default:
             return u"";
         }

@@ -444,12 +444,15 @@ void process_context::serialize(utils::buffer_serializer& buffer) const
     buffer.write(this->ldr_initialize_thunk);
     buffer.write(this->rtl_user_thread_start);
     buffer.write_optional(this->rtl_user_thread_start32);
+    buffer.write(this->wow64_ki_user_callback_dispatcher);
     buffer.write(this->ki_user_apc_dispatcher);
     buffer.write(this->ki_user_exception_dispatcher);
     buffer.write(this->instrumentation_callback);
     buffer.write(this->gdi_shared_table_address);
     buffer.write(this->gdi_cookie);
     buffer.write(this->gdi_next_handle_index);
+    buffer.write(this->win32k_shared);
+    buffer.write(this->default_desktop);
 
     buffer.write(this->events);
     buffer.write(this->files);
@@ -459,6 +462,7 @@ void process_context::serialize(utils::buffer_serializer& buffer) const
     buffer.write(this->ports);
     buffer.write(this->mutants);
     buffer.write(this->windows);
+    buffer.write(this->desktops);
     buffer.write(this->timers);
     buffer.write(this->registry_keys);
     buffer.write_map(this->atoms);
@@ -493,12 +497,15 @@ void process_context::deserialize(utils::buffer_deserializer& buffer)
     buffer.read(this->ldr_initialize_thunk);
     buffer.read(this->rtl_user_thread_start);
     buffer.read_optional(this->rtl_user_thread_start32);
+    buffer.read(this->wow64_ki_user_callback_dispatcher);
     buffer.read(this->ki_user_apc_dispatcher);
     buffer.read(this->ki_user_exception_dispatcher);
     buffer.read(this->instrumentation_callback);
     buffer.read(this->gdi_shared_table_address);
     buffer.read(this->gdi_cookie);
     buffer.read(this->gdi_next_handle_index);
+    buffer.read(this->win32k_shared);
+    buffer.read(this->default_desktop);
 
     buffer.read(this->events);
     buffer.read(this->files);
@@ -508,6 +515,7 @@ void process_context::deserialize(utils::buffer_deserializer& buffer)
     buffer.read(this->ports);
     buffer.read(this->mutants);
     buffer.read(this->windows);
+    buffer.read(this->desktops);
     buffer.read(this->timers);
     buffer.read(this->registry_keys);
     buffer.read_map(this->atoms);
@@ -547,6 +555,8 @@ generic_handle_store* process_context::get_handle_store(const handle handle)
         return &registry_keys;
     case handle_types::mutant:
         return &mutants;
+    case handle_types::desktop:
+        return &desktops;
     case handle_types::port:
         return &ports;
     case handle_types::section:

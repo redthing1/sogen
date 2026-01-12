@@ -982,6 +982,40 @@ struct GDI_SHARED_MEMORY64
 
 static_assert(offsetof(GDI_SHARED_MEMORY64, Objects) == 0x1800B0);
 
+struct WIN32K_USERCONNECT32
+{
+    uint32_t psi;               // 0x000
+    uint8_t reserved0[0x1C];    // 0x004
+    uint32_t ahe_list;          // 0x020
+    uint32_t reserved1;         // 0x024
+    uint32_t he_entry_size;     // 0x028
+    uint32_t reserved2;         // 0x02C
+    uint32_t monitor_info;      // 0x030
+    uint32_t reserved3;         // 0x034
+    uint32_t shared_delta_low;  // 0x038
+    uint32_t shared_delta_high; // 0x03C
+    uint8_t wndmsg_table[0xC8]; // 0x040
+    uint32_t wndmsg_count;      // 0x108
+    uint32_t reserved4;         // 0x10C
+    uint32_t wndmsg_bits;       // 0x110
+    uint32_t reserved5;         // 0x114
+    uint32_t ime_msg_count;     // 0x118
+    uint32_t reserved6;         // 0x11C
+    uint32_t ime_msg_bits;      // 0x120
+    uint8_t reserved7[0x114];   // 0x124
+};
+
+static_assert(sizeof(WIN32K_USERCONNECT32) == 0x238);
+static_assert(offsetof(WIN32K_USERCONNECT32, ahe_list) == 0x20);
+static_assert(offsetof(WIN32K_USERCONNECT32, he_entry_size) == 0x28);
+static_assert(offsetof(WIN32K_USERCONNECT32, monitor_info) == 0x30);
+static_assert(offsetof(WIN32K_USERCONNECT32, shared_delta_low) == 0x38);
+static_assert(offsetof(WIN32K_USERCONNECT32, wndmsg_table) == 0x40);
+static_assert(offsetof(WIN32K_USERCONNECT32, wndmsg_count) == 0x108);
+static_assert(offsetof(WIN32K_USERCONNECT32, wndmsg_bits) == 0x110);
+static_assert(offsetof(WIN32K_USERCONNECT32, ime_msg_count) == 0x118);
+static_assert(offsetof(WIN32K_USERCONNECT32, ime_msg_bits) == 0x120);
+
 struct CLIENT_ID32
 {
     ULONG UniqueProcess;

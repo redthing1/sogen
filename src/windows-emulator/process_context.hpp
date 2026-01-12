@@ -14,6 +14,7 @@
 #include "windows_objects.hpp"
 #include "emulator_thread.hpp"
 #include "port.hpp"
+#include "win32k_shared_state.hpp"
 
 #include "apiset/apiset.hpp"
 
@@ -92,6 +93,7 @@ struct process_context
     uint64_t gdi_shared_table_address{0};
     uint32_t gdi_cookie{0};
     uint32_t gdi_next_handle_index{0x2000};
+    win32k_shared_state win32k_shared{};
 
     generic_handle_store* get_handle_store(handle handle);
 
@@ -116,6 +118,7 @@ struct process_context
     uint64_t ki_user_apc_dispatcher{};
     uint64_t ki_user_exception_dispatcher{};
     uint64_t instrumentation_callback{};
+    uint64_t wow64_ki_user_callback_dispatcher{};
 
     // For WOW64 processes
     std::optional<emulator_object<PEB32>> peb32;
@@ -129,6 +132,8 @@ struct process_context
     handle_store<handle_types::semaphore, semaphore> semaphores{};
     handle_store<handle_types::port, port_container> ports{};
     handle_store<handle_types::mutant, mutant> mutants{};
+    handle default_desktop{};
+    handle_store<handle_types::desktop, desktop> desktops{};
     handle_store<handle_types::window, window> windows{};
     handle_store<handle_types::timer, timer> timers{};
     handle_store<handle_types::registry, registry_key, 2> registry_keys{};

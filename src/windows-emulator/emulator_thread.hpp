@@ -95,6 +95,12 @@ class emulator_thread : public ref_counted_object
 
     std::optional<NTSTATUS> pending_status{};
 
+    uint64_t win32k_thread_info{0};
+    handle win32k_desktop{};
+    uint64_t win32k_callback_buffer{0};
+    bool win32k_thread_setup_pending{false};
+    bool win32k_thread_setup_done{false};
+
     std::optional<emulator_allocator> gs_segment;
     std::optional<emulator_object<TEB64>> teb64;                          // Native 64-bit TEB
     std::optional<emulator_object<TEB32>> teb32;                          // WOW64 32-bit TEB
@@ -177,6 +183,11 @@ class emulator_thread : public ref_counted_object
         buffer.write_vector(this->pending_apcs);
 
         buffer.write_optional(this->pending_status);
+        buffer.write(this->win32k_thread_info);
+        buffer.write(this->win32k_desktop);
+        buffer.write(this->win32k_callback_buffer);
+        buffer.write(this->win32k_thread_setup_pending);
+        buffer.write(this->win32k_thread_setup_done);
         buffer.write_optional(this->gs_segment);
         buffer.write_optional(this->teb64);
         buffer.write_optional(this->wow64_stack_base);
@@ -225,6 +236,11 @@ class emulator_thread : public ref_counted_object
         buffer.read_vector(this->pending_apcs);
 
         buffer.read_optional(this->pending_status);
+        buffer.read(this->win32k_thread_info);
+        buffer.read(this->win32k_desktop);
+        buffer.read(this->win32k_callback_buffer);
+        buffer.read(this->win32k_thread_setup_pending);
+        buffer.read(this->win32k_thread_setup_done);
         buffer.read_optional(this->gs_segment, [this] { return emulator_allocator(*this->memory_ptr); });
         buffer.read_optional(this->teb64, [this] { return emulator_object<TEB64>(*this->memory_ptr); });
         buffer.read_optional(this->wow64_stack_base);
