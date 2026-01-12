@@ -14,6 +14,7 @@
 #include "windows_objects.hpp"
 #include "emulator_thread.hpp"
 #include "port.hpp"
+#include "user_handle_table.hpp"
 
 #include "apiset/apiset.hpp"
 
@@ -66,13 +67,16 @@ struct process_context
           base_allocator(emu),
           peb64(emu),
           process_params64(emu),
-          kusd(memory, clock)
+          kusd(memory, clock),
+          user_handles(memory)
     {
     }
 
     void setup(x86_64_emulator& emu, memory_manager& memory, registry_manager& registry, const application_settings& app_settings,
                const mapped_module& executable, const mapped_module& ntdll, const apiset::container& apiset_container,
                const mapped_module* ntdll32 = nullptr);
+
+    void setup_callback_hook(windows_emulator& win_emu, memory_manager& memory);
 
     handle create_thread(memory_manager& memory, uint64_t start_address, uint64_t argument, uint64_t stack_size, uint32_t create_flags,
                          bool initial_thread = false);
@@ -86,6 +90,8 @@ struct process_context
     void serialize(utils::buffer_serializer& buffer) const;
     void deserialize(utils::buffer_deserializer& buffer);
 
+    generic_handle_store* get_handle_store(handle handle);
+
     // WOW64 support flag - set during process setup based on executable architecture
     bool is_wow64_process{false};
 
@@ -93,6 +99,13 @@ struct process_context
     uint32_t gdi_cookie{0};
 
     generic_handle_store* get_handle_store(handle handle);
+  
+    uint32_t windows_build_number{0};
+
+    bool is_older_windows_build() const
+    {
+        return windows_build_number < 26040;
+    }
 
     callbacks* callbacks_{};
 
@@ -121,6 +134,8 @@ struct process_context
     std::optional<emulator_object<RTL_USER_PROCESS_PARAMETERS32>> process_params32;
     std::optional<uint64_t> rtl_user_thread_start32{};
 
+    user_handle_table user_handles;
+    handle default_monitor_handle{};
     handle_store<handle_types::event, event> events{};
     handle_store<handle_types::file, file> files{};
     handle_store<handle_types::section, section> sections{};
@@ -128,7 +143,7 @@ struct process_context
     handle_store<handle_types::semaphore, semaphore> semaphores{};
     handle_store<handle_types::port, port_container> ports{};
     handle_store<handle_types::mutant, mutant> mutants{};
-    handle_store<handle_types::window, window> windows{};
+    user_handle_store<handle_types::window, window> windows{user_handles};
     handle_store<handle_types::timer, timer> timers{};
     handle_store<handle_types::registry, registry_key, 2> registry_keys{};
     std::map<uint16_t, atom_entry> atoms{};
@@ -138,6 +153,8 @@ struct process_context
     uint32_t spawned_thread_count{0};
     handle_store<handle_types::thread, emulator_thread> threads{};
     emulator_thread* active_thread{nullptr};
+
+    emulator_pointer callback_sentinel_addr{0};
 
     // Extended parameters from last NtMapViewOfSectionEx call
     // These can be used by other syscalls like NtAllocateVirtualMemoryEx

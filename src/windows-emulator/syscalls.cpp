@@ -3,6 +3,7 @@
 #include "cpu_context.hpp"
 #include "emulator_utils.hpp"
 #include "syscall_utils.hpp"
+#include "user_callback_dispatch.hpp"
 
 #include <numeric>
 #include <cwctype>
@@ -155,8 +156,11 @@ namespace syscalls
     NTSTATUS handle_NtQueryObject(const syscall_context& c, handle handle, OBJECT_INFORMATION_CLASS object_information_class,
                                   emulator_pointer object_information, ULONG object_information_length,
                                   emulator_object<ULONG> return_length);
+    NTSTATUS handle_NtCompareObjects(const syscall_context& c, handle first, handle second);
     NTSTATUS handle_NtWaitForMultipleObjects(const syscall_context& c, ULONG count, emulator_object<handle> handles, WAIT_TYPE wait_type,
                                              BOOLEAN alertable, emulator_object<LARGE_INTEGER> timeout);
+    NTSTATUS handle_NtWaitForMultipleObjects32(const syscall_context& c, ULONG count, emulator_object<uint32_t> handles,
+                                               WAIT_TYPE wait_type, BOOLEAN alertable, emulator_object<LARGE_INTEGER> timeout);
     NTSTATUS handle_NtWaitForSingleObject(const syscall_context& c, handle h, BOOLEAN alertable, emulator_object<LARGE_INTEGER> timeout);
     NTSTATUS handle_NtSetInformationObject();
     NTSTATUS handle_NtQuerySecurityObject(const syscall_context& c, handle /*h*/, SECURITY_INFORMATION /*security_information*/,
@@ -230,6 +234,9 @@ namespace syscalls
                                     emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>> value_name,
                                     KEY_VALUE_INFORMATION_CLASS key_value_information_class, uint64_t key_value_information, ULONG length,
                                     emulator_object<ULONG> result_length);
+    NTSTATUS handle_NtQueryMultipleValueKey(const syscall_context& c, handle key_handle, emulator_object<KEY_VALUE_ENTRY> value_entries,
+                                            ULONG entry_count, uint64_t value_buffer, emulator_object<ULONG> buffer_length,
+                                            emulator_object<ULONG> required_buffer_length);
     NTSTATUS handle_NtCreateKey(const syscall_context& c, emulator_object<handle> key_handle, ACCESS_MASK desired_access,
                                 emulator_object<OBJECT_ATTRIBUTES<EmulatorTraits<Emu64>>> object_attributes, ULONG /*title_index*/,
                                 emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>> /*class*/, ULONG /*create_options*/,
@@ -466,7 +473,7 @@ namespace syscalls
             return STATUS_INVALID_HANDLE;
         }
 
-        if (auto* e = c.win_emu.process.events.get(event))
+        if (auto* e = c.proc.events.get(event))
         {
             e->signaled = false;
         }
@@ -834,7 +841,7 @@ namespace syscalls
                                      const hwnd /*parent*/, const hmenu /*menu*/, const hinstance /*instance*/, const pointer /*l_param*/,
                                      const DWORD /*flags*/, const pointer /*acbi_buffer*/)
     {
-        window win{};
+        auto [handle, win] = c.proc.windows.create(c.win_emu.memory);
         win.x = x;
         win.y = y;
         win.width = width;
@@ -843,7 +850,7 @@ namespace syscalls
         win.class_name = read_large_string(class_name);
         win.name = read_large_string(window_name);
 
-        return c.proc.windows.store(std::move(win)).bits;
+        return handle.bits;
     }
 
     BOOL handle_NtUserDestroyWindow(const syscall_context& c, const hwnd window)
@@ -1001,6 +1008,47 @@ namespace syscalls
         return STATUS_UNSUCCESSFUL;
     }
 
+    BOOL handle_NtUserEnumDisplayMonitors(const syscall_context& c, const hdc hdc_in, const uint64_t clip_rect_ptr, const uint64_t callback,
+                                          const uint64_t param)
+    {
+        if (!callback)
+        {
+            return FALSE;
+        }
+
+        const auto hmon = c.win_emu.process.default_monitor_handle.bits;
+        const auto display_info = c.proc.user_handles.get_display_info().read();
+
+        if (clip_rect_ptr)
+        {
+            RECT clip{};
+            c.emu.read_memory(clip_rect_ptr, &clip, sizeof(clip));
+
+            const emulator_object<USER_MONITOR> monitor_obj(c.emu, display_info.pPrimaryMonitor);
+            const auto monitor = monitor_obj.read();
+
+            auto effective_rc{monitor.rcMonitor};
+            effective_rc.left = std::max(effective_rc.left, clip.left);
+            effective_rc.top = std::max(effective_rc.top, clip.top);
+            effective_rc.right = std::min(effective_rc.right, clip.right);
+            effective_rc.bottom = std::min(effective_rc.bottom, clip.bottom);
+            if (effective_rc.right <= effective_rc.left || effective_rc.bottom <= effective_rc.top)
+            {
+                return TRUE;
+            }
+        }
+
+        const uint64_t rect_ptr = display_info.pPrimaryMonitor + offsetof(USER_MONITOR, rcMonitor);
+        dispatch_user_callback(c, callback_id::NtUserEnumDisplayMonitors, callback, hmon, hdc_in, rect_ptr, param);
+        return {};
+    }
+
+    BOOL completion_NtUserEnumDisplayMonitors(const syscall_context&, BOOL guest_result, const hdc /*hdc_in*/,
+                                              const uint64_t /*clip_rect_ptr*/, const uint64_t /*callback*/, const uint64_t /*param*/)
+    {
+        return guest_result;
+    }
+
     NTSTATUS handle_NtAssociateWaitCompletionPacket()
     {
         return STATUS_SUCCESS;
@@ -1029,6 +1077,32 @@ namespace syscalls
     NTSTATUS handle_NtNotifyChangeDirectoryFileEx()
     {
         return STATUS_NOT_SUPPORTED;
+    }
+
+    BOOL handle_NtUserGetHDevName(const syscall_context& c, handle hdev, emulator_pointer device_name)
+    {
+        if (hdev != c.proc.default_monitor_handle)
+        {
+            return FALSE;
+        }
+
+        const std::u16string name = u"\\\\.\\DISPLAY1";
+        c.emu.write_memory(device_name, name.c_str(), (name.size() + 1) * sizeof(char16_t));
+
+        return TRUE;
+    }
+
+    emulator_pointer handle_NtUserMapDesktopObject(const syscall_context& c, handle handle)
+    {
+        const auto index = handle.value.id;
+
+        if (index == 0 || index >= user_handle_table::MAX_HANDLES)
+        {
+            return 0;
+        }
+
+        const auto handle_entry = c.proc.user_handles.get_handle_table().read(static_cast<size_t>(index));
+        return handle_entry.pHead;
     }
 }
 
@@ -1143,6 +1217,7 @@ void syscall_dispatcher::add_handlers(std::map<std::string, syscall_handler>& ha
     add_handler(NtSetInformationFile);
     add_handler(NtUserRegisterWindowMessage);
     add_handler(NtQueryValueKey);
+    add_handler(NtQueryMultipleValueKey);
     add_handler(NtQueryKey);
     add_handler(NtGetNlsSectionPtr);
     add_handler(NtAccessCheck);
@@ -1151,8 +1226,10 @@ void syscall_dispatcher::add_handlers(std::map<std::string, syscall_handler>& ha
     add_handler(NtGetCurrentProcessorNumberEx);
     add_handler(NtGetCurrentProcessorNumber);
     add_handler(NtQueryObject);
+    add_handler(NtCompareObjects);
     add_handler(NtQueryAttributesFile);
     add_handler(NtWaitForMultipleObjects);
+    add_handler(NtWaitForMultipleObjects32);
     add_handler(NtCreateMutant);
     add_handler(NtReleaseMutant);
     add_handler(NtDuplicateToken);
@@ -1216,6 +1293,7 @@ void syscall_dispatcher::add_handlers(std::map<std::string, syscall_handler>& ha
     add_handler(NtUserGetKeyboardType);
     add_handler(NtUserEnumDisplayDevices);
     add_handler(NtUserEnumDisplaySettings);
+    add_handler(NtUserEnumDisplayMonitors);
     add_handler(NtUserSetProp);
     add_handler(NtUserSetProp2);
     add_handler(NtUserChangeWindowMessageFilterEx);
@@ -1243,6 +1321,21 @@ void syscall_dispatcher::add_handlers(std::map<std::string, syscall_handler>& ha
     add_handler(NtSetInformationDebugObject);
     add_handler(NtRemoveProcessDebug);
     add_handler(NtNotifyChangeDirectoryFileEx);
+    add_handler(NtUserGetHDevName);
+    add_handler(NtUserMapDesktopObject);
 
 #undef add_handler
+}
+
+void syscall_dispatcher::add_callbacks()
+{
+#define add_callback(syscall)                                                                                        \
+    do                                                                                                               \
+    {                                                                                                                \
+        this->callbacks_[callback_id::syscall] = make_callback_completion_handler<syscalls::completion_##syscall>(); \
+    } while (0)
+
+    add_callback(NtUserEnumDisplayMonitors);
+
+#undef add_callback
 }

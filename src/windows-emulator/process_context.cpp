@@ -176,12 +176,40 @@ namespace
 
         return env_map;
     }
+
+    uint32_t read_windows_build(registry_manager& registry)
+    {
+        const auto key = registry.get_key({R"(\Registry\Machine\Software\Microsoft\Windows NT\CurrentVersion)"});
+
+        if (!key)
+        {
+            return 0;
+        }
+
+        for (size_t i = 0; const auto value = registry.get_value(*key, i); ++i)
+        {
+            if (value->type != REG_SZ)
+            {
+                continue;
+            }
+
+            if (value->name == "CurrentBuildNumber" || value->name == "CurrentBuild")
+            {
+                const auto* s = reinterpret_cast<const char16_t*>(value->data.data());
+                return static_cast<uint32_t>(std::strtoul(u16_to_u8(s).c_str(), nullptr, 10));
+            }
+        }
+
+        return 0;
+    }
 }
 
 void process_context::setup(x86_64_emulator& emu, memory_manager& memory, registry_manager& registry,
                             const application_settings& app_settings, const mapped_module& executable, const mapped_module& ntdll,
                             const apiset::container& apiset_container, const mapped_module* ntdll32)
 {
+    this->windows_build_number = read_windows_build(registry);
+
     setup_gdt(emu, memory);
 
     this->kusd.setup();
@@ -423,6 +451,94 @@ void process_context::setup(x86_64_emulator& emu, memory_manager& memory, regist
     this->instrumentation_callback = 0;
 
     this->default_register_set = emu.save_registers();
+
+    this->user_handles.setup(is_wow64_process);
+
+    auto [h, monitor_obj] = this->user_handles.allocate_object<USER_MONITOR>(handle_types::monitor);
+    this->default_monitor_handle = h;
+    monitor_obj.access([&](USER_MONITOR& monitor) {
+        monitor.hmon = h.bits;
+        monitor.rcMonitor = {.left = 0, .top = 0, .right = 1920, .bottom = 1080};
+        monitor.rcWork = monitor.rcMonitor;
+        if (this->is_older_windows_build())
+        {
+            monitor.b20.monitorDpi = 96;
+            monitor.b20.nativeDpi = monitor.b20.monitorDpi;
+            monitor.b20.cachedDpi = monitor.b20.monitorDpi;
+            monitor.b20.rcMonitorDpiAware = monitor.rcMonitor;
+        }
+        else
+        {
+            monitor.b26.monitorDpi = 96;
+            monitor.b26.nativeDpi = monitor.b26.monitorDpi;
+        }
+    });
+
+    const auto user_display_info = this->user_handles.get_display_info();
+    user_display_info.access([&](USER_DISPINFO& display_info) {
+        display_info.dwMonitorCount = 1;
+        display_info.pPrimaryMonitor = monitor_obj.value();
+    });
+}
+
+void process_context::setup_callback_hook(windows_emulator& win_emu, memory_manager& memory)
+{
+    uint64_t sentinel_addr = this->callback_sentinel_addr;
+    if (!sentinel_addr)
+    {
+        using sentinel_type = std::array<uint8_t, 2>;
+        constexpr sentinel_type sentinel_opcodes{0x90, 0xC3}; // NOP, RET
+
+        auto sentinel_obj = this->base_allocator.reserve_page_aligned<sentinel_type>();
+        sentinel_addr = sentinel_obj.value();
+        this->callback_sentinel_addr = sentinel_addr;
+
+        win_emu.emu().write_memory(sentinel_addr, sentinel_opcodes.data(), sentinel_opcodes.size());
+
+        const auto sentinel_aligned_length = page_align_up(sentinel_addr + sentinel_opcodes.size()) - sentinel_addr;
+        memory.protect_memory(sentinel_addr, static_cast<size_t>(sentinel_aligned_length), memory_permission::all);
+    }
+
+    auto& emu = win_emu.emu();
+
+    emu.hook_memory_execution(sentinel_addr, [&](uint64_t) {
+        auto* t = this->active_thread;
+
+        if (!t || t->callback_stack.empty())
+        {
+            return;
+        }
+
+        const auto frame = t->callback_stack.back();
+        t->callback_stack.pop_back();
+
+        const auto callbacks_before = t->callback_stack.size();
+        const uint64_t guest_result = emu.reg(x86_register::rax);
+
+        emu.reg(x86_register::rip, frame.rip);
+        emu.reg(x86_register::rsp, frame.rsp);
+        emu.reg(x86_register::r10, frame.r10);
+        emu.reg(x86_register::rcx, frame.rcx);
+        emu.reg(x86_register::rdx, frame.rdx);
+        emu.reg(x86_register::r8, frame.r8);
+        emu.reg(x86_register::r9, frame.r9);
+
+        win_emu.dispatcher.dispatch_completion(win_emu, frame.handler_id, guest_result);
+
+        uint64_t target_rip = emu.reg(x86_register::rip);
+        emu.reg(x86_register::rip, this->callback_sentinel_addr + 1);
+
+        const bool new_callback_dispatched = t->callback_stack.size() > callbacks_before;
+        if (!new_callback_dispatched)
+        {
+            // Move past the syscall instruction
+            target_rip += 2;
+        }
+
+        const uint64_t ret_stack_ptr = emu.reg(x86_register::rsp) - sizeof(emulator_pointer);
+        emu.write_memory(ret_stack_ptr, &target_rip, sizeof(target_rip));
+        emu.reg(x86_register::rsp, ret_stack_ptr);
+    });
 }
 
 void process_context::serialize(utils::buffer_serializer& buffer) const
@@ -440,6 +556,7 @@ void process_context::serialize(utils::buffer_serializer& buffer) const
     buffer.write(this->kusd);
 
     buffer.write(this->is_wow64_process);
+    buffer.write(this->windows_build_number);
     buffer.write(this->ntdll_image_base);
     buffer.write(this->ldr_initialize_thunk);
     buffer.write(this->rtl_user_thread_start);
@@ -450,6 +567,8 @@ void process_context::serialize(utils::buffer_serializer& buffer) const
     buffer.write(this->gdi_shared_table_address);
     buffer.write(this->gdi_cookie);
 
+    buffer.write(this->user_handles);
+    buffer.write(this->default_monitor_handle);
     buffer.write(this->events);
     buffer.write(this->files);
     buffer.write(this->sections);
@@ -471,6 +590,8 @@ void process_context::serialize(utils::buffer_serializer& buffer) const
     buffer.write(this->threads);
 
     buffer.write(this->threads.find_handle(this->active_thread).bits);
+
+    buffer.write(this->callback_sentinel_addr);
 }
 
 void process_context::deserialize(utils::buffer_deserializer& buffer)
@@ -488,6 +609,7 @@ void process_context::deserialize(utils::buffer_deserializer& buffer)
     buffer.read(this->kusd);
 
     buffer.read(this->is_wow64_process);
+    buffer.read(this->windows_build_number);
     buffer.read(this->ntdll_image_base);
     buffer.read(this->ldr_initialize_thunk);
     buffer.read(this->rtl_user_thread_start);
@@ -498,6 +620,8 @@ void process_context::deserialize(utils::buffer_deserializer& buffer)
     buffer.read(this->gdi_shared_table_address);
     buffer.read(this->gdi_cookie);
 
+    buffer.read(this->user_handles);
+    buffer.read(this->default_monitor_handle);
     buffer.read(this->events);
     buffer.read(this->files);
     buffer.read(this->sections);
@@ -525,6 +649,8 @@ void process_context::deserialize(utils::buffer_deserializer& buffer)
     buffer.read(this->threads);
 
     this->active_thread = this->threads.get(buffer.read<uint64_t>());
+
+    buffer.read(this->callback_sentinel_addr);
 }
 
 generic_handle_store* process_context::get_handle_store(const handle handle)
@@ -567,7 +693,7 @@ std::optional<uint16_t> process_context::find_atom(const std::u16string_view nam
 {
     for (auto& entry : this->atoms)
     {
-        if (entry.second.name == name)
+        if (utils::string::equals_ignore_case(std::u16string_view{entry.second.name}, name))
         {
             ++entry.second.ref_count;
             return entry.first;
@@ -590,7 +716,7 @@ uint16_t process_context::add_or_find_atom(std::u16string name)
     std::optional<uint16_t> last_entry{};
     for (auto& entry : this->atoms)
     {
-        if (entry.second.name == name)
+        if (utils::string::equals_ignore_case(entry.second.name, name))
         {
             ++entry.second.ref_count;
             return entry.first;
@@ -624,7 +750,7 @@ bool process_context::delete_atom(const std::u16string& name)
 {
     for (auto it = atoms.begin(); it != atoms.end(); ++it)
     {
-        if (it->second.name == name)
+        if (utils::string::equals_ignore_case(it->second.name, name))
         {
             if (--it->second.ref_count == 0)
             {
