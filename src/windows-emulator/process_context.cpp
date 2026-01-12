@@ -538,7 +538,7 @@ void process_context::setup_callback_hook(windows_emulator& win_emu, memory_mana
             target_rip += 2;
         }
 
-        const uint64_t ret_stack_ptr = frame.rsp - sizeof(emulator_pointer);
+        const uint64_t ret_stack_ptr = emu.reg(x86_register::rsp) - sizeof(emulator_pointer);
         emu.write_memory(ret_stack_ptr, &target_rip, sizeof(target_rip));
         emu.reg(x86_register::rsp, ret_stack_ptr);
     });
@@ -698,7 +698,7 @@ std::optional<uint16_t> process_context::find_atom(const std::u16string_view nam
 {
     for (auto& entry : this->atoms)
     {
-        if (entry.second.name == name)
+        if (utils::string::equals_ignore_case(std::u16string_view{entry.second.name}, name))
         {
             ++entry.second.ref_count;
             return entry.first;
@@ -721,7 +721,7 @@ uint16_t process_context::add_or_find_atom(std::u16string name)
     std::optional<uint16_t> last_entry{};
     for (auto& entry : this->atoms)
     {
-        if (entry.second.name == name)
+        if (utils::string::equals_ignore_case(entry.second.name, name))
         {
             ++entry.second.ref_count;
             return entry.first;
@@ -755,7 +755,7 @@ bool process_context::delete_atom(const std::u16string& name)
 {
     for (auto it = atoms.begin(); it != atoms.end(); ++it)
     {
-        if (it->second.name == name)
+        if (utils::string::equals_ignore_case(it->second.name, name))
         {
             if (--it->second.ref_count == 0)
             {
