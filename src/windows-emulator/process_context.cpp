@@ -846,16 +846,20 @@ void process_context::build_knowndlls_section_table(registry_manager& registry, 
             continue;
         }
 
-        auto file = utils::io::read_file(local_known_dll_path);
+        std::vector<std::byte> file;
+
+        if (!utils::io::read_file(local_known_dll_path, &file))
         {
-            section s;
-            s.file_name = known_dll_path.u16string();
-            s.maximum_size = 0;
-            s.allocation_attributes = SEC_IMAGE;
-            s.section_page_protection = PAGE_EXECUTE;
-            s.cache_image_info_from_filedata(file);
-            this->add_knowndll_section(known_dll_name, s, is_32bit);
+            continue;
         }
+
+        section knowndll_section;
+        knowndll_section.file_name = known_dll_path.u16string();
+        knowndll_section.maximum_size = 0;
+        knowndll_section.allocation_attributes = SEC_IMAGE;
+        knowndll_section.section_page_protection = PAGE_EXECUTE;
+        knowndll_section.cache_image_info_from_filedata(file);
+        this->add_knowndll_section(known_dll_name, knowndll_section, is_32bit);
 
         utils::safe_buffer_accessor<const std::byte> buffer{file};
 
@@ -900,29 +904,33 @@ void process_context::build_knowndlls_section_table(registry_manager& registry, 
                 }
             }
 
-            if (is_knowndll_section_exists(known_dll_dep_name, is_32bit))
+            if (has_knowndll_section(known_dll_dep_name, is_32bit))
             {
                 continue;
             }
 
-            {
-                auto known_dll_dep_path = system_root_path / known_dll_dep_name;
-                auto local_known_dll_dep_path = file_system.translate(system_root_path / known_dll_dep_name);
-                auto known_dll_dep_file = utils::io::read_file(local_known_dll_dep_path);
+            auto known_dll_dep_path = system_root_path / known_dll_dep_name;
+            auto local_known_dll_dep_path = file_system.translate(system_root_path / known_dll_dep_name);
 
-                section s;
-                s.file_name = known_dll_dep_path.u16string();
-                s.maximum_size = 0;
-                s.allocation_attributes = SEC_IMAGE;
-                s.section_page_protection = PAGE_EXECUTE;
-                s.cache_image_info_from_filedata(known_dll_dep_file);
-                this->add_knowndll_section(known_dll_dep_name, s, is_32bit);
+            std::vector<std::byte> known_dll_dep_file;
+
+            if (!utils::io::read_file(local_known_dll_dep_path, &known_dll_dep_file))
+            {
+                continue;
             }
+
+            section knowndll_dep_section;
+            knowndll_dep_section.file_name = known_dll_dep_path.u16string();
+            knowndll_dep_section.maximum_size = 0;
+            knowndll_dep_section.allocation_attributes = SEC_IMAGE;
+            knowndll_dep_section.section_page_protection = PAGE_EXECUTE;
+            knowndll_dep_section.cache_image_info_from_filedata(known_dll_dep_file);
+            this->add_knowndll_section(known_dll_dep_name, knowndll_dep_section, is_32bit);
         }
     }
 }
 
-bool process_context::is_knowndll_section_exists(const std::u16string& name, bool is_32bit) const
+bool process_context::has_knowndll_section(const std::u16string& name, bool is_32bit) const
 {
     auto lname = utils::string::to_lower(name);
 
