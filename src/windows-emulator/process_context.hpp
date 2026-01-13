@@ -35,7 +35,6 @@ struct emulator_settings;
 struct application_settings;
 
 using knowndlls_map = std::map<std::u16string, section>;
-using apiset_map = std::map<std::u16string, std::u16string>;
 struct process_context
 {
     struct callbacks
@@ -90,7 +89,7 @@ struct process_context
     const std::u16string* get_atom_name(uint16_t atom_id) const;
 
     template <typename T>
-    void build_knowndlls_section_table(registry_manager& registry, const file_system& file_system, bool is_32bit);
+    void build_knowndlls_section_table(registry_manager& registry, const file_system& file_system, const apiset_map& apiset, bool is_32bit);
 
     std::optional<section> get_knowndll_section_by_name(const std::u16string& name, bool is_32bit) const;
     void add_knowndll_section(const std::u16string& name, const section& section, bool is_32bit);

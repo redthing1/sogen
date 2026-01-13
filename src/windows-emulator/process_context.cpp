@@ -205,34 +205,6 @@ namespace
 
         return 0;
     }
-
-    apiset_map get_apiset_namespace_table(const API_SET_NAMESPACE* api_set_map)
-    {
-        apiset_map apiset;
-
-        for (size_t i = 0; i < api_set_map->Count; i++)
-        {
-            const auto* entry = reinterpret_cast<const API_SET_NAMESPACE_ENTRY*>(
-                reinterpret_cast<uint64_t>(api_set_map) + api_set_map->EntryOffset + i * sizeof(API_SET_NAMESPACE_ENTRY));
-
-            std::u16string name(reinterpret_cast<const char16_t*>(reinterpret_cast<uint64_t>(api_set_map) + entry->NameOffset),
-                                entry->NameLength / sizeof(char16_t));
-
-            if (!entry->ValueCount)
-            {
-                continue;
-            }
-
-            const auto* value = reinterpret_cast<const API_SET_VALUE_ENTRY*>(reinterpret_cast<uint64_t>(api_set_map) + entry->ValueOffset +
-                                                                             (entry->ValueCount - 1) * sizeof(API_SET_VALUE_ENTRY));
-            std::u16string base_name(reinterpret_cast<const char16_t*>(reinterpret_cast<uint64_t>(api_set_map) + value->ValueOffset),
-                                     value->ValueLength / sizeof(char16_t));
-
-            apiset[name + u".dll"] = base_name;
-        }
-
-        return apiset;
-    }
 }
 
 void process_context::setup(x86_64_emulator& emu, memory_manager& memory, registry_manager& registry, const file_system& file_system,
@@ -442,9 +414,9 @@ void process_context::setup(x86_64_emulator& emu, memory_manager& memory, regist
         }
     }
 
-    this->apiset = get_apiset_namespace_table(reinterpret_cast<const API_SET_NAMESPACE*>(apiset_container.data.data()));
-    this->build_knowndlls_section_table<uint32_t>(registry, file_system, true);
-    this->build_knowndlls_section_table<uint64_t>(registry, file_system, false);
+    this->apiset = apiset::get_namespace_table(reinterpret_cast<const API_SET_NAMESPACE*>(apiset_container.data.data()));
+    this->build_knowndlls_section_table<uint32_t>(registry, file_system, apiset, true);
+    this->build_knowndlls_section_table<uint64_t>(registry, file_system, apiset, false);
 
     this->ntdll_image_base = ntdll.image_base;
     this->ldr_initialize_thunk = ntdll.find_export("LdrInitializeThunk");
@@ -796,7 +768,8 @@ const std::u16string* process_context::get_atom_name(const uint16_t atom_id) con
 }
 
 template <typename T>
-void process_context::build_knowndlls_section_table(registry_manager& registry, const file_system& file_system, bool is_32bit)
+void process_context::build_knowndlls_section_table(registry_manager& registry, const file_system& file_system, const apiset_map& apiset,
+                                                    bool is_32bit)
 {
     windows_path system_root_path;
 
@@ -859,7 +832,7 @@ void process_context::build_knowndlls_section_table(registry_manager& registry, 
         knowndll_section.allocation_attributes = SEC_IMAGE;
         knowndll_section.section_page_protection = PAGE_EXECUTE;
         knowndll_section.cache_image_info_from_filedata(file);
-        this->add_knowndll_section(known_dll_name, knowndll_section, is_32bit);
+        add_knowndll_section(known_dll_name, knowndll_section, is_32bit);
 
         utils::safe_buffer_accessor<const std::byte> buffer{file};
 
@@ -894,10 +867,11 @@ void process_context::build_knowndlls_section_table(registry_manager& registry, 
 
             if (known_dll_dep_name.starts_with(u"api-") || known_dll_dep_name.starts_with(u"ext-"))
             {
-                if (this->apiset.contains(known_dll_dep_name))
+                if (auto apiset_entry = apiset.find(known_dll_dep_name); apiset_entry != apiset.end())
                 {
-                    known_dll_dep_name = apiset[known_dll_dep_name];
+                    known_dll_dep_name = apiset_entry->second;
                 }
+
                 else
                 {
                     continue;
@@ -925,7 +899,7 @@ void process_context::build_knowndlls_section_table(registry_manager& registry, 
             knowndll_dep_section.allocation_attributes = SEC_IMAGE;
             knowndll_dep_section.section_page_protection = PAGE_EXECUTE;
             knowndll_dep_section.cache_image_info_from_filedata(known_dll_dep_file);
-            this->add_knowndll_section(known_dll_dep_name, knowndll_dep_section, is_32bit);
+            add_knowndll_section(known_dll_dep_name, knowndll_dep_section, is_32bit);
         }
     }
 }
