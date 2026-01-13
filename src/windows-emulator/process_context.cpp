@@ -799,7 +799,6 @@ template <typename T>
 void process_context::build_knowndlls_section_table(registry_manager& registry, const file_system& file_system, bool is_32bit)
 {
     windows_path system_root_path;
-    std::filesystem::path local_system_root_path;
 
     if (is_32bit)
     {
