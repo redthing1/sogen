@@ -36,5 +36,5 @@ namespace apiset
 
     emulator_object<API_SET_NAMESPACE> clone(x86_64_emulator& emu, emulator_allocator& allocator, const container& container);
 
-    apiset_map get_namespace_table(const API_SET_NAMESPACE* api_set_map);
+    apiset_map get_namespace_table(const API_SET_NAMESPACE* apiset_ns_data);
 }
