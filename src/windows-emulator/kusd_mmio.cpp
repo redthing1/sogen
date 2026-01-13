@@ -1,6 +1,7 @@
 #include "std_include.hpp"
 #include "kusd_mmio.hpp"
 #include <utils/time.hpp>
+#include <utils/string.hpp>
 #include "windows_emulator.hpp"
 #include "version/windows_version_manager.hpp"
 
@@ -83,9 +84,7 @@ namespace
         kusd.ProcessorFeatures.arr[PF_RDPID_INSTRUCTION_AVAILABLE] = 0;
 
         const auto& system_root = version.get_system_root();
-        const auto& root_str = system_root.u16string();
-        const auto copy_size = std::min(root_str.size() * sizeof(char16_t), sizeof(kusd.NtSystemRoot.arr) - sizeof(char16_t));
-        memcpy(&kusd.NtSystemRoot.arr[0], root_str.data(), copy_size);
+        utils::string::copy(kusd.NtSystemRoot.arr, std::u16string_view{system_root.u16string()});
 
         kusd.ImageNumberLow = IMAGE_FILE_MACHINE_AMD64;
         kusd.ImageNumberHigh = IMAGE_FILE_MACHINE_AMD64;
