@@ -176,7 +176,7 @@ namespace apiset
         return api_set_map_obj;
     }
 
-    std::map<std::u16string, std::u16string> get_namespace_table(const API_SET_NAMESPACE* apiset_ns_data)
+    apiset_map get_namespace_table(const API_SET_NAMESPACE* apiset_ns_data)
     {
         std::map<std::u16string, std::u16string> apiset;
 
