@@ -30,6 +30,21 @@ namespace utils::string
         array[std::min(Size - 1, size)] = {};
     }
 
+    template <typename T, size_t Size, class Traits = std::char_traits<T>>
+        requires(std::is_trivially_copyable_v<T>)
+    // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays,hicpp-avoid-c-arrays,modernize-avoid-c-arrays)
+    void copy(T (&array)[Size], const std::basic_string_view<T, Traits> str)
+    {
+        if constexpr (Size == 0)
+        {
+            return;
+        }
+
+        const auto size = std::min(Size - 1, str.size());
+        memcpy(array, str.data(), size * sizeof(T));
+        array[size] = {};
+    }
+
     inline char char_to_lower(const char val)
     {
         return static_cast<char>(std::tolower(static_cast<unsigned char>(val)));
