@@ -777,7 +777,7 @@ void process_context::build_knowndlls_section_table(registry_manager& registry, 
     std::set<std::u16string> visisted;
     std::queue<std::u16string> q;
 
-    static const std::wregex apiset_pattern(LR"((api|ext)-[0-9A-Za-z-]+l\d+-\d+-\d+\.dll)", std::regex::icase);
+    static std::regex apiset_pattern(R"((api|ext)-[0-9A-Za-z-]+l\d+-\d+-\d+\.dll)", std::regex::icase);
 
     if (is_32bit)
     {
@@ -859,15 +859,16 @@ void process_context::build_knowndlls_section_table(registry_manager& registry, 
                 break;
             }
 
-            auto known_dll_dep_name = u8_to_u16(
-                buffer.as_string(static_cast<size_t>(rva_to_file_offset(import_directory_vbase, import_directory_rbase, descriptor.Name))));
-            utils::string::to_lower_inplace(known_dll_dep_name);
+            auto known_dll_dep_name_8 =
+                buffer.as_string(static_cast<size_t>(rva_to_file_offset(import_directory_vbase, import_directory_rbase, descriptor.Name)));
+            auto known_dll_dep_name_16 = u8_to_u16(known_dll_dep_name_8);
+            utils::string::to_lower_inplace(known_dll_dep_name_16);
 
-            if (std::regex_match(known_dll_dep_name.begin(), known_dll_dep_name.end(), apiset_pattern))
+            if (std::regex_match(known_dll_dep_name_8.begin(), known_dll_dep_name_8.end(), apiset_pattern))
             {
-                if (auto apiset_entry = apiset.find(known_dll_dep_name); apiset_entry != apiset.end())
+                if (auto apiset_entry = apiset.find(known_dll_dep_name_16); apiset_entry != apiset.end())
                 {
-                    known_dll_dep_name = apiset_entry->second;
+                    known_dll_dep_name_16 = apiset_entry->second;
                 }
                 else
                 {
@@ -875,10 +876,10 @@ void process_context::build_knowndlls_section_table(registry_manager& registry, 
                 }
             }
 
-            if (!visisted.contains(known_dll_dep_name))
+            if (!visisted.contains(known_dll_dep_name_16))
             {
-                q.push(known_dll_dep_name);
-                visisted.insert(known_dll_dep_name);
+                q.push(known_dll_dep_name_16);
+                visisted.insert(known_dll_dep_name_16);
             }
         }
     }
