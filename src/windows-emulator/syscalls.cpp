@@ -16,7 +16,9 @@ namespace syscalls
     // syscalls/event.cpp:
     NTSTATUS handle_NtSetEvent(const syscall_context& c, uint64_t handle, emulator_object<LONG> previous_state);
     NTSTATUS handle_NtTraceEvent();
-    NTSTATUS handle_NtQueryEvent();
+    NTSTATUS handle_NtQueryEvent(const syscall_context& c, handle event_handle, uint32_t event_information_class,
+                                 emulator_object<EVENT_BASIC_INFORMATION> event_information, uint32_t event_information_length,
+                                 emulator_object<uint32_t> return_length);
     NTSTATUS handle_NtClearEvent(const syscall_context& c, handle event_handle);
     NTSTATUS handle_NtCreateEvent(const syscall_context& c, emulator_object<handle> event_handle, ACCESS_MASK desired_access,
                                   emulator_object<OBJECT_ATTRIBUTES<EmulatorTraits<Emu64>>> object_attributes, EVENT_TYPE event_type,
