@@ -806,9 +806,9 @@ void process_context::build_knowndlls_section_table(registry_manager& registry, 
         }
 
         auto known_dll_name = known_dll_name_opt.value();
-		utils::string::to_lower_inplace(known_dll_name);
+        utils::string::to_lower_inplace(known_dll_name);
 
-		q.push(known_dll_name);
+        q.push(known_dll_name);
         visisted.insert(known_dll_name);
     }
 
