@@ -3,10 +3,10 @@
 
 #include "emulator_utils.hpp"
 #include "windows_emulator.hpp"
+#include "version/windows_version_manager.hpp"
 
 #include <utils/io.hpp>
 #include <utils/buffer_accessor.hpp>
-
 #include <regex>
 
 namespace
@@ -181,43 +181,15 @@ namespace
 
         return env_map;
     }
-
-    uint32_t read_windows_build(registry_manager& registry)
-    {
-        const auto key = registry.get_key({R"(\Registry\Machine\Software\Microsoft\Windows NT\CurrentVersion)"});
-
-        if (!key)
-        {
-            return 0;
-        }
-
-        for (size_t i = 0; const auto value = registry.get_value(*key, i); ++i)
-        {
-            if (value->type != REG_SZ)
-            {
-                continue;
-            }
-
-            if (value->name == "CurrentBuildNumber" || value->name == "CurrentBuild")
-            {
-                const auto* s = reinterpret_cast<const char16_t*>(value->data.data());
-                return static_cast<uint32_t>(std::strtoul(u16_to_u8(s).c_str(), nullptr, 10));
-            }
-        }
-
-        return 0;
-    }
 }
 
-void process_context::setup(x86_64_emulator& emu, memory_manager& memory, registry_manager& registry, const file_system& file_system,
-                            const application_settings& app_settings, const mapped_module& executable, const mapped_module& ntdll,
-                            const apiset::container& apiset_container, const mapped_module* ntdll32)
+void process_context::setup(x86_64_emulator& emu, memory_manager& memory, registry_manager& registry, file_system& file_system,
+                            windows_version_manager& version, const application_settings& app_settings, const mapped_module& executable,
+                            const mapped_module& ntdll, const apiset::container& apiset_container, const mapped_module* ntdll32)
 {
-    this->windows_build_number = read_windows_build(registry);
-
     setup_gdt(emu, memory);
 
-    this->kusd.setup();
+    this->kusd.setup(version);
 
     this->base_allocator = create_allocator(memory, PEB_SEGMENT_SIZE, this->is_wow64_process);
     auto& allocator = this->base_allocator;
@@ -309,8 +281,9 @@ void process_context::setup(x86_64_emulator& emu, memory_manager& memory, regist
         p.ImageSubsystemMajorVersion = 6;
 
         p.OSPlatformId = 2;
-        p.OSMajorVersion = 0x0000000a;
-        p.OSBuildNumber = 0x00006c51;
+        p.OSMajorVersion = version.get_major_version();
+        p.OSMinorVersion = version.get_minor_version();
+        p.OSBuildNumber = static_cast<USHORT>(version.get_windows_build_number());
 
         // p.AnsiCodePageData = allocator.reserve<CPTABLEINFO>().value();
         // p.OemCodePageData = allocator.reserve<CPTABLEINFO>().value();
@@ -400,8 +373,9 @@ void process_context::setup(x86_64_emulator& emu, memory_manager& memory, regist
             p32.ImageSubsystemMajorVersion = 6;
 
             p32.OSPlatformId = 2;
-            p32.OSMajorVersion = 0x0a;
-            p32.OSBuildNumber = 0x6c51;
+            p32.OSMajorVersion = version.get_major_version();
+            p32.OSMinorVersion = version.get_minor_version();
+            p32.OSBuildNumber = static_cast<USHORT>(version.get_windows_build_number());
 
             // Initialize NLS tables for 32-bit processes
             // These need to be in 32-bit addressable space
@@ -437,7 +411,7 @@ void process_context::setup(x86_64_emulator& emu, memory_manager& memory, regist
         monitor.hmon = h.bits;
         monitor.rcMonitor = {.left = 0, .top = 0, .right = 1920, .bottom = 1080};
         monitor.rcWork = monitor.rcMonitor;
-        if (this->is_older_windows_build())
+        if (version.is_build_before(26040))
         {
             monitor.b20.monitorDpi = 96;
             monitor.b20.nativeDpi = monitor.b20.monitorDpi;
@@ -533,7 +507,6 @@ void process_context::serialize(utils::buffer_serializer& buffer) const
     buffer.write(this->kusd);
 
     buffer.write(this->is_wow64_process);
-    buffer.write(this->windows_build_number);
     buffer.write(this->ntdll_image_base);
     buffer.write(this->ldr_initialize_thunk);
     buffer.write(this->rtl_user_thread_start);
@@ -587,7 +560,6 @@ void process_context::deserialize(utils::buffer_deserializer& buffer)
     buffer.read(this->kusd);
 
     buffer.read(this->is_wow64_process);
-    buffer.read(this->windows_build_number);
     buffer.read(this->ntdll_image_base);
     buffer.read(this->ldr_initialize_thunk);
     buffer.read(this->rtl_user_thread_start);
@@ -777,8 +749,6 @@ void process_context::build_knowndlls_section_table(registry_manager& registry, 
     std::set<std::u16string> visisted;
     std::queue<std::u16string> q;
 
-    static std::regex apiset_pattern(R"((api|ext)-[a-zA-Z0-9-]+-l\d+-\d+-\d+\.dll)", std::regex::icase);
-
     if (is_32bit)
     {
         system_root_path = "C:\\Windows\\SysWOW64";
@@ -859,16 +829,15 @@ void process_context::build_knowndlls_section_table(registry_manager& registry, 
                 break;
             }
 
-            auto known_dll_dep_name_8 =
-                buffer.as_string(static_cast<size_t>(rva_to_file_offset(import_directory_vbase, import_directory_rbase, descriptor.Name)));
-            auto known_dll_dep_name_16 = u8_to_u16(known_dll_dep_name_8);
-            utils::string::to_lower_inplace(known_dll_dep_name_16);
+            auto known_dll_dep_name = u8_to_u16(
+                buffer.as_string(static_cast<size_t>(rva_to_file_offset(import_directory_vbase, import_directory_rbase, descriptor.Name))));
+            utils::string::to_lower_inplace(known_dll_dep_name);
 
-            if (std::regex_match(known_dll_dep_name_8, apiset_pattern))
+            if (known_dll_dep_name.starts_with(u"api-") || known_dll_dep_name.starts_with(u"ext-"))
             {
-                if (auto apiset_entry = apiset.find(known_dll_dep_name_16); apiset_entry != apiset.end())
+                if (auto apiset_entry = apiset.find(known_dll_dep_name); apiset_entry != apiset.end())
                 {
-                    known_dll_dep_name_16 = apiset_entry->second;
+                    known_dll_dep_name = apiset_entry->second;
                 }
                 else
                 {
@@ -876,10 +845,10 @@ void process_context::build_knowndlls_section_table(registry_manager& registry, 
                 }
             }
 
-            if (!visisted.contains(known_dll_dep_name_16))
+            if (!visisted.contains(known_dll_dep_name))
             {
-                q.push(known_dll_dep_name_16);
-                visisted.insert(known_dll_dep_name_16);
+                q.push(known_dll_dep_name);
+                visisted.insert(known_dll_dep_name);
             }
         }
     }

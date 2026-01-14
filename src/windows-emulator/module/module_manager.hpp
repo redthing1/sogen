@@ -7,6 +7,9 @@
 #include "platform/win_pefile.hpp"
 
 class logger;
+class registry_manager;
+class windows_version_manager;
+struct process_context;
 
 // Execution mode for the emulated process
 enum class execution_mode
@@ -91,7 +94,7 @@ class module_manager
 
     module_manager(memory_manager& memory, file_system& file_sys, callbacks& cb);
 
-    void map_main_modules(const windows_path& executable_path, const windows_path& system32_path, const windows_path& syswow64_path,
+    void map_main_modules(const windows_path& executable_path, windows_version_manager& version, process_context& context,
                           const logger& logger);
 
     std::optional<uint64_t> get_module_load_count_by_path(const windows_path& path);
@@ -193,7 +196,7 @@ class module_manager
     void load_native_64bit_modules(const windows_path& executable_path, const windows_path& ntdll_path, const windows_path& win32u_path,
                                    const logger& logger);
     void load_wow64_modules(const windows_path& executable_path, const windows_path& ntdll_path, const windows_path& win32u_path,
-                            const windows_path& ntdll32_path, const logger& logger);
+                            const windows_path& ntdll32_path, windows_version_manager& version, const logger& logger);
 
     void install_wow64_heaven_gate(const logger& logger);
 
