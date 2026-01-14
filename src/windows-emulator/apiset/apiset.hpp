@@ -4,7 +4,6 @@
 #include <cstdint>
 #include <filesystem>
 #include <optional>
-
 #include "../emulator_utils.hpp"
 
 using apiset_map = std::map<std::u16string, std::u16string>;

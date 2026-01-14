@@ -455,12 +455,12 @@ std::optional<uint64_t> module_manager::get_module_load_count_by_path(const wind
 {
     auto local_file = std::filesystem::weakly_canonical(std::filesystem::absolute(this->file_sys_->translate(path)));
 
-    if (!modules_load_count.contains(local_file))
+    if (auto load_count_entry = modules_load_count.find(local_file); load_count_entry != modules_load_count.end())
     {
-        return {};
+        return load_count_entry->second;
     }
 
-    return modules_load_count[local_file];
+    return {};
 }
 
 mapped_module* module_manager::map_module(const windows_path& file, const logger& logger, const bool is_static, bool allow_duplicate)

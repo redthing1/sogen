@@ -84,6 +84,8 @@ class registry_manager
 
     std::optional<exposed_hive_key> get_hive_key(const registry_key& key);
 
+    std::optional<std::u16string> read_u16string(const registry_key& key, size_t index);
+
   private:
     std::filesystem::path hive_path_{};
     hive_map hives_{};

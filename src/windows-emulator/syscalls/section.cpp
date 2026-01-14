@@ -72,9 +72,10 @@ namespace syscalls
         const auto attributes = object_attributes.read();
 
         auto filename = read_unicode_string(c.emu, attributes.ObjectName);
+        auto filename_sv = std::u16string_view(filename);
         c.win_emu.callbacks.on_generic_access("Opening section", filename);
 
-        if (utils::string::equals_ignore_case(filename, u"\\Windows\\SharedSection"sv))
+        if (utils::string::equals_ignore_case(filename_sv, u"\\Windows\\SharedSection"sv))
         {
             constexpr auto shared_section_size = 0x10000;
 
@@ -88,7 +89,7 @@ namespace syscalls
             return STATUS_SUCCESS;
         }
 
-        if (utils::string::equals_ignore_case(filename, u"DBWIN_BUFFER"sv))
+        if (utils::string::equals_ignore_case(filename_sv, u"DBWIN_BUFFER"sv))
         {
             constexpr auto dbwin_buffer_section_size = 0x1000;
 
@@ -102,18 +103,18 @@ namespace syscalls
             return STATUS_SUCCESS;
         }
 
-        if (utils::string::equals_ignore_case(filename, u"windows_shell_global_counters"sv) ||
-            utils::string::equals_ignore_case(filename, u"Global\\__ComCatalogCache__"sv) ||
-            utils::string::equals_ignore_case(filename, u"{00020000-0000-1005-8005-0000C06B5161}"sv) ||
-            utils::string::equals_ignore_case(filename, u"Global\\{00020000-0000-1005-8005-0000C06B5161}"sv))
+        if (utils::string::equals_ignore_case(filename_sv, u"windows_shell_global_counters"sv) ||
+            utils::string::equals_ignore_case(filename_sv, u"Global\\__ComCatalogCache__"sv) ||
+            utils::string::equals_ignore_case(filename_sv, u"{00020000-0000-1005-8005-0000C06B5161}"sv) ||
+            utils::string::equals_ignore_case(filename_sv, u"Global\\{00020000-0000-1005-8005-0000C06B5161}"sv))
         {
             return STATUS_NOT_SUPPORTED;
         }
 
         bool is_knowndll = (attributes.RootDirectory == KNOWN_DLLS32_DIRECTORY ||
-                            utils::string::starts_with_ignore_case(filename, u"\\KnownDlls32\\"sv)) ||
+                            utils::string::starts_with_ignore_case(filename_sv, u"\\KnownDlls32\\"sv)) ||
                            attributes.RootDirectory == KNOWN_DLLS_DIRECTORY ||
-                           utils::string::starts_with_ignore_case(filename, u"\\KnownDlls\\"sv);
+                           utils::string::starts_with_ignore_case(filename_sv, u"\\KnownDlls\\"sv);
 
         if (!is_knowndll && attributes.RootDirectory != BASE_NAMED_OBJECTS_DIRECTORY)
         {
@@ -125,16 +126,16 @@ namespace syscalls
         if (is_knowndll)
         {
             bool is_knowndll32 = attributes.RootDirectory == KNOWN_DLLS32_DIRECTORY ||
-                                 utils::string::starts_with_ignore_case(filename, u"\\KnownDlls32\\"sv);
+                                 utils::string::starts_with_ignore_case(filename_sv, u"\\KnownDlls32\\"sv);
 
             std::u16string knowndll_name = filename;
 
-            if (utils::string::starts_with_ignore_case(filename, u"\\KnownDlls32\\"sv))
+            if (utils::string::starts_with_ignore_case(filename_sv, u"\\KnownDlls32\\"sv))
             {
                 knowndll_name = filename.substr(13, filename.length() - 13);
             }
 
-            else if (utils::string::starts_with_ignore_case(filename, u"\\KnownDlls\\"sv))
+            else if (utils::string::starts_with_ignore_case(filename_sv, u"\\KnownDlls\\"sv))
             {
                 knowndll_name = filename.substr(11, filename.length() - 11);
             }
