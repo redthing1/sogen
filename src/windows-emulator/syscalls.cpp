@@ -208,6 +208,7 @@ namespace syscalls
                                               /*receive_message_attributes*/,
                                               emulator_object<LARGE_INTEGER> /*timeout*/);
     NTSTATUS handle_NtAlpcQueryInformation();
+    NTSTATUS handle_NtAlpcSetInformation();
     NTSTATUS handle_NtAlpcCreateSecurityContext();
     NTSTATUS handle_NtAlpcDeleteSecurityContext();
 
@@ -416,6 +417,14 @@ namespace syscalls
                                               uint64_t callback, uint64_t param);
     BOOL handle_NtUserGetHDevName(const syscall_context& c, handle hdev, emulator_pointer device_name);
     emulator_pointer handle_NtUserMapDesktopObject(const syscall_context& c, handle handle);
+    NTSTATUS handle_NtUserTransformRect();
+    NTSTATUS handle_NtUserSetWindowPos();
+    NTSTATUS handle_NtUserSetForegroundWindow();
+    NTSTATUS handle_NtUserRedrawWindow();
+    NTSTATUS handle_NtUserGetCPD();
+    NTSTATUS handle_NtUserSetWindowFNID();
+    NTSTATUS handle_NtUserEnableWindow();
+    NTSTATUS handle_NtUserGetSystemMenu();
 
     NTSTATUS handle_NtQueryPerformanceCounter(const syscall_context& c, const emulator_object<LARGE_INTEGER> performance_counter,
                                               const emulator_object<LARGE_INTEGER> performance_frequency)
@@ -788,6 +797,16 @@ namespace syscalls
     {
         return STATUS_NOT_SUPPORTED;
     }
+
+    NTSTATUS handle_NtGdiGetEntry()
+    {
+        return STATUS_NOT_SUPPORTED;
+    }
+
+    NTSTATUS handle_NtGdiCreateCompatibleDC()
+    {
+        return STATUS_NOT_SUPPORTED;
+    }
 }
 
 void syscall_dispatcher::add_handlers(std::map<std::string, syscall_handler>& handler_mapping)
@@ -1008,6 +1027,17 @@ void syscall_dispatcher::add_handlers(std::map<std::string, syscall_handler>& ha
     add_handler(NtUserGetHDevName);
     add_handler(NtFlushInstructionCache);
     add_handler(NtUserMapDesktopObject);
+    add_handler(NtAlpcSetInformation);
+    add_handler(NtGdiGetEntry);
+    add_handler(NtGdiCreateCompatibleDC);
+    add_handler(NtUserTransformRect);
+    add_handler(NtUserSetWindowPos);
+    add_handler(NtUserSetForegroundWindow);
+    add_handler(NtUserRedrawWindow);
+    add_handler(NtUserGetCPD);
+    add_handler(NtUserSetWindowFNID);
+    add_handler(NtUserEnableWindow);
+    add_handler(NtUserGetSystemMenu);
 
 #undef add_handler
 }

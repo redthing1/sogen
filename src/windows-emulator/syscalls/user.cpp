@@ -362,4 +362,44 @@ namespace syscalls
         const auto handle_entry = c.proc.user_handles.get_handle_table().read(static_cast<size_t>(index));
         return handle_entry.pHead;
     }
+
+    NTSTATUS handle_NtUserTransformRect()
+    {
+        return STATUS_SUCCESS;
+    }
+
+    NTSTATUS handle_NtUserSetWindowPos()
+    {
+        return STATUS_SUCCESS;
+    }
+
+    NTSTATUS handle_NtUserSetForegroundWindow()
+    {
+        return STATUS_SUCCESS;
+    }
+
+    NTSTATUS handle_NtUserRedrawWindow()
+    {
+        return STATUS_SUCCESS;
+    }
+
+    NTSTATUS handle_NtUserGetCPD()
+    {
+        return STATUS_SUCCESS;
+    }
+
+    NTSTATUS handle_NtUserSetWindowFNID()
+    {
+        return STATUS_SUCCESS;
+    }
+
+    NTSTATUS handle_NtUserEnableWindow()
+    {
+        return STATUS_SUCCESS;
+    }
+
+    NTSTATUS handle_NtUserGetSystemMenu()
+    {
+        return STATUS_SUCCESS;
+    }
 }
