@@ -7,7 +7,6 @@
 #include <utils/io.hpp>
 #include <utils/buffer_accessor.hpp>
 
-#include <stack>
 #include <regex>
 
 namespace
