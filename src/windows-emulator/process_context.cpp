@@ -5,6 +5,10 @@
 #include "windows_emulator.hpp"
 #include "version/windows_version_manager.hpp"
 
+#include <utils/io.hpp>
+#include <utils/buffer_accessor.hpp>
+#include <regex>
+
 namespace
 {
     emulator_allocator create_allocator(memory_manager& memory, const size_t size, const bool is_wow64_process)
@@ -179,9 +183,9 @@ namespace
     }
 }
 
-void process_context::setup(x86_64_emulator& emu, memory_manager& memory, registry_manager& registry, windows_version_manager& version,
-                            const application_settings& app_settings, const mapped_module& executable, const mapped_module& ntdll,
-                            const apiset::container& apiset_container, const mapped_module* ntdll32)
+void process_context::setup(x86_64_emulator& emu, memory_manager& memory, registry_manager& registry, file_system& file_system,
+                            windows_version_manager& version, const application_settings& app_settings, const mapped_module& executable,
+                            const mapped_module& ntdll, const apiset::container& apiset_container, const mapped_module* ntdll32)
 {
     setup_gdt(emu, memory);
 
@@ -386,6 +390,10 @@ void process_context::setup(x86_64_emulator& emu, memory_manager& memory, regist
         }
     }
 
+    this->apiset = apiset::get_namespace_table(reinterpret_cast<const API_SET_NAMESPACE*>(apiset_container.data.data()));
+    this->build_knowndlls_section_table<uint64_t>(registry, file_system, apiset, false);
+    this->build_knowndlls_section_table<uint32_t>(registry, file_system, apiset, true);
+
     this->ntdll_image_base = ntdll.image_base;
     this->ldr_initialize_thunk = ntdll.find_export("LdrInitializeThunk");
     this->rtl_user_thread_start = ntdll.find_export("RtlUserThreadStart");
@@ -520,6 +528,9 @@ void process_context::serialize(utils::buffer_serializer& buffer) const
     buffer.write(this->timers);
     buffer.write(this->registry_keys);
     buffer.write_map(this->atoms);
+    buffer.write_map(this->apiset);
+    buffer.write_map(this->knowndlls32_sections);
+    buffer.write_map(this->knowndlls64_sections);
 
     buffer.write(this->last_extended_params_numa_node);
     buffer.write(this->last_extended_params_attributes);
@@ -570,6 +581,9 @@ void process_context::deserialize(utils::buffer_deserializer& buffer)
     buffer.read(this->timers);
     buffer.read(this->registry_keys);
     buffer.read_map(this->atoms);
+    buffer.read_map(this->apiset);
+    buffer.read_map(this->knowndlls32_sections);
+    buffer.read_map(this->knowndlls64_sections);
 
     buffer.read(this->last_extended_params_numa_node);
     buffer.read(this->last_extended_params_attributes);
@@ -725,4 +739,165 @@ const std::u16string* process_context::get_atom_name(const uint16_t atom_id) con
     }
 
     return &it->second.name;
+}
+
+template <typename T>
+void process_context::build_knowndlls_section_table(registry_manager& registry, const file_system& file_system, const apiset_map& apiset,
+                                                    bool is_32bit)
+{
+    windows_path system_root_path;
+    std::set<std::u16string> visisted;
+    std::queue<std::u16string> q;
+
+    if (is_32bit)
+    {
+        system_root_path = "C:\\Windows\\SysWOW64";
+    }
+    else
+    {
+        system_root_path = "C:\\Windows\\System32";
+    }
+
+    std::optional<registry_key> knowndlls_key =
+        registry.get_key({R"(\Registry\Machine\System\CurrentControlSet\Control\Session Manager\KnownDLLs)"});
+    if (!knowndlls_key)
+    {
+        return;
+    }
+
+    size_t i = 0;
+    for (;;)
+    {
+        auto known_dll_name_opt = registry.read_u16string(knowndlls_key.value(), i++);
+
+        if (!known_dll_name_opt)
+        {
+            break;
+        }
+
+        auto known_dll_name = known_dll_name_opt.value();
+        utils::string::to_lower_inplace(known_dll_name);
+
+        q.push(known_dll_name);
+        visisted.insert(known_dll_name);
+    }
+
+    while (!q.empty())
+    {
+        auto knowndll_filename = q.front();
+        q.pop();
+
+        std::vector<std::byte> file;
+        if (!utils::io::read_file(file_system.translate(system_root_path / knowndll_filename), &file))
+        {
+            continue;
+        }
+
+        section s;
+        s.file_name = (system_root_path / knowndll_filename).u16string();
+        s.maximum_size = 0;
+        s.allocation_attributes = SEC_IMAGE;
+        s.section_page_protection = PAGE_EXECUTE;
+        s.cache_image_info_from_filedata(file);
+        add_knowndll_section(knowndll_filename, s, is_32bit);
+
+        utils::safe_buffer_accessor<const std::byte> buffer{file};
+        const auto dos_header = buffer.as<PEDosHeader_t>(0).get();
+        const auto nt_headers_offset = dos_header.e_lfanew;
+        const auto nt_headers = buffer.as<PENTHeaders_t<T>>(static_cast<size_t>(nt_headers_offset)).get();
+
+        const auto& import_directory_entry = winpe::get_data_directory_by_index(nt_headers, IMAGE_DIRECTORY_ENTRY_IMPORT);
+        if (!import_directory_entry.VirtualAddress)
+        {
+            continue;
+        }
+
+        const auto section_with_import_descs =
+            winpe::get_section_header_by_rva(buffer, nt_headers, nt_headers_offset, import_directory_entry.VirtualAddress);
+        auto import_directory_vbase = section_with_import_descs.VirtualAddress;
+        auto import_directory_rbase = section_with_import_descs.PointerToRawData;
+
+        uint64_t import_directory_raw =
+            rva_to_file_offset(import_directory_vbase, import_directory_rbase, import_directory_entry.VirtualAddress);
+        auto import_descriptors = buffer.as<IMAGE_IMPORT_DESCRIPTOR>(static_cast<size_t>(import_directory_raw));
+
+        for (size_t import_desc_index = 0;; import_desc_index++)
+        {
+            const auto descriptor = import_descriptors.get(import_desc_index);
+            if (!descriptor.Name)
+            {
+                break;
+            }
+
+            auto known_dll_dep_name = u8_to_u16(
+                buffer.as_string(static_cast<size_t>(rva_to_file_offset(import_directory_vbase, import_directory_rbase, descriptor.Name))));
+            utils::string::to_lower_inplace(known_dll_dep_name);
+
+            if (known_dll_dep_name.starts_with(u"api-") || known_dll_dep_name.starts_with(u"ext-"))
+            {
+                if (auto apiset_entry = apiset.find(known_dll_dep_name); apiset_entry != apiset.end())
+                {
+                    known_dll_dep_name = apiset_entry->second;
+                }
+                else
+                {
+                    continue;
+                }
+            }
+
+            if (!visisted.contains(known_dll_dep_name))
+            {
+                q.push(known_dll_dep_name);
+                visisted.insert(known_dll_dep_name);
+            }
+        }
+    }
+}
+
+bool process_context::has_knowndll_section(const std::u16string& name, bool is_32bit) const
+{
+    auto lname = utils::string::to_lower(name);
+
+    if (is_32bit)
+    {
+        return knowndlls32_sections.contains(lname);
+    }
+
+    return knowndlls64_sections.contains(lname);
+}
+
+std::optional<section> process_context::get_knowndll_section_by_name(const std::u16string& name, bool is_32bit) const
+{
+    auto lname = utils::string::to_lower(name);
+
+    if (is_32bit)
+    {
+        if (auto section = knowndlls32_sections.find(lname); section != knowndlls32_sections.end())
+        {
+            return section->second;
+        }
+    }
+    else
+    {
+        if (auto section = knowndlls64_sections.find(lname); section != knowndlls64_sections.end())
+        {
+            return section->second;
+        }
+    }
+
+    return {};
+}
+
+void process_context::add_knowndll_section(const std::u16string& name, const section& section, bool is_32bit)
+{
+    auto lname = utils::string::to_lower(name);
+
+    if (is_32bit)
+    {
+        knowndlls32_sections[lname] = section;
+    }
+    else
+    {
+        knowndlls64_sections[lname] = section;
+    }
 }

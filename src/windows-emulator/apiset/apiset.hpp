@@ -3,9 +3,10 @@
 #include <vector>
 #include <cstdint>
 #include <filesystem>
-
+#include <optional>
 #include "../emulator_utils.hpp"
 
+using apiset_map = std::map<std::u16string, std::u16string>;
 namespace apiset
 {
     enum class location : uint8_t
@@ -33,4 +34,6 @@ namespace apiset
                                              const API_SET_NAMESPACE& orig_api_set_map);
 
     emulator_object<API_SET_NAMESPACE> clone(x86_64_emulator& emu, emulator_allocator& allocator, const container& container);
+
+    apiset_map get_namespace_table(const API_SET_NAMESPACE* apiset_ns_data);
 }
