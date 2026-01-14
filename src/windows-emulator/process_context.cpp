@@ -864,7 +864,7 @@ void process_context::build_knowndlls_section_table(registry_manager& registry, 
             auto known_dll_dep_name_16 = u8_to_u16(known_dll_dep_name_8);
             utils::string::to_lower_inplace(known_dll_dep_name_16);
 
-            if (std::regex_match(known_dll_dep_name_8, apiset_pattern))
+            if (std::regex_match(std::move(known_dll_dep_name_8), apiset_pattern))
             {
                 if (auto apiset_entry = apiset.find(known_dll_dep_name_16); apiset_entry != apiset.end())
                 {
