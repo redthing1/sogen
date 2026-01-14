@@ -156,6 +156,7 @@ struct process_context
     emulator_thread* active_thread{nullptr};
 
     emulator_pointer callback_sentinel_addr{0};
+    bool is_callback_hook_installed{};
 
     // Extended parameters from last NtMapViewOfSectionEx call
     // These can be used by other syscalls like NtAllocateVirtualMemoryEx
