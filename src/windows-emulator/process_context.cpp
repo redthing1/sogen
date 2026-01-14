@@ -777,7 +777,7 @@ void process_context::build_knowndlls_section_table(registry_manager& registry, 
     std::set<std::u16string> visisted;
     std::queue<std::u16string> q;
 
-    static std::regex apiset_pattern(R"((api|ext)-[0-9A-Za-z-]+l\d+-\d+-\d+\.dll)", std::regex::icase);
+    static std::regex apiset_pattern(R"((api|ext)-[0-9A-Za-z\-]+l\d+-\d+-\d+\.dll)", std::regex::icase);
 
     if (is_32bit)
     {
