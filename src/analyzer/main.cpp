@@ -510,10 +510,11 @@ namespace
 
             if (leaf == 1)
             {
-                // NOTE: We hard-code these values to disable SSE4.x
+                // NOTE: We hard-code these values to disable SSE4.x and AVX
+                //       See: https://github.com/momo5502/sogen/issues/560
                 emu.reg<uint32_t>(x86_register::eax, 0x000906EA);
                 emu.reg<uint32_t>(x86_register::ebx, 0x00100800);
-                emu.reg<uint32_t>(x86_register::ecx, 0xFFE2F38F);
+                emu.reg<uint32_t>(x86_register::ecx, 0xEFE2F38F);
                 emu.reg<uint32_t>(x86_register::edx, 0xBFEBFBFF);
 
                 return instruction_hook_continuation::skip_instruction;
