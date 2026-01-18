@@ -105,6 +105,20 @@ namespace syscalls
             return STATUS_SUCCESS;
         }
 
+        if (info_class == FileDispositionInformation)
+        {
+            if (length < sizeof(FILE_DISPOSITION_INFORMATION))
+            {
+                return STATUS_BUFFER_OVERFLOW;
+            }
+
+            const auto info = c.emu.read_memory<FILE_DISPOSITION_INFORMATION>(file_information);
+
+            f->handle.defer_delete(info.DeleteFile ? c.win_emu.file_sys.translate(f->name) : std::filesystem::path{});
+
+            return STATUS_SUCCESS;
+        }
+
         if (info_class == FileBasicInformation)
         {
             return STATUS_NOT_SUPPORTED;

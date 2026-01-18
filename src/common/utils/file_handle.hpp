@@ -30,6 +30,21 @@ namespace utils
             }
         };
 
+        struct delete_information
+        {
+            std::filesystem::path filepath;
+
+            void serialize(utils::buffer_serializer& buffer) const
+            {
+                buffer.write(this->filepath.u16string());
+            }
+
+            void deserialize(utils::buffer_deserializer& buffer)
+            {
+                this->filepath = buffer.read<std::u16string>();
+            }
+        };
+
         file_handle() = default;
 
         file_handle(FILE* file)
@@ -124,10 +139,22 @@ namespace utils
             deferred_rename_ = {.old_filepath = std::move(oldname), .new_filepath = std::move(newname)};
         }
 
+        void defer_delete(std::filesystem::path name)
+        {
+            if (name == std::filesystem::path{})
+            {
+                deferred_delete_ = {};
+                return;
+            }
+
+            deferred_delete_ = {.filepath = std::move(name)};
+        }
+
         void serialize(utils::buffer_serializer& buffer) const
         {
             buffer.write(this->tell());
             buffer.write_optional(this->deferred_rename_);
+            buffer.write_optional(this->deferred_delete_);
         }
 
         void deserialize(utils::buffer_deserializer& buffer)
@@ -141,11 +168,13 @@ namespace utils
             }
 
             buffer.read_optional(this->deferred_rename_);
+            buffer.read_optional(this->deferred_delete_);
         }
 
       private:
         FILE* file_{};
         std::optional<rename_information> deferred_rename_;
+        std::optional<delete_information> deferred_delete_;
 
         void release()
         {
@@ -155,11 +184,18 @@ namespace utils
                 this->file_ = {};
             }
 
-            if (this->deferred_rename_)
+            if (this->deferred_rename_ && !this->deferred_delete_)
             {
                 std::error_code ec{};
                 std::filesystem::rename(this->deferred_rename_->old_filepath, this->deferred_rename_->new_filepath, ec);
                 this->deferred_rename_ = {};
+            }
+
+            if (this->deferred_delete_)
+            {
+                std::error_code ec{};
+                std::filesystem::remove(this->deferred_delete_->filepath, ec);
+                this->deferred_delete_ = {};
             }
         }
     };
