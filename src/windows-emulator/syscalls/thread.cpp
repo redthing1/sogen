@@ -671,8 +671,7 @@ namespace syscalls
                                      /*object_attributes*/,
                                      const handle process_handle, const uint64_t start_routine, const uint64_t argument,
                                      const ULONG create_flags, const EmulatorTraits<Emu64>::SIZE_T /*zero_bits*/,
-                                     const EmulatorTraits<Emu64>::SIZE_T stack_size,
-                                     const EmulatorTraits<Emu64>::SIZE_T /*maximum_stack_size*/,
+                                     const EmulatorTraits<Emu64>::SIZE_T stack_size, const EmulatorTraits<Emu64>::SIZE_T maximum_stack_size,
                                      const emulator_object<PS_ATTRIBUTE_LIST<EmulatorTraits<Emu64>>> attribute_list)
     {
         if (process_handle != CURRENT_PROCESS)
@@ -680,7 +679,18 @@ namespace syscalls
             return STATUS_NOT_SUPPORTED;
         }
 
-        const auto h = c.proc.create_thread(c.win_emu.memory, start_routine, argument, stack_size, create_flags);
+        if (stack_size > maximum_stack_size)
+        {
+            return STATUS_INVALID_PARAMETER;
+        }
+
+        uint64_t actual_stack_size = maximum_stack_size;
+        if (maximum_stack_size == 0)
+        {
+            actual_stack_size = c.win_emu.mod_manager.executable->size_of_stack_reserve;
+        }
+
+        const auto h = c.proc.create_thread(c.win_emu.memory, start_routine, argument, actual_stack_size, create_flags);
         thread_handle.write(h);
 
         if (!attribute_list)

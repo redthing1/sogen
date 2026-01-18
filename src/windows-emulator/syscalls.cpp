@@ -328,7 +328,7 @@ namespace syscalls
                                      /*object_attributes*/,
                                      handle process_handle, uint64_t start_routine, uint64_t argument, ULONG create_flags,
                                      EmulatorTraits<Emu64>::SIZE_T /*zero_bits*/, EmulatorTraits<Emu64>::SIZE_T stack_size,
-                                     EmulatorTraits<Emu64>::SIZE_T /*maximum_stack_size*/,
+                                     EmulatorTraits<Emu64>::SIZE_T maximum_stack_size,
                                      emulator_object<PS_ATTRIBUTE_LIST<EmulatorTraits<Emu64>>> attribute_list);
     NTSTATUS handle_NtGetCurrentProcessorNumberEx(const syscall_context&, emulator_object<PROCESSOR_NUMBER> processor_number);
     ULONG handle_NtGetCurrentProcessorNumber();
