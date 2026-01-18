@@ -3,6 +3,10 @@
 #include <cstdio>
 #include <type_traits>
 
+#ifdef OS_WINDOWS
+#include <corecrt_io.h>
+#endif
+
 namespace utils
 {
     class file_handle
@@ -96,6 +100,23 @@ namespace utils
         [[nodiscard]] int64_t tell() const
         {
             return _ftelli64(this->file_);
+        }
+
+        bool resize(uint64_t size) const
+        {
+#ifdef OS_WINDOWS
+            const int fd = _fileno(this->file_);
+            if (fd == -1)
+                return false;
+
+            return _chsize_s(fd, static_cast<long long>(size)) == 0;
+#else
+            const int fd = fileno(this->file_);
+            if (fd == -1)
+                return false;
+
+            return ftruncate(fd, static_cast<off_t>(size)) == 0;
+#endif
         }
 
         void defer_rename(std::filesystem::path oldname, std::filesystem::path newname)

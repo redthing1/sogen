@@ -140,7 +140,34 @@ namespace syscalls
             return STATUS_SUCCESS;
         }
 
-        c.win_emu.log.error("Unsupported set file info class: %X\n", info_class);
+        if (info_class == FileEndOfFileInformation)
+        {
+            if (!f->handle)
+            {
+                return STATUS_NOT_SUPPORTED;
+            }
+
+            if (length < sizeof(FILE_END_OF_FILE_INFORMATION))
+            {
+                return STATUS_BUFFER_OVERFLOW;
+            }
+
+            const auto info = c.emu.read_memory<FILE_END_OF_FILE_INFORMATION>(file_information);
+
+            if (!f->handle.resize(info.EndOfFile.QuadPart))
+            {
+                return STATUS_INVALID_PARAMETER;
+            }
+
+            return STATUS_SUCCESS;
+        }
+
+        if (info_class == FileAllocationInformation)
+        {
+            return STATUS_SUCCESS;
+        }
+
+        c.win_emu.log.error("Unsupported set file info class: 0x%X\n", info_class);
         c.emu.stop();
 
         return STATUS_NOT_SUPPORTED;
