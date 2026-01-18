@@ -1153,8 +1153,19 @@ namespace syscalls
         {
             c.win_emu.callbacks.on_generic_access("Opening folder", f.name);
 
-            if (create_disposition & FILE_CREATE)
+            if (create_disposition == FILE_CREATE || create_disposition == FILE_OPEN_IF)
             {
+                if (create_disposition == FILE_CREATE && std::filesystem::exists(host_path))
+                {
+                    return STATUS_OBJECT_NAME_COLLISION;
+                }
+
+                auto parent = host_path.parent_path();
+                if (!std::filesystem::is_directory(parent))
+                {
+                    return STATUS_OBJECT_PATH_NOT_FOUND;
+                }
+
                 create_directory(host_path, ec);
 
                 if (ec)
