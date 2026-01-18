@@ -643,6 +643,91 @@ namespace syscalls
             return ret(STATUS_SUCCESS);
         }
 
+        if (info_class == FileStreamInformation)
+        {
+            const std::u16string stream_name = u"::$DATA";
+            const uint32_t stream_name_len = static_cast<uint32_t>(stream_name.size() * sizeof(char16_t));
+
+            const uint32_t required_length = offsetof(FILE_STREAM_INFORMATION, StreamName) + stream_name_len;
+            block.Information = required_length;
+
+            if (length < required_length)
+            {
+                return ret(STATUS_BUFFER_OVERFLOW);
+            }
+
+            struct _stat64 file_stat{};
+            if (f->handle)
+            {
+                if (fstat64(f->handle, &file_stat) != 0)
+                {
+                    return ret(STATUS_INVALID_HANDLE);
+                }
+            }
+
+            FILE_STREAM_INFORMATION info{};
+            info.NextEntryOffset = 0;
+            info.StreamNameLength = stream_name_len;
+
+            if (f->is_directory())
+            {
+                info.StreamSize.QuadPart = 0;
+                info.StreamAllocationSize.QuadPart = 0;
+            }
+            else
+            {
+                info.StreamSize.QuadPart = file_stat.st_size;
+                info.StreamAllocationSize.QuadPart = file_stat.st_size;
+            }
+
+            c.emu.write_memory(file_information, info);
+            c.emu.write_memory(file_information + offsetof(FILE_STREAM_INFORMATION, StreamName), stream_name.c_str(), stream_name_len);
+
+            return ret(STATUS_SUCCESS);
+        }
+
+        if (info_class == FileEaInformation)
+        {
+            block.Information = sizeof(FILE_EA_INFORMATION);
+
+            if (length < block.Information)
+            {
+                return ret(STATUS_BUFFER_OVERFLOW);
+            }
+
+            const emulator_object<FILE_EA_INFORMATION> info{c.emu, file_information};
+            FILE_EA_INFORMATION i{};
+
+            i.EaSize = 0;
+
+            info.write(i);
+
+            return ret(STATUS_SUCCESS);
+        }
+
+        if (info_class == FileVolumeNameInformation)
+        {
+            const std::u16string volume_name = u"\\Device\\HarddiskVolume1";
+
+            const uint32_t name_bytes = static_cast<uint32_t>(volume_name.size() * sizeof(char16_t));
+            const uint32_t required_length = offsetof(FILE_VOLUME_NAME_INFORMATION, DeviceName) + name_bytes;
+
+            block.Information = required_length;
+
+            if (length < required_length)
+            {
+                return ret(STATUS_BUFFER_OVERFLOW);
+            }
+
+            FILE_VOLUME_NAME_INFORMATION vni{};
+            vni.DeviceNameLength = name_bytes;
+
+            c.emu.write_memory(file_information, vni);
+            c.emu.write_memory(file_information + offsetof(FILE_VOLUME_NAME_INFORMATION, DeviceName), volume_name.c_str(), name_bytes);
+
+            return ret(STATUS_SUCCESS);
+        }
+
         if (info_class == FileAllInformation)
         {
             return ret(STATUS_NOT_SUPPORTED);
