@@ -646,7 +646,7 @@ namespace syscalls
         if (info_class == FileStreamInformation)
         {
             const std::u16string stream_name = u"::$DATA";
-            const uint32_t stream_name_len = static_cast<uint32_t>(stream_name.size() * sizeof(char16_t));
+            const auto stream_name_len = static_cast<uint32_t>(stream_name.size() * sizeof(char16_t));
 
             const uint32_t required_length = offsetof(FILE_STREAM_INFORMATION, StreamName) + stream_name_len;
             block.Information = required_length;
@@ -708,10 +708,9 @@ namespace syscalls
         if (info_class == FileVolumeNameInformation)
         {
             const std::u16string volume_name = u"\\Device\\HarddiskVolume1";
+            const auto name_bytes = static_cast<uint32_t>(volume_name.size() * sizeof(char16_t));
 
-            const uint32_t name_bytes = static_cast<uint32_t>(volume_name.size() * sizeof(char16_t));
             const uint32_t required_length = offsetof(FILE_VOLUME_NAME_INFORMATION, DeviceName) + name_bytes;
-
             block.Information = required_length;
 
             if (length < required_length)
@@ -1160,8 +1159,7 @@ namespace syscalls
                     return STATUS_OBJECT_NAME_COLLISION;
                 }
 
-                auto parent = host_path.parent_path();
-                if (!std::filesystem::is_directory(parent))
+                if (!std::filesystem::is_directory(host_path.parent_path()))
                 {
                     return STATUS_OBJECT_PATH_NOT_FOUND;
                 }

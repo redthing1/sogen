@@ -3,8 +3,10 @@
 #include <cstdio>
 #include <type_traits>
 
-#ifdef OS_WINDOWS
+#if defined(OS_WINDOWS) && !defined(__MINGW64__)
 #include <corecrt_io.h>
+#else
+#include <unistd.h>
 #endif
 
 namespace utils
@@ -120,15 +122,19 @@ namespace utils
         bool resize(uint64_t size) const
         {
 #ifdef OS_WINDOWS
-            const int fd = _fileno(this->file_);
+            const auto fd = _fileno(this->file_);
             if (fd == -1)
+            {
                 return false;
+            }
 
             return _chsize_s(fd, static_cast<long long>(size)) == 0;
 #else
-            const int fd = fileno(this->file_);
+            const auto fd = fileno(this->file_);
             if (fd == -1)
+            {
                 return false;
+            }
 
             return ftruncate(fd, static_cast<off_t>(size)) == 0;
 #endif
@@ -136,7 +142,7 @@ namespace utils
 
         void defer_rename(std::filesystem::path oldname, std::filesystem::path newname)
         {
-            deferred_rename_ = {.old_filepath = std::move(oldname), .new_filepath = std::move(newname)};
+            deferred_rename_ = rename_information{.old_filepath = std::move(oldname), .new_filepath = std::move(newname)};
         }
 
         void defer_delete(std::filesystem::path name)
@@ -147,7 +153,7 @@ namespace utils
                 return;
             }
 
-            deferred_delete_ = {.filepath = std::move(name)};
+            deferred_delete_ = delete_information{.filepath = std::move(name)};
         }
 
         void serialize(utils::buffer_serializer& buffer) const

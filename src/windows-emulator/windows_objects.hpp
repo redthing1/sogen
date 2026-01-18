@@ -236,7 +236,7 @@ struct file : ref_counted_object
         buffer.write(this->host_path.u16string());
         buffer.write_optional(this->enumeration_state);
 
-        bool has_handle = static_cast<bool>(this->handle);
+        const auto has_handle = static_cast<bool>(this->handle);
         buffer.write(has_handle);
 
         if (has_handle)
@@ -252,8 +252,7 @@ struct file : ref_counted_object
         this->host_path = buffer.read<std::u16string>();
         buffer.read_optional(this->enumeration_state);
 
-        bool has_handle;
-        buffer.read(has_handle);
+        const auto has_handle = buffer.read<bool>();
 
         this->handle = {};
 
