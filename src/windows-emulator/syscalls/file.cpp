@@ -1084,6 +1084,8 @@ namespace syscalls
         }
 
         f.handle = std::move(native_file_handle);
+        f.open_mode = mode;
+        f.host_path = host_path;
 
         const auto handle = c.proc.files.store(std::move(f));
         file_handle.write(handle);

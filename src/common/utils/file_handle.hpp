@@ -7,13 +7,25 @@ namespace utils
 {
     class file_handle
     {
+      public:
         struct rename_information
         {
             std::filesystem::path old_filepath;
             std::filesystem::path new_filepath;
+
+            void serialize(utils::buffer_serializer& buffer) const
+            {
+                buffer.write(this->old_filepath.u16string());
+                buffer.write(this->new_filepath.u16string());
+            }
+
+            void deserialize(utils::buffer_deserializer& buffer)
+            {
+                this->old_filepath = buffer.read<std::u16string>();
+                this->new_filepath = buffer.read<std::u16string>();
+            }
         };
 
-      public:
         file_handle() = default;
 
         file_handle(FILE* file)
@@ -89,6 +101,25 @@ namespace utils
         void defer_rename(std::filesystem::path oldname, std::filesystem::path newname)
         {
             deferred_rename_ = {.old_filepath = std::move(oldname), .new_filepath = std::move(newname)};
+        }
+
+        void serialize(utils::buffer_serializer& buffer) const
+        {
+            buffer.write(this->tell());
+            buffer.write_optional(this->deferred_rename_);
+        }
+
+        void deserialize(utils::buffer_deserializer& buffer)
+        {
+            int64_t position = 0;
+            buffer.read(position);
+
+            if (!this->seek_to(position))
+            {
+                throw std::runtime_error("Failed to seek to serialized file position");
+            }
+
+            buffer.read_optional(this->deferred_rename_);
         }
 
       private:
