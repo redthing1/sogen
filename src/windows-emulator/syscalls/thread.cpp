@@ -338,11 +338,27 @@ namespace syscalls
         return STATUS_NOT_SUPPORTED;
     }
 
-    NTSTATUS handle_NtOpenThread(const syscall_context&, handle /*thread_handle*/, ACCESS_MASK /*desired_access*/,
+    NTSTATUS handle_NtOpenThread(const syscall_context& c, const emulator_object<handle> thread_handle, ACCESS_MASK /*desired_access*/,
                                  emulator_object<OBJECT_ATTRIBUTES<EmulatorTraits<Emu64>>> /*object_attributes*/,
-                                 emulator_pointer /*client_id*/)
+                                 emulator_object<CLIENT_ID64> client_id)
     {
-        return STATUS_NOT_SUPPORTED;
+        if (!client_id)
+        {
+            return STATUS_INVALID_PARAMETER;
+        }
+
+        const auto id = client_id.read();
+
+        for (auto& [h_val, t] : c.proc.threads)
+        {
+            if (t.id == id.UniqueThread)
+            {
+                thread_handle.write(c.proc.threads.make_handle(h_val));
+                return STATUS_SUCCESS;
+            }
+        }
+
+        return STATUS_INVALID_CID;
     }
 
     NTSTATUS handle_NtOpenThreadToken(const syscall_context&, const handle thread_handle, const ACCESS_MASK /*desired_access*/,

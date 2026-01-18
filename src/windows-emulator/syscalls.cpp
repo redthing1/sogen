@@ -300,9 +300,9 @@ namespace syscalls
     NTSTATUS handle_NtQueryInformationThread(const syscall_context& c, handle thread_handle, uint32_t info_class,
                                              uint64_t thread_information, uint32_t thread_information_length,
                                              emulator_object<uint32_t> return_length);
-    NTSTATUS handle_NtOpenThread(const syscall_context&, handle thread_handle, ACCESS_MASK /*desired_access*/,
-                                 emulator_object<OBJECT_ATTRIBUTES<EmulatorTraits<Emu64>>> /*object_attributes*/,
-                                 emulator_pointer /*client_id*/);
+    NTSTATUS handle_NtOpenThread(const syscall_context&, emulator_object<handle> thread_handle, ACCESS_MASK desired_access,
+                                 emulator_object<OBJECT_ATTRIBUTES<EmulatorTraits<Emu64>>> object_attributes,
+                                 emulator_object<CLIENT_ID64> client_id);
     NTSTATUS handle_NtOpenThreadToken(const syscall_context&, handle thread_handle, ACCESS_MASK /*desired_access*/,
                                       BOOLEAN /*open_as_self*/, emulator_object<handle> token_handle);
     NTSTATUS handle_NtOpenThreadTokenEx(const syscall_context& c, handle thread_handle, ACCESS_MASK desired_access, BOOLEAN open_as_self,
