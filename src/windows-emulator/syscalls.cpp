@@ -314,6 +314,8 @@ namespace syscalls
                                               emulator_object<EMU_RTL_SRWLOCK<EmulatorTraits<Emu64>>> lock);
     NTSTATUS handle_NtWaitForAlertByThreadId(const syscall_context& c, uint64_t, emulator_object<LARGE_INTEGER> timeout);
     NTSTATUS handle_NtYieldExecution(const syscall_context& c);
+    NTSTATUS handle_NtSuspendThread(const syscall_context& c, const handle thread_handle,
+                                    const emulator_object<ULONG> previous_suspend_count);
     NTSTATUS handle_NtResumeThread(const syscall_context& c, handle thread_handle, emulator_object<ULONG> previous_suspend_count);
     NTSTATUS handle_NtContinue(const syscall_context& c, emulator_object<CONTEXT64> thread_context, BOOLEAN raise_alert);
     NTSTATUS handle_NtContinueEx(const syscall_context& c, emulator_object<CONTEXT64> thread_context, uint64_t continue_argument);
@@ -1266,6 +1268,7 @@ void syscall_dispatcher::add_handlers(std::map<std::string, syscall_handler>& ha
     add_handler(NtRequestWaitReplyPort);
     add_handler(NtQueryDefaultLocale);
     add_handler(NtSetTimerResolution);
+    add_handler(NtSuspendThread);
     add_handler(NtResumeThread);
     add_handler(NtClearEvent);
     add_handler(NtTraceControl);

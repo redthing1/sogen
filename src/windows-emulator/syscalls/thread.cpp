@@ -479,10 +479,41 @@ namespace syscalls
         return STATUS_SUCCESS;
     }
 
+    NTSTATUS handle_NtSuspendThread(const syscall_context& c, const handle thread_handle,
+                                    const emulator_object<ULONG> previous_suspend_count)
+    {
+        auto* thread = thread_handle == CURRENT_THREAD ? c.proc.active_thread : c.proc.threads.get(thread_handle);
+
+        if (!thread)
+        {
+            return STATUS_INVALID_HANDLE;
+        }
+
+        const auto old_count = thread->suspended;
+        if (previous_suspend_count)
+        {
+            previous_suspend_count.write(old_count);
+        }
+
+        if (thread->suspended >= 0x7F) // MAXIMUM_SUSPEND_COUNT
+        {
+            return STATUS_SUSPEND_COUNT_EXCEEDED;
+        }
+
+        thread->suspended += 1;
+
+        if (thread == c.proc.active_thread)
+        {
+            c.win_emu.yield_thread();
+        }
+
+        return STATUS_SUCCESS;
+    }
+
     NTSTATUS handle_NtResumeThread(const syscall_context& c, const handle thread_handle,
                                    const emulator_object<ULONG> previous_suspend_count)
     {
-        auto* thread = c.proc.threads.get(thread_handle);
+        auto* thread = thread_handle == CURRENT_THREAD ? c.proc.active_thread : c.proc.threads.get(thread_handle);
         if (!thread)
         {
             return STATUS_INVALID_HANDLE;
