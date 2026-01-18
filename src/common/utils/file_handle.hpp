@@ -88,7 +88,7 @@ namespace utils
             return *this;
         }
 
-        [[nodiscard]] operator bool() const
+        [[nodiscard]] explicit operator bool() const
         {
             return this->file_;
         }
