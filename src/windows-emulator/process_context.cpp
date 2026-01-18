@@ -472,6 +472,8 @@ void process_context::serialize(utils::buffer_serializer& buffer) const
     buffer.write(this->timers);
     buffer.write(this->registry_keys);
     buffer.write_map(this->atoms);
+    buffer.write_map(this->classes);
+
     buffer.write_map(this->apiset);
     buffer.write_map(this->knowndlls32_sections);
     buffer.write_map(this->knowndlls64_sections);
@@ -525,6 +527,8 @@ void process_context::deserialize(utils::buffer_deserializer& buffer)
     buffer.read(this->timers);
     buffer.read(this->registry_keys);
     buffer.read_map(this->atoms);
+    buffer.read_map(this->classes);
+
     buffer.read_map(this->apiset);
     buffer.read_map(this->knowndlls32_sections);
     buffer.read_map(this->knowndlls64_sections);

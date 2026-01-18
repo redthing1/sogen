@@ -64,6 +64,22 @@ struct process_context
         }
     };
 
+    struct class_entry
+    {
+        emulator_pointer guest_obj_addr{};
+        EMU_WNDCLASSEX wnd_class{};
+        CLSMENUNAME<EmulatorTraits<Emu64>> menu_name{};
+
+        class_entry() = default;
+
+        class_entry(const emulator_pointer guest_obj, const EMU_WNDCLASSEX& wnd_class, const CLSMENUNAME<EmulatorTraits<Emu64>>& menu_name)
+            : guest_obj_addr(guest_obj),
+              wnd_class(wnd_class),
+              menu_name(menu_name)
+        {
+        }
+    };
+
     process_context(x86_64_emulator& emu, memory_manager& memory, utils::clock& clock, callbacks& cb)
         : callbacks_(&cb),
           base_allocator(emu),
@@ -144,6 +160,7 @@ struct process_context
     handle_store<handle_types::timer, timer> timers{};
     handle_store<handle_types::registry, registry_key, 2> registry_keys{};
     std::map<uint16_t, atom_entry> atoms{};
+    utils::insensitive_u16string_map<class_entry> classes{};
 
     apiset_map apiset;
     knowndlls_map knowndlls32_sections;

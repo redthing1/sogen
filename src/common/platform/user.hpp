@@ -116,6 +116,19 @@ struct USER_MONITOR
     uint8_t unknown4[0xFF];
 };
 
+template <typename Traits>
+struct CLSMENUNAME
+{
+    EMULATOR_CAST(typename Traits::PVOID, char*) pszClientAnsiMenuName;
+    EMULATOR_CAST(typename Traits::PVOID, char16_t*) pwszClientUnicodeMenuName;
+    EMULATOR_CAST(typename Traits::PVOID, UNICODE_STRING*) pusMenuName;
+};
+
+struct USER_CLASS
+{
+    uint8_t unknown[0xFF];
+};
+
 struct USER_WINDOW
 {
     uint8_t unknown[0xFF];

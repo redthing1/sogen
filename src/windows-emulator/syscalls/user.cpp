@@ -90,20 +90,69 @@ namespace syscalls
         return 0;
     }
 
-    NTSTATUS handle_NtUserRegisterClassExWOW(const syscall_context& c, const emulator_pointer /*wnd_class_ex*/,
+    NTSTATUS handle_NtUserRegisterClassExWOW(const syscall_context& c, const emulator_object<EMU_WNDCLASSEX> wnd_class_ex,
                                              const emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>> class_name,
                                              const emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>> /*class_version*/,
-                                             const emulator_pointer /*class_menu_name*/, const DWORD /*function_id*/, const DWORD /*flags*/,
-                                             const emulator_pointer /*wow*/)
+                                             const emulator_object<CLSMENUNAME<EmulatorTraits<Emu64>>> class_menu_name,
+                                             const DWORD /*function_id*/, const DWORD /*flags*/, const emulator_pointer /*wow*/)
     {
-        uint16_t index = c.proc.add_or_find_atom(read_unicode_string(c.emu, class_name));
+        if (!wnd_class_ex)
+        {
+            return STATUS_INVALID_PARAMETER;
+        }
+
+        const auto class_name_str = read_unicode_string(c.emu, class_name);
+        const auto index = c.proc.add_or_find_atom(class_name_str);
+
+        constexpr auto cls_size = static_cast<size_t>(page_align_up(sizeof(USER_CLASS)));
+        const auto cls_ptr = c.win_emu.memory.allocate_memory(cls_size, memory_permission::read);
+
+        const auto wnd_class = wnd_class_ex.read();
+
+        c.proc.classes.emplace(class_name_str, process_context::class_entry{cls_ptr, wnd_class, class_menu_name.read()});
+
         return index;
     }
 
     NTSTATUS handle_NtUserUnregisterClass(const syscall_context& c, const emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>> class_name,
-                                          const emulator_pointer /*instance*/, const emulator_pointer /*class_menu_name*/)
+                                          const emulator_pointer /*instance*/,
+                                          const emulator_object<CLSMENUNAME<EmulatorTraits<Emu64>>> class_menu_name)
     {
-        return c.proc.delete_atom(read_unicode_string(c.emu, class_name));
+        const auto cls_name = read_unicode_string(c.emu, class_name);
+
+        if (const auto it = c.proc.classes.find(cls_name); it != c.proc.classes.end())
+        {
+            if (class_menu_name)
+            {
+                class_menu_name.write(it->second.menu_name);
+            }
+
+            c.win_emu.memory.release_memory(it->second.guest_obj_addr, 0);
+            c.proc.classes.erase(it);
+        }
+
+        return c.proc.delete_atom(cls_name);
+    }
+
+    BOOL handle_NtUserGetClassInfoEx(const syscall_context& c, const hinstance /*instance*/,
+                                     const emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>> class_name,
+                                     const emulator_object<EMU_WNDCLASSEX> wnd_class_ex, const emulator_pointer /*menu_name*/,
+                                     const BOOL /*ansi*/)
+    {
+        std::u16string name_str = read_unicode_string(c.emu, class_name);
+
+        auto it = c.proc.classes.find(name_str);
+        if (it == c.proc.classes.end())
+        {
+            return FALSE;
+        }
+
+        if (wnd_class_ex)
+        {
+            wnd_class_ex.write(it->second.wnd_class);
+        }
+
+        return TRUE;
     }
 
     NTSTATUS handle_NtUserSetWindowsHookEx()

@@ -30,6 +30,9 @@ using hdc = pointer;
 using hwnd = pointer;
 using hmenu = pointer;
 using hinstance = pointer;
+using hicon = pointer;
+using hcursor = pointer;
+using hbrush = pointer;
 
 struct msg
 {
@@ -49,6 +52,22 @@ struct qmsg
     UINT message;
     wparam wParam;
     lparam lParam;
+};
+
+struct EMU_WNDCLASSEX
+{
+    uint32_t cbSize;
+    uint32_t style;
+    pointer lpfnWndProc;
+    int cbClsExtra;
+    int cbWndExtra;
+    hinstance hInstance;
+    hicon hIcon;
+    hcursor hCursor;
+    hbrush hbrBackground;
+    pointer lpszMenuName;
+    pointer lpszClassName;
+    hicon hIconSm;
 };
 
 #ifndef OS_WINDOWS

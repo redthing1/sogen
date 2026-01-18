@@ -386,12 +386,16 @@ namespace syscalls
                                        emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>> window_name);
     NTSTATUS handle_NtUserMoveWindow();
     NTSTATUS handle_NtUserGetProcessWindowStation();
-    NTSTATUS handle_NtUserRegisterClassExWOW(const syscall_context& c, emulator_pointer wnd_class_ex,
+    NTSTATUS handle_NtUserRegisterClassExWOW(const syscall_context& c, emulator_object<EMU_WNDCLASSEX> wnd_class_ex,
                                              emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>> class_name,
                                              emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>> class_version,
-                                             emulator_pointer class_menu_name, DWORD function_id, DWORD flags, emulator_pointer wow);
+                                             emulator_object<CLSMENUNAME<EmulatorTraits<Emu64>>> class_menu_name, DWORD function_id,
+                                             DWORD flags, emulator_pointer wow);
     NTSTATUS handle_NtUserUnregisterClass(const syscall_context& c, emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>> class_name,
-                                          emulator_pointer instance, emulator_pointer class_menu_name);
+                                          emulator_pointer instance, emulator_object<CLSMENUNAME<EmulatorTraits<Emu64>>> class_menu_name);
+    BOOL handle_NtUserGetClassInfoEx(const syscall_context& c, hinstance /*instance*/,
+                                     emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>> class_name,
+                                     emulator_object<EMU_WNDCLASSEX> wnd_class_ex, emulator_pointer menu_name, BOOL /*ansi*/);
     NTSTATUS handle_NtUserSetWindowsHookEx();
     NTSTATUS handle_NtUserUnhookWindowsHookEx();
     hwnd handle_NtUserCreateWindowEx(const syscall_context& c, DWORD ex_style, emulator_object<LARGE_STRING> class_name,
@@ -1044,6 +1048,7 @@ void syscall_dispatcher::add_handlers(std::map<std::string, syscall_handler>& ha
     add_handler(NtUserGetSystemMenu);
     add_handler(NtCallbackReturn);
     add_handler(NtUserPostQuitMessage);
+    add_handler(NtUserGetClassInfoEx);
 
 #undef add_handler
 }
