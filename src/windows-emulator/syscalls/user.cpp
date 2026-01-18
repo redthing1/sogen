@@ -202,26 +202,73 @@ namespace syscalls
     BOOL handle_NtUserGetMessage(const syscall_context& c, const emulator_object<msg> message, const hwnd hwnd, const UINT msg_filter_min,
                                  const UINT msg_filter_max)
     {
-        (void)c;
-        (void)message;
-        (void)hwnd;
-        (void)msg_filter_min;
-        (void)msg_filter_max;
+        auto& t = c.win_emu.current_thread();
 
-        return TRUE;
+        if (auto pending_msg = t.peek_pending_message(hwnd, msg_filter_min, msg_filter_max, true))
+        {
+            message.write(*pending_msg);
+            return pending_msg->message != WM_QUIT ? TRUE : FALSE;
+        }
+
+        t.await_msg = {message, hwnd, msg_filter_min, msg_filter_max};
+
+        c.win_emu.yield_thread(false);
+        return {};
     }
 
     BOOL handle_NtUserPeekMessage(const syscall_context& c, const emulator_object<msg> message, const hwnd hwnd, const UINT msg_filter_min,
                                   const UINT msg_filter_max, const UINT remove_message)
     {
-        (void)c;
-        (void)message;
-        (void)hwnd;
-        (void)msg_filter_min;
-        (void)msg_filter_max;
-        (void)remove_message;
+        auto& t = c.win_emu.current_thread();
+
+        const bool should_remove = (remove_message & PM_REMOVE) != 0;
+        std::optional<msg> pending_msg = t.peek_pending_message(hwnd, msg_filter_min, msg_filter_max, should_remove);
+
+        if (pending_msg)
+        {
+            message.write(*pending_msg);
+            return TRUE;
+        }
 
         return FALSE;
+    }
+
+    BOOL handle_NtUserPostMessage(const syscall_context& c, const hwnd hwnd, const UINT msg, const uint64_t wParam, const uint64_t lParam)
+    {
+        const auto* win = c.proc.windows.get(hwnd);
+        if (!win && hwnd != 0)
+        {
+            return FALSE;
+        }
+
+        uint32_t target_thread_id = hwnd != 0 ? win->thread_id : c.win_emu.current_thread().id;
+
+        for (auto& thread : c.proc.threads | std::views::values)
+        {
+            if (thread.id == target_thread_id)
+            {
+                ::msg qmsg{};
+                qmsg.window = hwnd;
+                qmsg.message = msg;
+                qmsg.wParam = wParam;
+                qmsg.lParam = lParam;
+
+                thread.post_message(qmsg);
+                return TRUE;
+            }
+        }
+
+        return FALSE;
+    }
+
+    BOOL handle_NtUserPostQuitMessage(const syscall_context& c, int exit_code)
+    {
+        msg qmsg{};
+        qmsg.message = WM_QUIT;
+        qmsg.wParam = exit_code;
+
+        c.proc.active_thread->post_message(qmsg);
+        return TRUE;
     }
 
     NTSTATUS handle_NtUserEnumDisplayDevices(const syscall_context& c,

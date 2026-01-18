@@ -121,4 +121,9 @@ struct USER_WINDOW
     uint8_t unknown[0xFF];
 };
 
+struct USER_DESKTOPINFO
+{
+    uint8_t unknown[0xFF];
+};
+
 // NOLINTEND(modernize-use-using,cppcoreguidelines-avoid-c-arrays,hicpp-avoid-c-arrays,modernize-avoid-c-arrays)

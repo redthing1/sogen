@@ -44,6 +44,17 @@ struct msg
 #endif
 };
 
+struct qmsg
+{
+    UINT message;
+    wparam wParam;
+    lparam lParam;
+};
+
+#ifndef OS_WINDOWS
+#define WM_QUIT              0x0012
+#endif
+
 struct EMU_DISPLAY_DEVICEW
 {
     DWORD cb;

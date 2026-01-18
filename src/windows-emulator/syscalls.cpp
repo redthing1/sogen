@@ -409,6 +409,8 @@ namespace syscalls
                                  UINT msg_filter_max);
     BOOL handle_NtUserPeekMessage(const syscall_context& c, emulator_object<msg> message, hwnd hwnd, UINT msg_filter_min,
                                   UINT msg_filter_max, UINT remove_message);
+    BOOL handle_NtUserPostMessage(const syscall_context& c, hwnd hwnd, UINT msg, uint64_t wParam, uint64_t lParam);
+    BOOL handle_NtUserPostQuitMessage(const syscall_context& c, int exit_code);
     NTSTATUS handle_NtUserEnumDisplayDevices(const syscall_context& c, emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>> str_device,
                                              DWORD dev_num, emulator_object<EMU_DISPLAY_DEVICEW> display_device, DWORD flags);
     NTSTATUS handle_NtUserEnumDisplaySettings(const syscall_context& c, emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>> device_name,
@@ -1034,12 +1036,14 @@ void syscall_dispatcher::add_handlers(std::map<std::string, syscall_handler>& ha
     add_handler(NtUserTransformRect);
     add_handler(NtUserSetWindowPos);
     add_handler(NtUserSetForegroundWindow);
+    add_handler(NtUserPostMessage);
     add_handler(NtUserRedrawWindow);
     add_handler(NtUserGetCPD);
     add_handler(NtUserSetWindowFNID);
     add_handler(NtUserEnableWindow);
     add_handler(NtUserGetSystemMenu);
     add_handler(NtCallbackReturn);
+    add_handler(NtUserPostQuitMessage);
 
 #undef add_handler
 }

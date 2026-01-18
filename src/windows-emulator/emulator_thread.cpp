@@ -160,6 +160,9 @@ emulator_thread::emulator_thread(memory_manager& memory, const process_context& 
             teb_obj.SameTebFlags.SkipThreadAttach = (create_flags & THREAD_CREATE_FLAGS_SKIP_THREAD_ATTACH) ? 1 : 0;
             teb_obj.SameTebFlags.LoaderWorker = (create_flags & THREAD_CREATE_FLAGS_LOADER_WORKER) ? 1 : 0;
             teb_obj.SameTebFlags.SkipLoaderInit = (create_flags & THREAD_CREATE_FLAGS_SKIP_LOADER_INIT) ? 1 : 0;
+
+            const auto desktop_info_obj = this->gs_segment->reserve<USER_DESKTOPINFO>();
+            teb_obj.Win32ClientInfo.arr[4] = desktop_info_obj.value();
         });
 
         return;
@@ -351,6 +354,7 @@ void emulator_thread::mark_as_ready(const NTSTATUS status)
     this->pending_status = status;
     this->await_time = {};
     this->await_objects = {};
+    this->await_msg = {};
 
     // TODO: Find out if this is correct
     if (this->waiting_for_alert)
@@ -359,6 +363,40 @@ void emulator_thread::mark_as_ready(const NTSTATUS status)
     }
 
     this->waiting_for_alert = false;
+}
+
+std::optional<msg> emulator_thread::peek_pending_message(hwnd hwnd_filter, UINT filter_min, UINT filter_max, bool remove)
+{
+    for (auto it = message_queue.begin(); it != message_queue.end(); ++it)
+    {
+        if (hwnd_filter != 0 && hwnd_filter != static_cast<hwnd>(-1) && it->window != hwnd_filter)
+        {
+            continue;
+        }
+
+        if (hwnd_filter == static_cast<hwnd>(-1) && it->window != 0)
+        {
+            continue;
+        }
+
+        if ((filter_min != 0 || filter_max != 0) && (it->message < filter_min || it->message > filter_max))
+        {
+            continue;
+        }
+
+        auto msg = *it;
+        if (remove)
+        {
+            message_queue.erase(it);
+        }
+        return msg;
+    }
+    return std::nullopt;
+}
+
+void emulator_thread::post_message(const msg& msg)
+{
+    message_queue.push_back(msg);
 }
 
 bool emulator_thread::is_terminated() const
@@ -426,6 +464,19 @@ bool emulator_thread::is_thread_ready(process_context& process, utils::clock& cl
         if (this->is_await_time_over(clock))
         {
             this->mark_as_ready(STATUS_SUCCESS);
+            return true;
+        }
+
+        return false;
+    }
+
+    if (this->await_msg.has_value())
+    {
+        if (const auto m =
+                this->peek_pending_message(this->await_msg->hwnd_filter, this->await_msg->filter_min, this->await_msg->filter_max, true))
+        {
+            this->await_msg->message.write(*m);
+            this->mark_as_ready(m->message != WM_QUIT ? TRUE : FALSE);
             return true;
         }
 

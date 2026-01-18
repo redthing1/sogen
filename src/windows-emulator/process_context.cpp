@@ -457,6 +457,7 @@ void process_context::serialize(utils::buffer_serializer& buffer) const
     buffer.write(this->ki_user_exception_dispatcher);
     buffer.write(this->instrumentation_callback);
     buffer.write(this->zw_callback_return);
+    buffer.write(this->dispatch_client_message);
 
     buffer.write(this->user_handles);
     buffer.write(this->default_monitor_handle);
@@ -509,6 +510,7 @@ void process_context::deserialize(utils::buffer_deserializer& buffer)
     buffer.read(this->ki_user_exception_dispatcher);
     buffer.read(this->instrumentation_callback);
     buffer.read(this->zw_callback_return);
+    buffer.read(this->dispatch_client_message);
 
     buffer.read(this->user_handles);
     buffer.read(this->default_monitor_handle);
