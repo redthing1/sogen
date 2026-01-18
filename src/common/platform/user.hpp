@@ -45,23 +45,6 @@ struct USER_SHAREDINFO
     uint8_t unknown[0xFF];
 };
 
-struct USER_THROBJHEAD
-{
-    struct
-    {
-        uint64_t h;
-        uint32_t cLockObj;
-    } h;
-    uint64_t pti;
-};
-
-struct USER_THRDESKHEAD
-{
-    USER_THROBJHEAD h;
-    uint64_t rpdesk;
-    uint64_t pSelf;
-};
-
 enum USER_HANDLETYPE : uint8_t
 {
     TYPE_FREE = 0,
