@@ -520,7 +520,7 @@ namespace syscalls
             }
 
             struct _stat64 file_stat{};
-            if (fstat64(f->handle, &file_stat) != 0)
+            if (fstat64(f->handle.file_descriptor(), &file_stat) != 0)
             {
                 return STATUS_INVALID_HANDLE;
             }
@@ -626,7 +626,7 @@ namespace syscalls
             }
 
             struct _stat64 file_stat{};
-            if (fstat64(f->handle, &file_stat) != 0)
+            if (fstat64(f->handle.file_descriptor(), &file_stat) != 0)
             {
                 return ret(STATUS_INVALID_HANDLE);
             }
@@ -659,7 +659,7 @@ namespace syscalls
             struct _stat64 file_stat{};
             if (f->handle)
             {
-                if (fstat64(f->handle, &file_stat) != 0)
+                if (fstat64(f->handle.file_descriptor(), &file_stat) != 0)
                 {
                     return ret(STATUS_INVALID_HANDLE);
                 }
@@ -780,7 +780,7 @@ namespace syscalls
             }
 
             struct _stat64 file_stat{};
-            if (fstat64(native_file_handle, &file_stat) != 0)
+            if (fstat64(native_file_handle.file_descriptor(), &file_stat) != 0)
             {
                 return STATUS_INVALID_HANDLE;
             }

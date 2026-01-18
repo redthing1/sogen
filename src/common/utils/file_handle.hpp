@@ -98,6 +98,11 @@ namespace utils
             return this->file_;
         }
 
+        [[nodiscard]] int file_descriptor() const
+        {
+            return fileno(this->file_);
+        }
+
         [[nodiscard]] int64_t size() const
         {
             const auto current_position = this->tell();
@@ -121,21 +126,15 @@ namespace utils
 
         bool resize(uint64_t size) const
         {
-#ifdef OS_WINDOWS
-            const auto fd = _fileno(this->file_);
+            const auto fd = this->file_descriptor();
             if (fd == -1)
             {
                 return false;
             }
 
+#ifdef OS_WINDOWS
             return _chsize_s(fd, static_cast<long long>(size)) == 0;
 #else
-            const auto fd = fileno(this->file_);
-            if (fd == -1)
-            {
-                return false;
-            }
-
             return ftruncate(fd, static_cast<off_t>(size)) == 0;
 #endif
         }
