@@ -6,6 +6,7 @@
 
 #include <utils/moved_marker.hpp>
 
+struct completion_state;
 struct process_context;
 
 struct pending_apc
@@ -43,38 +44,32 @@ enum class callback_id : uint32_t
 
 struct callback_frame
 {
-    callback_id handler_id;
-    uint64_t rip;
-    uint64_t rsp;
-    uint64_t r10;
-    uint64_t rcx;
-    uint64_t rdx;
-    uint64_t r8;
-    uint64_t r9;
+    callback_id handler_id{};
+    uint64_t rip{};
+    uint64_t rsp{};
+    uint64_t r10{};
+    uint64_t rcx{};
+    uint64_t rdx{};
+    uint64_t r8{};
+    uint64_t r9{};
+    std::unique_ptr<completion_state> state{};
 
-    void serialize(utils::buffer_serializer& buffer) const
-    {
-        buffer.write(this->handler_id);
-        buffer.write(this->rip);
-        buffer.write(this->rsp);
-        buffer.write(this->r10);
-        buffer.write(this->rcx);
-        buffer.write(this->rdx);
-        buffer.write(this->r8);
-        buffer.write(this->r9);
-    }
+    callback_frame();
+    callback_frame(callback_id callback_id, std::unique_ptr<completion_state> completion_state);
 
-    void deserialize(utils::buffer_deserializer& buffer)
-    {
-        buffer.read(this->handler_id);
-        buffer.read(this->rip);
-        buffer.read(this->rsp);
-        buffer.read(this->r10);
-        buffer.read(this->rcx);
-        buffer.read(this->rdx);
-        buffer.read(this->r8);
-        buffer.read(this->r9);
-    }
+    callback_frame(const callback_frame&) = delete;
+    callback_frame& operator=(const callback_frame&) = delete;
+
+    callback_frame(callback_frame&& obj) noexcept;
+    callback_frame& operator=(callback_frame&& obj) noexcept;
+
+    ~callback_frame();
+
+    void save_registers(x86_64_emulator& emu);
+    void restore_registers(x86_64_emulator& emu) const;
+
+    void serialize(utils::buffer_serializer& buffer) const;
+    void deserialize(utils::buffer_deserializer& buffer);
 };
 
 class emulator_thread : public ref_counted_object

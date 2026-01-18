@@ -338,6 +338,7 @@ namespace syscalls
                                        uint64_t apc_argument1, uint64_t apc_argument2, uint64_t apc_argument3);
     NTSTATUS handle_NtQueueApcThread(const syscall_context& c, handle thread_handle, uint64_t apc_routine, uint64_t apc_argument1,
                                      uint64_t apc_argument2, uint64_t apc_argument3);
+    NTSTATUS handle_NtCallbackReturn(const syscall_context& c);
 
     // syscalls/timer.cpp:
     NTSTATUS handle_NtQueryTimerResolution(const syscall_context&, emulator_object<ULONG> maximum_time, emulator_object<ULONG> minimum_time,
@@ -413,8 +414,8 @@ namespace syscalls
     NTSTATUS handle_NtUserEnumDisplaySettings(const syscall_context& c, emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>> device_name,
                                               DWORD mode_num, emulator_object<EMU_DEVMODEW> dev_mode, DWORD flags);
     BOOL handle_NtUserEnumDisplayMonitors(const syscall_context& c, hdc hdc_in, uint64_t clip_rect_ptr, uint64_t callback, uint64_t param);
-    BOOL completion_NtUserEnumDisplayMonitors(const syscall_context& c, BOOL guest_result, hdc hdc_in, uint64_t clip_rect_ptr,
-                                              uint64_t callback, uint64_t param);
+    BOOL completion_NtUserEnumDisplayMonitors(const syscall_context& c, hdc hdc_in, uint64_t clip_rect_ptr, uint64_t callback,
+                                              uint64_t param);
     BOOL handle_NtUserGetHDevName(const syscall_context& c, handle hdev, emulator_pointer device_name);
     emulator_pointer handle_NtUserMapDesktopObject(const syscall_context& c, handle handle);
     NTSTATUS handle_NtUserTransformRect();
@@ -1038,19 +1039,28 @@ void syscall_dispatcher::add_handlers(std::map<std::string, syscall_handler>& ha
     add_handler(NtUserSetWindowFNID);
     add_handler(NtUserEnableWindow);
     add_handler(NtUserGetSystemMenu);
+    add_handler(NtCallbackReturn);
 
 #undef add_handler
 }
 
 void syscall_dispatcher::add_callbacks()
 {
-#define add_callback(syscall)                                                                                        \
-    do                                                                                                               \
-    {                                                                                                                \
-        this->callbacks_[callback_id::syscall] = make_callback_completion_handler<syscalls::completion_##syscall>(); \
+#define add_callback(syscall, completion_state)                                                                                      \
+    do                                                                                                                               \
+    {                                                                                                                                \
+        this->completion_handlers_[callback_id::syscall] = make_syscall_handler<syscalls::completion_##syscall>();                   \
+        syscall_dispatcher::completion_state_factories_[callback_id::syscall] = [] { return std::make_unique<completion_state>(); }; \
     } while (0)
 
-    add_callback(NtUserEnumDisplayMonitors);
+#define add_stateless_callback(syscall)                                                                            \
+    do                                                                                                             \
+    {                                                                                                              \
+        this->completion_handlers_[callback_id::syscall] = make_syscall_handler<syscalls::completion_##syscall>(); \
+    } while (0)
+
+    add_stateless_callback(NtUserEnumDisplayMonitors);
 
 #undef add_callback
+#undef add_stateless_callback
 }

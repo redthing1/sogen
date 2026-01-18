@@ -3,6 +3,7 @@
 
 #include "cpu_context.hpp"
 #include "process_context.hpp"
+#include "syscall_utils.hpp"
 
 namespace
 {
@@ -494,5 +495,94 @@ void emulator_thread::refresh_execution_context(x86_64_emulator& emu) const
     {
         // Refresh GDT entry for FS selector on context switch
         setup_wow64_fs_segment(*this->memory_ptr, this->teb32->value());
+    }
+}
+
+callback_frame::callback_frame() = default;
+
+callback_frame::callback_frame(callback_id callback_id, std::unique_ptr<completion_state> completion_state)
+{
+    this->handler_id = callback_id;
+    this->state = std::move(completion_state);
+}
+
+callback_frame::callback_frame(callback_frame&& obj) noexcept = default;
+callback_frame& callback_frame::operator=(callback_frame&& obj) noexcept = default;
+
+callback_frame::~callback_frame() = default;
+
+void callback_frame::save_registers(x86_64_emulator& emu)
+{
+    if (this->rip != 0)
+    {
+        throw std::runtime_error("Attempt to overwrite callback frame register snapshot");
+    }
+
+    this->rip = emu.reg(x86_register::rip);
+    this->rsp = emu.reg(x86_register::rsp);
+    this->r10 = emu.reg(x86_register::r10);
+    this->rcx = emu.reg(x86_register::rcx);
+    this->rdx = emu.reg(x86_register::rdx);
+    this->r8 = emu.reg(x86_register::r8);
+    this->r9 = emu.reg(x86_register::r9);
+}
+
+void callback_frame::restore_registers(x86_64_emulator& emu) const
+{
+    if (this->rip == 0)
+    {
+        throw std::runtime_error("Attempt to restore registers from an uninitialized callback frame");
+    }
+
+    emu.reg(x86_register::rip, this->rip);
+    emu.reg(x86_register::rsp, this->rsp);
+    emu.reg(x86_register::r10, this->r10);
+    emu.reg(x86_register::rcx, this->rcx);
+    emu.reg(x86_register::rdx, this->rdx);
+    emu.reg(x86_register::r8, this->r8);
+    emu.reg(x86_register::r9, this->r9);
+}
+
+void callback_frame::serialize(utils::buffer_serializer& buffer) const
+{
+    buffer.write(this->handler_id);
+    buffer.write(this->rip);
+    buffer.write(this->rsp);
+    buffer.write(this->r10);
+    buffer.write(this->rcx);
+    buffer.write(this->rdx);
+    buffer.write(this->r8);
+    buffer.write(this->r9);
+
+    buffer.write(static_cast<bool>(this->state));
+    if (this->state)
+    {
+        buffer.write(*this->state);
+    }
+}
+
+void callback_frame::deserialize(utils::buffer_deserializer& buffer)
+{
+    buffer.read(this->handler_id);
+    buffer.read(this->rip);
+    buffer.read(this->rsp);
+    buffer.read(this->r10);
+    buffer.read(this->rcx);
+    buffer.read(this->rdx);
+    buffer.read(this->r8);
+    buffer.read(this->r9);
+
+    bool has_state{};
+    buffer.read(has_state);
+
+    if (has_state)
+    {
+        this->state = syscall_dispatcher::create_completion_state(this->handler_id);
+        if (!this->state)
+        {
+            throw std::runtime_error(
+                "Serialized data indicates a completion state is present, but state creation failed for this callback id");
+        }
+        buffer.read(*this->state);
     }
 }

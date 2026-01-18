@@ -331,10 +331,10 @@ namespace syscalls
         return {};
     }
 
-    BOOL completion_NtUserEnumDisplayMonitors(const syscall_context&, BOOL guest_result, const hdc /*hdc_in*/,
-                                              const uint64_t /*clip_rect_ptr*/, const uint64_t /*callback*/, const uint64_t /*param*/)
+    BOOL completion_NtUserEnumDisplayMonitors(const syscall_context& c, const hdc /*hdc_in*/, const uint64_t /*clip_rect_ptr*/,
+                                              const uint64_t /*callback*/, const uint64_t /*param*/)
     {
-        return guest_result;
+        return c.get_callback_result<BOOL>();
     }
 
     BOOL handle_NtUserGetHDevName(const syscall_context& c, handle hdev, emulator_pointer device_name)

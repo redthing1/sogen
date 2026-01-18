@@ -553,7 +553,6 @@ void windows_emulator::start(size_t count)
 {
     this->should_stop = false;
     this->setup_process_if_necessary();
-    this->process.setup_callback_hook(*this, this->memory);
 
     const auto use_count = count > 0;
     const auto start_instructions = this->executed_instructions_;
@@ -635,8 +634,8 @@ void windows_emulator::serialize(utils::buffer_serializer& buffer) const
     this->emu().serialize_state(buffer, false);
     this->memory.serialize_memory_state(buffer, false);
     this->mod_manager.serialize(buffer);
-    this->process.serialize(buffer);
     this->dispatcher.serialize(buffer);
+    this->process.serialize(buffer);
 }
 
 void windows_emulator::deserialize(utils::buffer_deserializer& buffer)
@@ -662,8 +661,8 @@ void windows_emulator::deserialize(utils::buffer_deserializer& buffer)
     this->emu().deserialize_state(buffer, false);
     this->memory.deserialize_memory_state(buffer, false);
     this->mod_manager.deserialize(buffer);
-    this->process.deserialize(buffer);
     this->dispatcher.deserialize(buffer);
+    this->process.deserialize(buffer);
 }
 
 void windows_emulator::save_snapshot()
