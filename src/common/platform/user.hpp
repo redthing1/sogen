@@ -4,11 +4,18 @@
 
 // NOLINTBEGIN(modernize-use-using,cppcoreguidelines-avoid-c-arrays,hicpp-avoid-c-arrays,modernize-avoid-c-arrays)
 
+#define FNID_START      0x29A
+#define FNID_ARRAY_SIZE 24
+
 struct USER_SERVERINFO
 {
     DWORD dwSRVIFlags;
     uint64_t cHandleEntries;
-    uint8_t unknown[0x1000];
+    uint8_t unknown1[0x178];
+    uint64_t apfnClientA[FNID_ARRAY_SIZE];
+    uint64_t apfnClientW[FNID_ARRAY_SIZE];
+    uint64_t apfnClientWorker[FNID_ARRAY_SIZE];
+    uint8_t unknown2[0x1000];
 };
 
 struct USER_DISPINFO
