@@ -76,6 +76,9 @@ struct pending_msg
 enum class callback_id : uint32_t
 {
     Invalid = 0,
+    NtUserCreateWindowEx,
+    NtUserDestroyWindow,
+    NtUserShowWindow,
     NtUserEnumDisplayMonitors,
 };
 

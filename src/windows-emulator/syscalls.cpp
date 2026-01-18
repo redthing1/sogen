@@ -402,7 +402,12 @@ namespace syscalls
                                      emulator_object<LARGE_STRING> cls_version, emulator_object<LARGE_STRING> window_name, DWORD style,
                                      int x, int y, int width, int height, hwnd parent, hmenu menu, hinstance instance, pointer l_param,
                                      DWORD flags, pointer acbi_buffer);
+    hwnd completion_NtUserCreateWindowEx(const syscall_context& c, DWORD ex_style, emulator_object<LARGE_STRING> class_name,
+                                         emulator_object<LARGE_STRING> cls_version, emulator_object<LARGE_STRING> window_name, DWORD style,
+                                         int x, int y, int width, int height, hwnd parent, hmenu menu, hinstance instance, pointer l_param,
+                                         DWORD flags, pointer acbi_buffer);
     BOOL handle_NtUserDestroyWindow(const syscall_context& c, hwnd window);
+    BOOL completion_NtUserDestroyWindow(const syscall_context& c, hwnd window);
     BOOL handle_NtUserSetProp(const syscall_context& c, hwnd window, uint16_t atom, uint64_t data);
     BOOL handle_NtUserSetProp2(const syscall_context& c, hwnd window, emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>> str,
                                uint64_t data);
@@ -427,6 +432,9 @@ namespace syscalls
     NTSTATUS handle_NtUserTransformRect();
     NTSTATUS handle_NtUserSetWindowPos();
     NTSTATUS handle_NtUserSetForegroundWindow();
+    emulator_pointer handle_NtUserSetWindowLongPtr(const syscall_context& c, handle hWnd, int nIndex, emulator_pointer dwNewLong,
+                                                   BOOL Ansi);
+    uint32_t handle_NtUserSetWindowLong(const syscall_context& c, handle hWnd, int nIndex, uint32_t dwNewLong, BOOL Ansi);
     NTSTATUS handle_NtUserRedrawWindow();
     NTSTATUS handle_NtUserGetCPD();
     NTSTATUS handle_NtUserSetWindowFNID();
@@ -1040,6 +1048,8 @@ void syscall_dispatcher::add_handlers(std::map<std::string, syscall_handler>& ha
     add_handler(NtUserTransformRect);
     add_handler(NtUserSetWindowPos);
     add_handler(NtUserSetForegroundWindow);
+    add_handler(NtUserSetWindowLongPtr);
+    add_handler(NtUserSetWindowLong);
     add_handler(NtUserPostMessage);
     add_handler(NtUserRedrawWindow);
     add_handler(NtUserGetCPD);
@@ -1068,6 +1078,9 @@ void syscall_dispatcher::add_callbacks()
         this->completion_handlers_[callback_id::syscall] = make_syscall_handler<syscalls::completion_##syscall>(); \
     } while (0)
 
+    add_callback(NtUserCreateWindowEx, window_create_state);
+    add_callback(NtUserDestroyWindow, window_destroy_state);
+    add_callback(NtUserShowWindow, window_show_state);
     add_stateless_callback(NtUserEnumDisplayMonitors);
 
 #undef add_callback

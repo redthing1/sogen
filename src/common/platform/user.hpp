@@ -114,7 +114,32 @@ struct USER_CLASS
 
 struct USER_WINDOW
 {
-    uint8_t unknown[0xFF];
+    uint64_t hWnd;
+    uint64_t ptrBase;
+    uint8_t pad_010[2];
+    uint8_t bFlags;
+    uint8_t pad_013[5];
+    uint32_t dwExStyle;
+    uint32_t dwStyle;
+    uint64_t hInstance;
+    uint8_t pad_028[8];
+    uint64_t spwndParent;
+    uint8_t pad_038[64];
+    uint64_t lpfnWndProc;
+    uint64_t pcls;
+    uint8_t pad_088[16];
+    uint64_t spmenu;
+    uint8_t pad_0A0[40];
+    uint32_t cbWndExtra;
+    uint8_t pad_0CC[12];
+    uint64_t userData;
+    uint64_t pActCtx;
+    uint8_t pad_0E8[16];
+    uint32_t wndExtraOffset;
+    uint8_t pad_0FC[44];
+    uint64_t pExtraBytes;
+    uint8_t pad_130[16];
+    uint64_t wID;
 };
 
 struct USER_DESKTOPINFO

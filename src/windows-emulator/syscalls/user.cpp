@@ -3,6 +3,38 @@
 #include "../syscall_utils.hpp"
 #include "windows-emulator/user_callback_dispatch.hpp"
 
+namespace
+{
+    void set_guest_last_error(const syscall_context& c, uint32_t last_error)
+    {
+        c.proc.active_thread->teb64->access([&](TEB64& teb) {
+            teb.LastErrorValue = static_cast<ULONG>(last_error); //
+        });
+    }
+
+    template <typename T>
+    void dispatch_window_message(const syscall_context& c, callback_id id, T&& state, const window& win, uint32_t message,
+                                 uint64_t w_param = 0, uint64_t l_param = 0)
+    {
+        c.proc.active_thread->teb64->access([&](TEB64& teb) {
+            teb.Win32ClientInfo.arr[8] = win.handle;
+            teb.Win32ClientInfo.arr[9] = win.guest.value();
+        });
+
+        dispatch_user_callback(c, id, std::forward<T>(state), c.proc.dispatch_client_message, win.guest.value(),
+                               static_cast<uint64_t>(message), w_param, l_param, win.wnd_proc);
+    }
+
+    template <typename T>
+    void dispatch_next_message(const syscall_context& c, callback_id id, T&& state, const window& win, std::vector<qmsg>& message_queue)
+    {
+        const auto m = message_queue.back();
+        message_queue.pop_back();
+
+        dispatch_window_message(c, id, std::forward<T>(state), win, m.message, m.wParam, m.lParam);
+    }
+}
+
 namespace syscalls
 {
     NTSTATUS handle_NtUserDisplayConfigGetDeviceInfo()
@@ -182,26 +214,202 @@ namespace syscalls
         return u8_to_u16(ansi_string);
     }
 
-    hwnd handle_NtUserCreateWindowEx(const syscall_context& c, const DWORD /*ex_style*/, const emulator_object<LARGE_STRING> class_name,
+    hwnd handle_NtUserCreateWindowEx(const syscall_context& c, const DWORD ex_style, const emulator_object<LARGE_STRING> class_name,
                                      const emulator_object<LARGE_STRING> /*cls_version*/, const emulator_object<LARGE_STRING> window_name,
-                                     const DWORD /*style*/, const int x, const int y, const int width, const int height,
-                                     const hwnd /*parent*/, const hmenu /*menu*/, const hinstance /*instance*/, const pointer /*l_param*/,
-                                     const DWORD /*flags*/, const pointer /*acbi_buffer*/)
+                                     const DWORD style, const int x, const int y, const int width, const int height, const hwnd /*parent*/,
+                                     const hmenu /*menu*/, const hinstance /*instance*/, const pointer l_param, const DWORD /*flags*/,
+                                     const pointer /*acbi_buffer*/)
     {
+        const auto cls_name = read_large_string(class_name);
+        const auto cls_it = c.proc.classes.find(cls_name);
+
+        if (cls_it == c.proc.classes.end())
+        {
+            set_guest_last_error(c, 1407); // ERROR_CANNOT_FIND_WND_CLASS
+            return 0;
+        }
+
+        const auto class_obj_addr = cls_it->second.guest_obj_addr;
+        const auto* wnd_class = &cls_it->second.wnd_class;
+
         auto [handle, win] = c.proc.windows.create(c.win_emu.memory);
+        win.ex_style = ex_style;
+        win.style = style;
         win.x = x;
         win.y = y;
         win.width = width;
         win.height = height;
         win.thread_id = c.win_emu.current_thread().id;
-        win.class_name = read_large_string(class_name);
+        win.handle = handle.bits;
+        win.class_name = cls_name;
         win.name = read_large_string(window_name);
+        win.wnd_proc = wnd_class->lpfnWndProc;
 
-        return handle.bits;
+        win.guest.access([&](USER_WINDOW& guest_win) {
+            guest_win.hWnd = handle.bits;
+            guest_win.ptrBase = win.guest.value();
+            guest_win.dwExStyle = ex_style;
+            guest_win.dwStyle = style;
+            guest_win.lpfnWndProc = win.wnd_proc;
+            guest_win.pcls = class_obj_addr;
+            guest_win.cbWndExtra = wnd_class->cbWndExtra;
+
+            if (wnd_class->cbWndExtra > 0)
+            {
+                const auto extra_size = static_cast<size_t>(page_align_up(wnd_class->cbWndExtra));
+                guest_win.pExtraBytes = c.win_emu.memory.allocate_memory(extra_size, memory_permission::read);
+            }
+        });
+
+        window_create_state state{};
+        state.handle = handle.bits;
+
+        EMU_CREATESTRUCT cs{};
+        cs.lpCreateParams = l_param;
+        state.create_struct_alloc = c.emu.push_stack(cs);
+
+        RECT wr{};
+        state.window_rect_alloc = c.emu.push_stack(wr);
+
+        EMU_MINMAXINFO mmi{};
+        state.min_max_info_alloc = c.emu.push_stack(mmi);
+
+        state.message_queue = {
+            {.message = WM_CREATE, .wParam = 0, .lParam = state.create_struct_alloc.address},
+            {.message = WM_NCCALCSIZE, .wParam = 0, .lParam = state.window_rect_alloc.address},
+            {.message = WM_NCCREATE, .wParam = 0, .lParam = state.create_struct_alloc.address},
+            {.message = WM_GETMINMAXINFO, .wParam = 0, .lParam = state.min_max_info_alloc.address},
+        };
+
+        if ((style & WS_VISIBLE) != 0)
+        {
+            EMU_WINDOWPOS wp{};
+            wp.hwnd = handle.bits;
+            wp.hwndInsertAfter = 0;
+            wp.x = x;
+            wp.y = y;
+            wp.cx = width;
+            wp.cy = height;
+            wp.flags = SWP_SHOWWINDOW;
+            state.window_pos_alloc = c.emu.push_stack(wp);
+
+            const auto move_lparam = static_cast<uint64_t>(((y & 0xFFFF) << 16) | (x & 0xFFFF));
+            const auto size_lparam = static_cast<uint64_t>(((height & 0xFFFF) << 16) | (width & 0xFFFF));
+
+            const std::initializer_list<qmsg> sw_messages = {
+                {.message = WM_MOVE, .wParam = 0, .lParam = move_lparam},
+                {.message = WM_SIZE, .wParam = 0, .lParam = size_lparam},
+                {.message = WM_WINDOWPOSCHANGED, .wParam = 0, .lParam = state.window_pos_alloc.address},
+                {.message = WM_SETFOCUS, .wParam = 0, .lParam = 0},
+                {.message = WM_ACTIVATE, .wParam = 1, .lParam = 0},
+                {.message = WM_NCACTIVATE, .wParam = 1, .lParam = 0},
+                {.message = WM_WINDOWPOSCHANGING, .wParam = 0, .lParam = state.window_pos_alloc.address},
+                {.message = WM_WINDOWPOSCHANGING, .wParam = 0, .lParam = state.window_pos_alloc.address},
+                {.message = WM_SHOWWINDOW, .wParam = 1, .lParam = 0},
+            };
+            state.message_queue.insert(state.message_queue.begin(), sw_messages);
+        }
+
+        dispatch_next_message(c, callback_id::NtUserCreateWindowEx, std::move(state), win, state.message_queue);
+        return {};
+    }
+
+    hwnd completion_NtUserCreateWindowEx(const syscall_context& c, const DWORD /*ex_style*/,
+                                         const emulator_object<LARGE_STRING> /*class_name*/,
+                                         const emulator_object<LARGE_STRING> /*cls_version*/,
+                                         const emulator_object<LARGE_STRING> /*window_name*/, const DWORD /*style*/, const int /*x*/,
+                                         const int /*y*/, const int /*width*/, const int /*height*/, const hwnd /*parent*/,
+                                         const hmenu /*menu*/, const hinstance /*instance*/, const pointer /*l_param*/,
+                                         const DWORD /*flags*/, const pointer /*acbi_buffer*/)
+    {
+        auto& s = c.get_completion_state<window_create_state>();
+        const auto* win = c.proc.windows.get(s.handle);
+
+        if (!s.message_queue.empty())
+        {
+            dispatch_next_message(c, callback_id::NtUserCreateWindowEx, std::move(s), *win, s.message_queue);
+            return {};
+        }
+
+        if (s.window_pos_alloc.address != 0)
+        {
+            c.emu.pop_stack(std::move(s.window_pos_alloc));
+        }
+
+        c.emu.pop_stack(std::move(s.min_max_info_alloc));
+        c.emu.pop_stack(std::move(s.window_rect_alloc));
+        c.emu.pop_stack(std::move(s.create_struct_alloc));
+
+        return s.handle;
     }
 
     BOOL handle_NtUserDestroyWindow(const syscall_context& c, const hwnd window)
     {
+        auto* win = c.proc.windows.get(window);
+        if (!win)
+        {
+            return FALSE;
+        }
+
+        if (win->thread_id != c.proc.active_thread->id)
+        {
+            return FALSE;
+        }
+
+        window_destroy_state state{};
+
+        if ((win->style & WS_VISIBLE) != 0)
+        {
+            EMU_WINDOWPOS wp{};
+            wp.hwnd = window;
+            wp.hwndInsertAfter = 0;
+            wp.x = win->x;
+            wp.y = win->y;
+            wp.cx = win->width;
+            wp.cy = win->height;
+            wp.flags = SWP_HIDEWINDOW;
+            state.window_pos_alloc = c.emu.push_stack(wp);
+
+            state.message_queue = {
+                {.message = WM_NCDESTROY, .wParam = 0, .lParam = 0},
+                {.message = WM_DESTROY, .wParam = 0, .lParam = 0},
+                {.message = WM_KILLFOCUS, .wParam = 0, .lParam = 0},
+                {.message = WM_ACTIVATE, .wParam = 0, .lParam = 0},
+                {.message = WM_NCACTIVATE, .wParam = FALSE, .lParam = 0},
+                {.message = WM_WINDOWPOSCHANGED, .wParam = 0, .lParam = state.window_pos_alloc.address},
+                {.message = WM_WINDOWPOSCHANGING, .wParam = 0, .lParam = state.window_pos_alloc.address},
+                {.message = WM_UAHDESTROYWINDOW, .wParam = 0, .lParam = 0},
+            };
+        }
+        else
+        {
+            state.message_queue = {
+                {.message = WM_NCDESTROY, .wParam = 0, .lParam = 0},
+                {.message = WM_DESTROY, .wParam = 0, .lParam = 0},
+                {.message = WM_UAHDESTROYWINDOW, .wParam = 0, .lParam = 0},
+            };
+        }
+
+        dispatch_next_message(c, callback_id::NtUserDestroyWindow, std::move(state), *win, state.message_queue);
+        return {};
+    }
+
+    BOOL completion_NtUserDestroyWindow(const syscall_context& c, const hwnd window)
+    {
+        auto& s = c.get_completion_state<window_destroy_state>();
+        auto* win = c.proc.windows.get(window);
+
+        if (!s.message_queue.empty())
+        {
+            dispatch_next_message(c, callback_id::NtUserDestroyWindow, std::move(s), *win, s.message_queue);
+            return {};
+        }
+
+        if (s.window_pos_alloc.address != 0)
+        {
+            c.emu.pop_stack(std::move(s.window_pos_alloc));
+        }
+
         return c.proc.windows.erase(window);
     }
 
@@ -242,10 +450,94 @@ namespace syscalls
 
     BOOL handle_NtUserShowWindow(const syscall_context& c, const hwnd hwnd, const LONG cmd_show)
     {
-        (void)c;
-        (void)hwnd;
-        (void)cmd_show;
-        return TRUE;
+        auto* win = c.proc.windows.get(hwnd);
+        if (!win)
+        {
+            return FALSE;
+        }
+
+        if (win->thread_id != c.proc.active_thread->id)
+        {
+            // TODO: Wait?
+            return FALSE;
+        }
+
+        const bool want_visible = (cmd_show != 0); // SW_HIDE
+        const bool was_visible = (win->style & WS_VISIBLE) != 0;
+
+        if (want_visible == was_visible)
+        {
+            return was_visible ? TRUE : FALSE;
+        }
+
+        window_show_state state{};
+        state.was_visible = was_visible;
+
+        EMU_WINDOWPOS wp{};
+        wp.hwnd = hwnd;
+        wp.hwndInsertAfter = 0;
+        wp.x = win->x;
+        wp.y = win->y;
+        wp.cx = win->width;
+        wp.cy = win->height;
+        wp.flags = want_visible ? SWP_SHOWWINDOW : SWP_HIDEWINDOW;
+        state.window_pos_alloc = c.emu.push_stack(wp);
+
+        if (want_visible)
+        {
+            const auto move_lparam = static_cast<uint64_t>(((win->y & 0xFFFF) << 16) | (win->x & 0xFFFF));
+            const auto size_lparam = static_cast<uint64_t>(((win->height & 0xFFFF) << 16) | (win->width & 0xFFFF));
+
+            state.message_queue = {
+                {.message = WM_MOVE, .wParam = 0, .lParam = move_lparam},
+                {.message = WM_SIZE, .wParam = 0, .lParam = size_lparam},
+                {.message = WM_WINDOWPOSCHANGED, .wParam = 0, .lParam = state.window_pos_alloc.address},
+                {.message = WM_SETFOCUS, .wParam = 0, .lParam = 0},
+                {.message = WM_ACTIVATE, .wParam = 1, .lParam = 0},
+                {.message = WM_NCACTIVATE, .wParam = TRUE, .lParam = 0},
+                {.message = WM_WINDOWPOSCHANGING, .wParam = 0, .lParam = state.window_pos_alloc.address},
+                {.message = WM_WINDOWPOSCHANGING, .wParam = 0, .lParam = state.window_pos_alloc.address},
+                {.message = WM_SHOWWINDOW, .wParam = TRUE, .lParam = 0},
+            };
+
+            win->style |= WS_VISIBLE;
+        }
+        else
+        {
+            state.message_queue = {
+                {.message = WM_KILLFOCUS, .wParam = 0, .lParam = 0},
+                {.message = WM_ACTIVATE, .wParam = 0, .lParam = 0},
+                {.message = WM_NCACTIVATE, .wParam = FALSE, .lParam = 0},
+                {.message = WM_WINDOWPOSCHANGED, .wParam = 0, .lParam = state.window_pos_alloc.address},
+                {.message = WM_WINDOWPOSCHANGING, .wParam = 0, .lParam = state.window_pos_alloc.address},
+                {.message = WM_SHOWWINDOW, .wParam = FALSE, .lParam = 0},
+            };
+
+            win->style &= ~WS_VISIBLE;
+        }
+
+        win->guest.access([&](USER_WINDOW& guest_win) { //
+            guest_win.dwStyle = win->style;
+        });
+
+        dispatch_next_message(c, callback_id::NtUserShowWindow, std::move(state), *win, state.message_queue);
+        return {};
+    }
+
+    BOOL completion_NtUserShowWindow(const syscall_context& c, const hwnd hwnd, const LONG /*cmd_show*/)
+    {
+        auto& s = c.get_completion_state<window_show_state>();
+        const auto* win = c.proc.windows.get(hwnd);
+
+        if (!s.message_queue.empty())
+        {
+            dispatch_next_message(c, callback_id::NtUserShowWindow, std::move(s), *win, s.message_queue);
+            return {};
+        }
+
+        c.emu.pop_stack(std::move(s.window_pos_alloc));
+
+        return s.was_visible ? TRUE : FALSE;
     }
 
     BOOL handle_NtUserGetMessage(const syscall_context& c, const emulator_object<msg> message, const hwnd hwnd, const UINT msg_filter_min,
@@ -472,6 +764,62 @@ namespace syscalls
     NTSTATUS handle_NtUserSetForegroundWindow()
     {
         return STATUS_SUCCESS;
+    }
+
+    emulator_pointer handle_NtUserSetWindowLongPtr(const syscall_context& c, handle hWnd, int nIndex, emulator_pointer dwNewLong,
+                                                   BOOL /*Ansi*/)
+    {
+        auto* win = c.proc.windows.get(hWnd);
+        if (!win)
+        {
+            return 0;
+        }
+
+        emulator_pointer oldValue = 0;
+
+        win->guest.access([&](USER_WINDOW& guest_win) {
+            if (nIndex >= 0)
+            {
+                const auto offsetCorrection = guest_win.wndExtraOffset;
+                const auto pBaseExtraBytes = guest_win.pExtraBytes;
+
+                if (pBaseExtraBytes == 0)
+                {
+                    return;
+                }
+
+                const auto targetAddress = pBaseExtraBytes + (nIndex - offsetCorrection);
+
+                c.win_emu.memory.read_memory(targetAddress, &oldValue, sizeof(oldValue));
+                c.win_emu.memory.write_memory(targetAddress, &dwNewLong, sizeof(dwNewLong));
+            }
+            else
+            {
+                switch (nIndex)
+                {
+                case GWLP_USERDATA:
+                    oldValue = guest_win.userData;
+                    guest_win.userData = dwNewLong;
+                    break;
+
+                case GWLP_WNDPROC:
+                    oldValue = guest_win.lpfnWndProc;
+                    guest_win.lpfnWndProc = dwNewLong;
+                    break;
+
+                default:
+                    break;
+                }
+            }
+        });
+
+        return oldValue;
+    }
+
+    uint32_t handle_NtUserSetWindowLong(const syscall_context& c, handle hWnd, int nIndex, uint32_t dwNewLong, BOOL Ansi)
+    {
+        const auto oldValue = handle_NtUserSetWindowLongPtr(c, hWnd, nIndex, static_cast<emulator_pointer>(dwNewLong), Ansi);
+        return static_cast<uint32_t>(oldValue);
     }
 
     NTSTATUS handle_NtUserRedrawWindow()

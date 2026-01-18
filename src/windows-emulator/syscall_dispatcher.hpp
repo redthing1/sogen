@@ -42,6 +42,80 @@ struct completion_state
     }
 };
 
+struct window_create_state : completion_state
+{
+    hwnd handle{};
+
+    emulator_stack_allocation min_max_info_alloc{};
+    emulator_stack_allocation window_rect_alloc{};
+    emulator_stack_allocation create_struct_alloc{};
+    emulator_stack_allocation window_pos_alloc{};
+
+    std::vector<qmsg> message_queue{};
+
+  private:
+    void serialize_object(utils::buffer_serializer& buffer) const override
+    {
+        buffer.write(this->handle);
+        buffer.write(this->min_max_info_alloc);
+        buffer.write(this->window_rect_alloc);
+        buffer.write(this->create_struct_alloc);
+        buffer.write(this->window_pos_alloc);
+        buffer.write_vector(this->message_queue);
+    }
+
+    void deserialize_object(utils::buffer_deserializer& buffer) override
+    {
+        buffer.read(this->handle);
+        buffer.read(this->min_max_info_alloc);
+        buffer.read(this->window_rect_alloc);
+        buffer.read(this->create_struct_alloc);
+        buffer.read(this->window_pos_alloc);
+        buffer.read_vector(this->message_queue);
+    }
+};
+
+struct window_destroy_state : completion_state
+{
+    emulator_stack_allocation window_pos_alloc{};
+    std::vector<qmsg> message_queue{};
+
+  private:
+    void serialize_object(utils::buffer_serializer& buffer) const override
+    {
+        buffer.write(this->window_pos_alloc);
+        buffer.write_vector(this->message_queue);
+    }
+
+    void deserialize_object(utils::buffer_deserializer& buffer) override
+    {
+        buffer.read(this->window_pos_alloc);
+        buffer.read_vector(this->message_queue);
+    }
+};
+
+struct window_show_state : completion_state
+{
+    bool was_visible{};
+    emulator_stack_allocation window_pos_alloc{};
+    std::vector<qmsg> message_queue{};
+
+  private:
+    void serialize_object(utils::buffer_serializer& buffer) const override
+    {
+        buffer.write(this->was_visible);
+        buffer.write(this->window_pos_alloc);
+        buffer.write_vector(this->message_queue);
+    }
+
+    void deserialize_object(utils::buffer_deserializer& buffer) override
+    {
+        buffer.read(this->was_visible);
+        buffer.read(this->window_pos_alloc);
+        buffer.read_vector(this->message_queue);
+    }
+};
+
 class windows_emulator;
 
 class syscall_dispatcher

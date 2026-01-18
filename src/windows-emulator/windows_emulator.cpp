@@ -620,6 +620,10 @@ void windows_emulator::register_factories(utils::buffer_deserializer& buffer)
     buffer.register_factory<socket_factory_wrapper>([this] {
         return socket_factory_wrapper{this->socket_factory()}; //
     });
+
+    buffer.register_factory<window>([this] {
+        return window{this->emu()}; //
+    });
 }
 
 void windows_emulator::serialize(utils::buffer_serializer& buffer) const
