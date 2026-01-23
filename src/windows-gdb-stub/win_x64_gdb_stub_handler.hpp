@@ -1,8 +1,10 @@
 #pragma once
 #include "x64_gdb_stub_handler.hpp"
 
+#include <atomic>
 #include <windows_emulator.hpp>
 #include <utils/function.hpp>
+#include <utils/string.hpp>
 
 class win_x64_gdb_stub_handler : public x64_gdb_stub_handler
 {
@@ -12,6 +14,35 @@ class win_x64_gdb_stub_handler : public x64_gdb_stub_handler
           win_emu_(&win_emu),
           should_stop_(std::move(should_stop))
     {
+        // Chain module load/unload callbacks to stop on library changes
+        auto& callbacks = win_emu_->callbacks;
+
+        old_on_module_load_ = std::move(callbacks.on_module_load);
+        callbacks.on_module_load = [this](mapped_module& mod) {
+            if (old_on_module_load_)
+            {
+                old_on_module_load_(mod);
+            }
+            library_stop_pending_ = true;
+            win_emu_->stop();
+        };
+
+        old_on_module_unload_ = std::move(callbacks.on_module_unload);
+        callbacks.on_module_unload = [this](mapped_module& mod) {
+            if (old_on_module_unload_)
+            {
+                old_on_module_unload_(mod);
+            }
+            library_stop_pending_ = true;
+            win_emu_->stop();
+        };
+    }
+
+    ~win_x64_gdb_stub_handler() override
+    {
+        // Restore original callbacks
+        win_emu_->callbacks.on_module_load = std::move(old_on_module_load_);
+        win_emu_->callbacks.on_module_unload = std::move(old_on_module_unload_);
     }
 
     void on_interrupt() override
@@ -91,7 +122,43 @@ class win_x64_gdb_stub_handler : public x64_gdb_stub_handler
         return static_cast<uint32_t>(*status);
     }
 
+    std::string get_windows_path(const std::filesystem::path& path)
+    {
+        try
+        {
+            return win_emu_->file_sys.local_to_windows_path(path).string();
+        }
+        catch (...)
+        {
+            // Pseudo-modules like <wow64-heaven-gate> aren't in the filesystem
+            return path.string();
+        }
+    }
+
+    std::vector<gdb_stub::library_info> get_libraries() override
+    {
+        std::vector<gdb_stub::library_info> libs{};
+        const auto& mod_manager = this->win_emu_->mod_manager;
+        libs.reserve(this->win_emu_->mod_manager.modules().size());
+        for (const auto& [base_addr, mod] : mod_manager.modules())
+        {
+            libs.push_back({get_windows_path(mod.path), base_addr + 0x1000});
+        }
+
+        return libs;
+    }
+
+    bool consume_library_stop() override
+    {
+        return library_stop_pending_.exchange(false);
+    }
+
   private:
     windows_emulator* win_emu_{};
     utils::optional_function<bool()> should_stop_{};
+
+    // Track library stop events
+    std::atomic<bool> library_stop_pending_{false};
+    utils::optional_function<void(mapped_module&)> old_on_module_load_{};
+    utils::optional_function<void(mapped_module&)> old_on_module_unload_{};
 };

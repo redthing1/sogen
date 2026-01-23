@@ -113,6 +113,63 @@ namespace gdb_stub
             send_xfer_data(c.connection, std::string(data), target_description);
         }
 
+        std::string escape_xml(const std::string& str)
+        {
+            std::string result;
+            result.reserve(str.size());
+            for (char c : str)
+            {
+                switch (c)
+                {
+                case '&':
+                    result += "&amp;";
+                    break;
+                case '<':
+                    result += "&lt;";
+                    break;
+                case '>':
+                    result += "&gt;";
+                    break;
+                case '"':
+                    result += "&quot;";
+                    break;
+                default:
+                    result += c;
+                    break;
+                }
+            }
+            return result;
+        }
+
+        void handle_libraries(const debugging_context& c, const std::string_view payload)
+        {
+            const auto [command, args] = split_string(payload, ':');
+
+            if (command != "read")
+            {
+                c.connection.send_reply({});
+                return;
+            }
+
+            const auto [annex, data] = split_string(args, ':');
+            (void)annex; // annex is empty for libraries
+
+            std::string xml = "<library-list version=\"1.0\">\n";
+
+            for (const auto& library : c.handler.get_libraries())
+            {
+                xml += "<library name=\"";
+                xml += escape_xml(library.name);
+                xml += "\"><segment address=\"0x";
+                xml += utils::string::to_hex_number(library.segment_address);
+                xml += "\"/></library>\n";
+            }
+
+            xml += "</library-list>";
+
+            send_xfer_data(c.connection, std::string(data), xml);
+        }
+
         void process_xfer(const debugging_context& c, const std::string_view payload)
         {
             auto [name, args] = split_string(payload, ':');
@@ -120,6 +177,10 @@ namespace gdb_stub
             if (name == "features")
             {
                 handle_features(c, args);
+            }
+            else if (name == "libraries")
+            {
+                handle_libraries(c, args);
             }
             else
             {
@@ -133,7 +194,7 @@ namespace gdb_stub
 
             if (name == "Supported")
             {
-                c.connection.send_reply("PacketSize=1024;qXfer:features:read+");
+                c.connection.send_reply("PacketSize=1024;qXfer:features:read+;qXfer:libraries:read+");
             }
             else if (name == "Attached")
             {
@@ -226,7 +287,18 @@ namespace gdb_stub
 
             const auto id = c.handler.get_current_thread_id();
             const auto hex_id = utils::string::to_hex_number(id);
-            c.connection.send_reply("T05thread:" + hex_id + ";");
+
+            std::string reply = "T05";
+
+            // Include "library:" when this stop was triggered by a library load/unload
+            if (c.handler.consume_library_stop())
+            {
+                reply += "library:;";
+            }
+
+            reply += "thread:" + hex_id + ";";
+
+            c.connection.send_reply(reply);
         }
 
         void apply_continuation_thread(const debugging_context& c)
