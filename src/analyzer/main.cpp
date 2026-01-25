@@ -527,7 +527,7 @@ namespace
         {
             auto module_cache = std::make_shared<std::map<std::string, uint64_t>>();
             win_emu->emu().hook_memory_read(
-                0, std::numeric_limits<uint64_t>::max(), [&, module_cache](const uint64_t address, const void*, size_t) {
+                0, std::numeric_limits<uint64_t>::max(), [&, module_cache](const uint64_t address, const void*, size_t size) {
                     const auto rip = win_emu->emu().read_instruction_pointer();
                     const auto accessor = get_module_if_interesting(win_emu->mod_manager, options.modules, rip);
 
@@ -553,7 +553,7 @@ namespace
 
                     const auto* region_name = get_module_memory_region_name(*mod, address);
 
-                    win_emu->log.print(color::pink, "Reading from module %s at 0x%" PRIx64 " (%s) via 0x%" PRIx64 " (%s)\n",
+                    win_emu->log.print(color::pink, "Reading %zd bytes from module %s at 0x%" PRIx64 " (%s) via 0x%" PRIx64 " (%s)\n", size,
                                        mod->name.c_str(), address, region_name, rip, (*accessor) ? (*accessor)->name.c_str() : "<N/A>");
                 });
         }
@@ -590,7 +590,7 @@ namespace
                                        section.name.c_str(), address, rip);
                 };
 
-                const auto write_handler = [&, section, concise_logging, write_count](const uint64_t address, const void*, size_t) {
+                const auto write_handler = [&, section, concise_logging, write_count](const uint64_t address, const void*, size_t size) {
                     const auto rip = win_emu->emu().read_instruction_pointer();
                     if (!win_emu->mod_manager.executable->contains(rip))
                     {
@@ -606,7 +606,7 @@ namespace
                         }
                     }
 
-                    win_emu->log.print(color::blue, "Writing to executable section %s at 0x%" PRIx64 " via 0x%" PRIx64 "\n",
+                    win_emu->log.print(color::blue, "Writing %zd bytes to executable section %s at 0x%" PRIx64 " via 0x%" PRIx64 "\n", size,
                                        section.name.c_str(), address, rip);
                 };
 
