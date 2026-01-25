@@ -321,7 +321,8 @@ mapped_module map_module_from_data(memory_manager& memory, const std::span<const
     memory.write_memory(binary.image_base, header_buffer, optional_header.SizeOfHeaders);
 
     const auto image_base = static_cast<T>(binary.image_base);
-    const auto image_base_address = binary.image_base + nt_headers_offset + offsetof(PENTHeaders_t<T>, OptionalHeader.ImageBase);
+    const auto image_base_address =
+        binary.image_base + nt_headers_offset + offsetof(PENTHeaders_t<T>, OptionalHeader) + offsetof(PEOptionalHeader_t<T>, ImageBase);
     memory.write_memory(image_base_address, &image_base, sizeof(image_base));
 
     map_sections(memory, binary, buffer, nt_headers, nt_headers_offset);
