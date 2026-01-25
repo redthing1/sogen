@@ -6,6 +6,10 @@
 #include <utils/buffer_accessor.hpp>
 #include <platform/win_pefile.hpp>
 
+#if defined(__clang__) || defined(__GNUC__)
+#pragma GCC diagnostic ignored "-Winvalid-offsetof"
+#endif
+
 namespace
 {
     template <typename T>
@@ -315,6 +319,11 @@ mapped_module map_module_from_data(memory_manager& memory, const std::span<const
 
     const auto* header_buffer = buffer.get_pointer_for_range(0, optional_header.SizeOfHeaders);
     memory.write_memory(binary.image_base, header_buffer, optional_header.SizeOfHeaders);
+
+    const auto image_base = static_cast<T>(binary.image_base);
+    const auto image_base_address =
+        binary.image_base + nt_headers_offset + offsetof(PENTHeaders_t<T>, OptionalHeader) + offsetof(PEOptionalHeader_t<T>, ImageBase);
+    memory.write_memory(image_base_address, &image_base, sizeof(image_base));
 
     map_sections(memory, binary, buffer, nt_headers, nt_headers_offset);
 
