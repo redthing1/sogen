@@ -47,13 +47,13 @@ namespace snapshot
             utils::buffer_serializer serializer{};
             win_emu.serialize(serializer);
 
-            return utils::compression::zlib::compress(serializer.get_buffer());
+            return utils::compression::zstd::compress(serializer.get_buffer());
         }
 
         std::vector<std::byte> get_decompressed_emulator_state(const std::span<const std::byte> snapshot)
         {
             const auto data = validate_header(snapshot);
-            return utils::compression::zlib::decompress(data);
+            return utils::compression::zstd::decompress(data);
         }
 
         std::string get_main_executable_name(const windows_emulator& win_emu)

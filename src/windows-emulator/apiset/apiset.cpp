@@ -44,7 +44,7 @@ namespace apiset
 
         std::vector<std::byte> decompress_apiset(const std::vector<std::byte>& apiset)
         {
-            auto buffer = utils::compression::zlib::decompress(apiset);
+            auto buffer = utils::compression::zstd::decompress(apiset);
             if (buffer.empty())
             {
                 throw std::runtime_error("Failed to decompress API-SET");
