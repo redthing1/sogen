@@ -170,6 +170,23 @@ namespace gdb_stub
             send_xfer_data(c.connection, std::string(data), xml);
         }
 
+        void handle_exec_file(const debugging_context& c, const std::string_view payload)
+        {
+            const auto [command, args] = split_string(payload, ':');
+
+            if (command != "read")
+            {
+                c.connection.send_reply({});
+                return;
+            }
+
+            const auto [annex, data] = split_string(args, ':');
+            (void)annex; // we ignore the annex
+
+            const auto exec_path = c.handler.get_executable_path();
+            send_xfer_data(c.connection, std::string(data), exec_path);
+        }
+
         void process_xfer(const debugging_context& c, const std::string_view payload)
         {
             auto [name, args] = split_string(payload, ':');
@@ -181,6 +198,10 @@ namespace gdb_stub
             else if (name == "libraries")
             {
                 handle_libraries(c, args);
+            }
+            else if (name == "exec-file")
+            {
+                handle_exec_file(c, args);
             }
             else
             {
@@ -194,7 +215,7 @@ namespace gdb_stub
 
             if (name == "Supported")
             {
-                c.connection.send_reply("PacketSize=1024;qXfer:features:read+;qXfer:libraries:read+");
+                c.connection.send_reply("PacketSize=1024;qXfer:features:read+;qXfer:libraries:read+;qXfer:exec-file:read+");
             }
             else if (name == "Attached")
             {

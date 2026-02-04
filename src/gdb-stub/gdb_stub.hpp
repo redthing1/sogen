@@ -71,6 +71,11 @@ namespace gdb_stub
         {
             return false;
         }
+
+        virtual std::string get_executable_path()
+        {
+            return {};
+        }
     };
 
     bool run_gdb_stub(const network::address& bind_address, debugging_handler& handler);

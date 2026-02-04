@@ -148,6 +148,12 @@ class win_x64_gdb_stub_handler : public x64_gdb_stub_handler
         return libs;
     }
 
+    std::string get_executable_path() override
+    {
+        const auto& mod_manager = this->win_emu_->mod_manager;
+        return get_windows_path(mod_manager.executable->path);
+    }
+
     bool consume_library_stop() override
     {
         return library_stop_pending_.exchange(false);
