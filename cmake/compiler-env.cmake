@@ -110,6 +110,36 @@ endif()
 
 ##########################################
 
+if(APPLE)
+  momo_add_c_and_cxx_compile_options(
+    -fdiagnostics-color=always
+  )
+
+  momo_add_c_and_cxx_release_compile_options(
+    -ffunction-sections
+    -fdata-sections
+    -fstack-protector-strong
+    -flto
+  )
+
+  add_compile_definitions(
+    _REENTRANT
+    _THREAD_SAFE
+  )
+
+  momo_add_release_link_options(
+    -dead_strip
+  )
+
+  if(NOT MOMO_ENABLE_SANITIZER)
+    add_compile_definitions(
+      _FORTIFY_SOURCE=2
+    )
+  endif()
+endif()
+
+##########################################
+
 if(CMAKE_SYSTEM_NAME MATCHES "Emscripten")
   momo_add_c_and_cxx_compile_options(
     -fexceptions
