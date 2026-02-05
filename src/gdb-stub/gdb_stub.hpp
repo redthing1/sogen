@@ -21,6 +21,12 @@ namespace gdb_stub
         END,
     };
 
+    struct library_info
+    {
+        std::string name;
+        uint64_t segment_address;
+    };
+
     struct debugging_handler
     {
         virtual ~debugging_handler() = default;
@@ -54,6 +60,21 @@ namespace gdb_stub
         virtual bool should_stop()
         {
             return false;
+        }
+
+        virtual std::vector<library_info> get_libraries()
+        {
+            return {};
+        }
+
+        virtual bool consume_library_stop()
+        {
+            return false;
+        }
+
+        virtual std::string get_executable_path()
+        {
+            return {};
         }
     };
 
