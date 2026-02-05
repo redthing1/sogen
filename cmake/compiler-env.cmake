@@ -81,22 +81,28 @@ endif()
 if(LINUX)
   add_link_options(
     -Wl,--no-undefined
-    -Wl,--gc-sections
     -Wl,-z,now
     -Wl,-z,noexecstack
     -static-libstdc++
   )
 
   momo_add_c_and_cxx_compile_options(
+    -fdiagnostics-color=always
+  )
+
+  momo_add_c_and_cxx_release_compile_options(
     -ffunction-sections
     -fdata-sections
     -fstack-protector-strong
-    -fdiagnostics-color=always
   )
 
   add_compile_definitions(
     _REENTRANT
     _THREAD_SAFE
+  )
+
+  momo_add_release_link_options(
+    -Wl,--gc-sections
   )
 
   if(NOT MOMO_ENABLE_SANITIZER)
