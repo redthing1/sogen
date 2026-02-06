@@ -78,14 +78,7 @@ endif()
 
 ##########################################
 
-if(LINUX)
-  add_link_options(
-    -Wl,--no-undefined
-    -Wl,-z,now
-    -Wl,-z,noexecstack
-    -static-libstdc++
-  )
-
+if(LINUX OR APPLE)
   momo_add_c_and_cxx_compile_options(
     -fdiagnostics-color=always
   )
@@ -95,14 +88,27 @@ if(LINUX)
     -fdata-sections
     -fstack-protector-strong
   )
+  
+  if(LINUX)
+    add_link_options(
+      -Wl,--no-undefined
+      -Wl,-z,now
+      -Wl,-z,noexecstack
+      -static-libstdc++
+    )
+
+    momo_add_release_link_options(
+      -Wl,--gc-sections
+    )
+  else()
+    momo_add_release_link_options(
+      -dead_strip
+    )
+  endif()
 
   add_compile_definitions(
     _REENTRANT
     _THREAD_SAFE
-  )
-
-  momo_add_release_link_options(
-    -Wl,--gc-sections
   )
 
   if(NOT MOMO_ENABLE_SANITIZER)
@@ -112,35 +118,6 @@ if(LINUX)
   endif()
 
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pie")
-endif()
-
-##########################################
-
-if(APPLE)
-  momo_add_c_and_cxx_compile_options(
-    -fdiagnostics-color=always
-  )
-
-  momo_add_c_and_cxx_release_compile_options(
-    -ffunction-sections
-    -fdata-sections
-    -fstack-protector-strong
-  )
-
-  add_compile_definitions(
-    _REENTRANT
-    _THREAD_SAFE
-  )
-
-  momo_add_release_link_options(
-    -dead_strip
-  )
-
-  if(NOT MOMO_ENABLE_SANITIZER)
-    add_compile_definitions(
-      _FORTIFY_SOURCE=2
-    )
-  endif()
 endif()
 
 ##########################################
