@@ -172,9 +172,9 @@ emulator_thread::emulator_thread(memory_manager& memory, const process_context& 
     memory.set_default_allocation_address(DEFAULT_ALLOCATION_ADDRESS_32BIT);
 
     // Calculate required GS segment size for WOW64 (64-bit TEB + 32-bit TEB)
-    constexpr uint64_t wow_teb_offset = 0x2000;
-    constexpr size_t teb64_size = sizeof(TEB64);
-    constexpr size_t teb32_size = sizeof(TEB32);                                // 4120 bytes
+    constexpr auto teb64_size = sizeof(TEB64);
+    constexpr auto teb32_size = sizeof(TEB32); // 4120 bytes
+    constexpr auto wow_teb_offset = page_align_up(teb64_size);
     const uint64_t required_gs_size = teb64_size + wow_teb_offset + teb32_size; // Need space for both TEBs
     const auto actual_gs_size =
         static_cast<size_t>((required_gs_size > GS_SEGMENT_SIZE) ? page_align_up(required_gs_size) : GS_SEGMENT_SIZE);
@@ -274,7 +274,7 @@ emulator_thread::emulator_thread(memory_manager& memory, const process_context& 
             teb32_obj.ProcessEnvironmentBlock = 0;
         }
 
-        teb32_obj.WowTebOffset = -0x2000;
+        teb32_obj.WowTebOffset = -static_cast<int32_t>(wow_teb_offset);
         teb32_obj.InitialThread = initial_thread;
         teb32_obj.SkipThreadAttach = (create_flags & THREAD_CREATE_FLAGS_SKIP_THREAD_ATTACH) ? 1 : 0;
         teb32_obj.LoaderWorker = (create_flags & THREAD_CREATE_FLAGS_LOADER_WORKER) ? 1 : 0;
