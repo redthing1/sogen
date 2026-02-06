@@ -125,7 +125,6 @@ if(APPLE)
     -ffunction-sections
     -fdata-sections
     -fstack-protector-strong
-    -flto
   )
 
   add_compile_definitions(
