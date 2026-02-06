@@ -219,13 +219,11 @@ if(MSVC)
 
   momo_add_c_and_cxx_release_compile_options(
     /Gw
-    /GL
   )
 
   momo_add_release_link_options(
     /OPT:REF
     /OPT:ICF
-    /LTCG
   )
 
   add_link_options(
