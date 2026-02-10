@@ -154,6 +154,61 @@ namespace
     }
 }
 
+bool dispatch_debug_exception(windows_emulator& win_emu, CONTEXT64& ctx, exception_record& record)
+{
+    std::array<uint8_t, 2> ins = {0};
+
+    // CD 2D int 2dh
+    if (win_emu.memory.try_read_memory(ctx.Rip, &ins, sizeof(ins)) && ins[0] == 0xCD && ins[1] == 0x2D)
+    {
+        // skip 2 bytes int 2dh
+        ctx.Rip += 2;
+
+        record.NumberParameters = 3;
+
+        record.ExceptionInformation[0] = ctx.Rax;
+        record.ExceptionInformation[1] = ctx.Rcx;
+        record.ExceptionInformation[2] = ctx.Rdx;
+
+        // https://github.com/ayoubfaouzi/al-khaser/issues/223
+
+        // inc qword ptr [rbp + KTRAP_FRAME_Rip]
+        ctx.Rip++;
+
+        switch (ctx.Rax)
+        {
+        case BREAKPOINT_BREAK:
+            // just drops straight into the debugger trap handler. Doesn't increment the instruction pointer.
+            break;
+        case BREAKPOINT_PRINT:
+            // calls BREAKPOINT_PRINT service, which is implemented by KdpPrint, increments the instruction pointer.
+            ctx.Rip += 3;
+            break;
+        case BREAKPOINT_PROMPT:
+            // calls BREAKPOINT_PROMPT service, which is implemented by KdpPrompt, doesn't increment the instruction pointer.
+            break;
+        case BREAKPOINT_LOAD_SYMBOLS:
+            // calls BREAKPOINT_LOAD_SYMBOLS, which is implemented by KdpSymbol, increments the instruction pointer.
+            ctx.Rip += 3;
+            break;
+        case BREAKPOINT_UNLOAD_SYMBOLS:
+            // calls BREAKPOINT_UNLOAD_SYMBOLS, which is also implemented by KdpSymbol, increments the instruction pointer.
+            ctx.Rip += 3;
+            break;
+        case BREAKPOINT_COMMAND_STRING:
+            // calls BREAKPOINT_COMMAND_STRING, which is implemented in KdpCommandString, increments the instruction pointer.
+            ctx.Rip += 3;
+            break;
+        default:
+            break;
+        }
+
+        return true;
+    }
+
+    return false;
+}
+
 void dispatch_exception(windows_emulator& win_emu, const DWORD status, const std::vector<EmulatorTraits<Emu64>::ULONG_PTR>& parameters)
 {
     CONTEXT64 ctx{};
@@ -168,57 +223,13 @@ void dispatch_exception(windows_emulator& win_emu, const DWORD status, const std
     record.ExceptionRecord = 0;
     record.NumberParameters = 0;
 
+    bool is_debug_exception = false;
     if (status == STATUS_BREAKPOINT)
     {
-        std::array<uint8_t, 2> ins = {0};
-
-        // CD 2D int 2dh
-        if (win_emu.memory.try_read_memory(ctx.Rip, &ins, sizeof(ins)) && ins[0] == 0xCD && ins[1] == 0x2D)
-        {
-            // skip 2 bytes int 2dh
-            ctx.Rip += 2;
-
-            record.NumberParameters = 3;
-
-            record.ExceptionInformation[0] = ctx.Rax;
-            record.ExceptionInformation[1] = ctx.Rcx;
-            record.ExceptionInformation[2] = ctx.Rdx;
-
-            // https://github.com/ayoubfaouzi/al-khaser/issues/223
-
-            // inc qword ptr [rbp + KTRAP_FRAME_Rip]
-            ctx.Rip++;
-
-            switch (ctx.Rax)
-            {
-            case BREAKPOINT_BREAK:
-                // just drops straight into the debugger trap handler. Doesn't increment the instruction pointer.
-                break;
-            case BREAKPOINT_PRINT:
-                // calls BREAKPOINT_PRINT service, which is implemented by KdpPrint, increments the instruction pointer.
-                ctx.Rip += 3;
-                break;
-            case BREAKPOINT_PROMPT:
-                // calls BREAKPOINT_PROMPT service, which is implemented by KdpPrompt, doesn't increment the instruction pointer.
-                break;
-            case BREAKPOINT_LOAD_SYMBOLS:
-                // calls BREAKPOINT_LOAD_SYMBOLS, which is implemented by KdpSymbol, increments the instruction pointer.
-                ctx.Rip += 3;
-                break;
-            case BREAKPOINT_UNLOAD_SYMBOLS:
-                // calls BREAKPOINT_UNLOAD_SYMBOLS, which is also implemented by KdpSymbol, increments the instruction pointer.
-                ctx.Rip += 3;
-                break;
-            case BREAKPOINT_COMMAND_STRING:
-                // calls BREAKPOINT_COMMAND_STRING, which is implemented in KdpCommandString, increments the instruction pointer.
-                ctx.Rip += 3;
-                break;
-            default:
-                break;
-            }
-        }
+        is_debug_exception = dispatch_debug_exception(win_emu, ctx, record);
     }
-    else
+
+    if (!is_debug_exception)
     {
         record.NumberParameters = static_cast<DWORD>(parameters.size());
 
