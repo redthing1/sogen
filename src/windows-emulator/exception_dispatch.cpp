@@ -170,12 +170,11 @@ void dispatch_exception(windows_emulator& win_emu, const DWORD status, const std
 
     if (status == STATUS_BREAKPOINT)
     {
-        uint8_t ins[2] = { 0 };
+        std::array<uint8_t, 2> ins = {0};
 
         // CD 2D int 2dh
         if (win_emu.memory.try_read_memory(ctx.Rip, &ins, sizeof(ins)) && ins[0] == 0xCD && ins[1] == 0x2D)
         {
-
             // skip 2 bytes int 2dh
             ctx.Rip += 2;
 
@@ -193,22 +192,22 @@ void dispatch_exception(windows_emulator& win_emu, const DWORD status, const std
                 break;
             case BREAKPOINT_PRINT:
                 // calls BREAKPOINT_PRINT service, which is implemented by KdpPrint, increments the instruction pointer.
-                ctx.Rip++; 
+                ctx.Rip++;
                 break;
             case BREAKPOINT_PROMPT:
                 // calls BREAKPOINT_PROMPT service, which is implemented by KdpPrompt, doesn't increment the instruction pointer.
                 break;
             case BREAKPOINT_LOAD_SYMBOLS:
                 // calls BREAKPOINT_LOAD_SYMBOLS, which is implemented by KdpSymbol, increments the instruction pointer.
-                ctx.Rip++; 
+                ctx.Rip++;
                 break;
             case BREAKPOINT_UNLOAD_SYMBOLS:
                 // calls BREAKPOINT_UNLOAD_SYMBOLS, which is also implemented by KdpSymbol, increments the instruction pointer.
-                ctx.Rip++; 
+                ctx.Rip++;
                 break;
             case BREAKPOINT_COMMAND_STRING:
                 // calls BREAKPOINT_COMMAND_STRING, which is implemented in KdpCommandString, increments the instruction pointer.
-                ctx.Rip++; 
+                ctx.Rip++;
                 break;
             default:
                 break;

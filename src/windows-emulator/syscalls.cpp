@@ -586,14 +586,12 @@ namespace syscalls
                                         emulator_object<uint32_t> /* type */, uint64_t data, uint64_t data_size,
                                         emulator_object<uint32_t> result_data_size)
     {
-        
         const auto name = read_unicode_string(c.emu, value_name);
 
         c.win_emu.log.info("NtQueryLicenseValue value_name: %s\n", u16_to_u8(name).c_str());
 
         if (name == u"Kernel-VMDetection-Private")
         {
-
             c.win_emu.callbacks.on_suspicious_activity("Anti-vm check with NtQueryLicenseValue Kernel-VMDetection-Private");
 
             ULONG detection_result = 0;
@@ -612,7 +610,8 @@ namespace syscalls
 
         if (name == u"TerminalServices-RemoteConnectionManager-AllowAppServerMode")
         {
-            c.win_emu.callbacks.on_suspicious_activity("Env check with NtQueryLicenseValue TerminalServices-RemoteConnectionManager-AllowAppServerMode");
+            c.win_emu.callbacks.on_suspicious_activity(
+                "Env check with NtQueryLicenseValue TerminalServices-RemoteConnectionManager-AllowAppServerMode");
 
             ULONG detection_result = 0;
 
