@@ -185,6 +185,10 @@ void dispatch_exception(windows_emulator& win_emu, const DWORD status, const std
             record.ExceptionInformation[2] = ctx.Rdx;
 
             // https://github.com/ayoubfaouzi/al-khaser/issues/223
+
+            // inc qword ptr [rbp + KTRAP_FRAME_Rip]
+            ctx.Rip++;
+
             switch (ctx.Rax)
             {
             case BREAKPOINT_BREAK:
@@ -192,22 +196,22 @@ void dispatch_exception(windows_emulator& win_emu, const DWORD status, const std
                 break;
             case BREAKPOINT_PRINT:
                 // calls BREAKPOINT_PRINT service, which is implemented by KdpPrint, increments the instruction pointer.
-                ctx.Rip++;
+                ctx.Rip += 3;
                 break;
             case BREAKPOINT_PROMPT:
                 // calls BREAKPOINT_PROMPT service, which is implemented by KdpPrompt, doesn't increment the instruction pointer.
                 break;
             case BREAKPOINT_LOAD_SYMBOLS:
                 // calls BREAKPOINT_LOAD_SYMBOLS, which is implemented by KdpSymbol, increments the instruction pointer.
-                ctx.Rip++;
+                ctx.Rip += 3;
                 break;
             case BREAKPOINT_UNLOAD_SYMBOLS:
                 // calls BREAKPOINT_UNLOAD_SYMBOLS, which is also implemented by KdpSymbol, increments the instruction pointer.
-                ctx.Rip++;
+                ctx.Rip += 3;
                 break;
             case BREAKPOINT_COMMAND_STRING:
                 // calls BREAKPOINT_COMMAND_STRING, which is implemented in KdpCommandString, increments the instruction pointer.
-                ctx.Rip++;
+                ctx.Rip += 3;
                 break;
             default:
                 break;
