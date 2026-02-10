@@ -316,7 +316,6 @@ namespace syscalls
 
         if (info_class == ThreadHideFromDebugger)
         {
-
             if (thread_information != 0 && thread_information % 4 != 0)
             {
                 return STATUS_DATATYPE_MISALIGNMENT;
