@@ -154,7 +154,7 @@ namespace
     }
 }
 
-bool dispatch_debug_exception(windows_emulator& win_emu, CONTEXT64& ctx, exception_record& record)
+bool dispatch_debug_exception(windows_emulator& win_emu, CONTEXT64& ctx, EMU_EXCEPTION_RECORD<EmulatorTraits<Emu64>>& record)
 {
     std::array<uint8_t, 2> ins = {0};
 
