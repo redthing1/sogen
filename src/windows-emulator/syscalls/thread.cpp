@@ -316,11 +316,6 @@ namespace syscalls
 
         if (info_class == ThreadHideFromDebugger)
         {
-            if (return_length)
-            {
-                return_length.write(sizeof(BOOLEAN));
-            }
-
             if (thread_information != 0 && thread_information % 4 != 0)
             {
                 return STATUS_DATATYPE_MISALIGNMENT;
@@ -331,8 +326,13 @@ namespace syscalls
                 return STATUS_INFO_LENGTH_MISMATCH;
             }
 
+            if (return_length)
+            {
+                return_length.try_write(sizeof(BOOLEAN));
+            }
+
             const emulator_object<BOOLEAN> info{c.emu, thread_information};
-            info.write(cur_emulator_thread.debugger_hide);
+            info.try_write(cur_emulator_thread.debugger_hide);
 
             c.win_emu.callbacks.on_suspicious_activity("Checking if the thread is hidden from the debugger");
 
