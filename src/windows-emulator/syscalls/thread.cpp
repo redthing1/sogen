@@ -58,9 +58,29 @@ namespace syscalls
 
         if (info_class == ThreadHideFromDebugger)
         {
-            c.win_emu.current_thread().debugger_hide = true;
-            c.win_emu.callbacks.on_suspicious_activity("Hiding thread from debugger");
-            return STATUS_SUCCESS;
+            BOOLEAN hide = true;
+
+            if (thread_information != 0 && thread_information % 4 != 0)
+            {
+                return STATUS_DATATYPE_MISALIGNMENT;
+            }
+
+            if (thread_information_length == 0 || thread_information_length == sizeof(hide))
+            {
+                if (thread_information_length == sizeof(hide))
+                {
+                    if (thread_information == 0 || !c.win_emu.memory.try_read_memory(thread_information, &hide, sizeof(hide)))
+                    {
+                        return STATUS_INTERNAL_ERROR;
+                    }
+                }
+
+                c.win_emu.current_thread().debugger_hide = hide;
+                c.win_emu.callbacks.on_suspicious_activity("Hiding thread from debugger");
+                return STATUS_SUCCESS;
+            }
+
+            return STATUS_INFO_LENGTH_MISMATCH;
         }
 
         if (info_class == ThreadNameInformation)
@@ -301,9 +321,14 @@ namespace syscalls
                 return_length.write(sizeof(BOOLEAN));
             }
 
-            if (thread_information_length < sizeof(BOOLEAN))
+            if (thread_information != 0 && thread_information % 4 != 0)
             {
-                return STATUS_BUFFER_OVERFLOW;
+                return STATUS_DATATYPE_MISALIGNMENT;
+            }
+
+            if (thread_information_length != sizeof(BOOLEAN))
+            {
+                return STATUS_INFO_LENGTH_MISMATCH;
             }
 
             const emulator_object<BOOLEAN> info{c.emu, thread_information};
