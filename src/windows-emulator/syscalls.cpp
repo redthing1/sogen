@@ -582,9 +582,51 @@ namespace syscalls
         return STATUS_SUCCESS;
     }
 
-    NTSTATUS handle_NtQueryLicenseValue()
+    NTSTATUS handle_NtQueryLicenseValue(const syscall_context& c, const emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>> value_name,
+                                        emulator_object<uint32_t> /* type */, uint64_t data, uint64_t data_size,
+                                        emulator_object<uint32_t> result_data_size)
     {
-        // puts("NtQueryLicenseValue not supported");
+        const auto name = read_unicode_string(c.emu, value_name);
+
+        c.win_emu.log.info("NtQueryLicenseValue value_name: %s\n", u16_to_u8(name).c_str());
+
+        if (name == u"Kernel-VMDetection-Private")
+        {
+            c.win_emu.callbacks.on_suspicious_activity("Anti-vm check with NtQueryLicenseValue Kernel-VMDetection-Private");
+
+            ULONG detection_result = 0;
+
+            if (data_size != sizeof(detection_result))
+            {
+                return STATUS_BUFFER_TOO_SMALL;
+            }
+
+            c.emu.write_memory(data, &detection_result, sizeof(detection_result));
+
+            result_data_size.write(sizeof(detection_result));
+
+            return STATUS_SUCCESS;
+        }
+
+        if (name == u"TerminalServices-RemoteConnectionManager-AllowAppServerMode")
+        {
+            c.win_emu.callbacks.on_suspicious_activity(
+                "Env check with NtQueryLicenseValue TerminalServices-RemoteConnectionManager-AllowAppServerMode");
+
+            ULONG detection_result = 0;
+
+            if (data_size != sizeof(detection_result))
+            {
+                return STATUS_BUFFER_TOO_SMALL;
+            }
+
+            c.emu.write_memory(data, &detection_result, sizeof(detection_result));
+
+            result_data_size.write(sizeof(detection_result));
+
+            return STATUS_SUCCESS;
+        }
+
         return STATUS_NOT_SUPPORTED;
     }
 
