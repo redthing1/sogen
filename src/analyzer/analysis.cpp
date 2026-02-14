@@ -353,8 +353,7 @@ namespace
         {
             for (auto& section : binary->sections)
             {
-                auto region = section.region;
-                if (address >= region.start && address <= region.start + region.length && section.first_execute == UINT64_MAX)
+                if (is_within_start_and_length(address, section.region.start, section.region.length) && section.first_execute == UINT64_MAX)
                 {
                     section.first_execute = address;
                     win_emu.log.print(color::green, "Section %s (%s) first execute at 0x%" PRIx64 " 0x%" PRIx64 " (tid: %" PRIx32 ")\n",
