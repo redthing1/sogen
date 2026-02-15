@@ -65,14 +65,27 @@ jobs:
   verify-formatting:
     name: Verify Formatting
     runs-on: ubuntu-24.04
+    env:
+      LLVM_VERSION: 21
     steps:
       - name: Checkout Source
         uses: actions/checkout@v6
 
-      - name: Verify Formatting
-        uses: jidicula/clang-format-action@v4.16.0
+      - name: Install Clang-format
+        uses: nick-fields/retry@v3.0.2
         with:
-          clang-format-version: "21"
+          max_attempts: 5
+          timeout_minutes: 15
+          retry_wait_seconds: 60
+          command: |
+            wget https://apt.llvm.org/llvm.sh
+            chmod +x llvm.sh
+            sudo ./llvm.sh ${{ env.LLVM_VERSION }}
+            sudo apt install -y clang-format-${{ env.LLVM_VERSION }}
+
+      - name: Run clang-format check
+        run: |
+          cd src && find . -regex '.*\.\(cpp\|hpp\|cc\|cxx\|h\|c\)' -exec clang-format-${{ env.LLVM_VERSION }} -style=file --dry-run --Werror {} +
 
       - name: Verify Page Formatting
         run: cd page && npx --yes prettier . --check
