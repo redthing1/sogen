@@ -14,35 +14,19 @@ class win_x64_gdb_stub_handler : public x64_gdb_stub_handler
           win_emu_(&win_emu),
           should_stop_(std::move(should_stop))
     {
-        // Chain module load/unload callbacks to stop on library changes
-        auto& callbacks = win_emu_->callbacks;
-
-        old_on_module_load_ = std::move(callbacks.on_module_load);
-        callbacks.on_module_load = [this](mapped_module& mod) {
-            if (old_on_module_load_)
-            {
-                old_on_module_load_(mod);
-            }
+        auto hook = [this](mapped_module&) {
             library_stop_pending_ = true;
             win_emu_->stop();
         };
 
-        old_on_module_unload_ = std::move(callbacks.on_module_unload);
-        callbacks.on_module_unload = [this](mapped_module& mod) {
-            if (old_on_module_unload_)
-            {
-                old_on_module_unload_(mod);
-            }
-            library_stop_pending_ = true;
-            win_emu_->stop();
-        };
+        mod_load_id = win_emu_->callbacks.on_module_load.add(hook);
+        mod_unload_id = win_emu_->callbacks.on_module_unload.add(hook);
     }
 
     ~win_x64_gdb_stub_handler() override
     {
-        // Restore original callbacks
-        win_emu_->callbacks.on_module_load = std::move(old_on_module_load_);
-        win_emu_->callbacks.on_module_unload = std::move(old_on_module_unload_);
+        win_emu_->callbacks.on_module_load.remove(mod_load_id);
+        win_emu_->callbacks.on_module_unload.remove(mod_unload_id);
     }
 
     void on_interrupt() override
@@ -165,6 +149,6 @@ class win_x64_gdb_stub_handler : public x64_gdb_stub_handler
 
     // Track library stop events
     std::atomic<bool> library_stop_pending_{false};
-    utils::optional_function<void(mapped_module&)> old_on_module_load_{};
-    utils::optional_function<void(mapped_module&)> old_on_module_unload_{};
+    utils::callback_id_type mod_load_id{};
+    utils::callback_id_type mod_unload_id{};
 };
