@@ -349,6 +349,20 @@ namespace
             return win_emu.mod_manager.find_by_address(address); //
         });
 
+        if (binary)
+        {
+            for (auto& section : binary->sections)
+            {
+                if (is_within_start_and_length(address, section.region.start, section.region.length) && section.first_execute == UINT64_MAX)
+                {
+                    section.first_execute = address;
+                    win_emu.log.print(color::green, "Section %s (%s) first execute at 0x%" PRIx64 " 0x%" PRIx64 " (tid: %" PRIx32 ")\n",
+                                      binary->name.c_str(), section.name.c_str(), section.first_execute,
+                                      section.first_execute - binary->image_base + binary->image_base_file, current_thread.id);
+                }
+            }
+        }
+
         const auto previous_binary = utils::make_lazy([&] {
             if (is_previous_main_exe)
             {

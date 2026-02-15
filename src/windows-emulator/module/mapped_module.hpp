@@ -22,6 +22,7 @@ using address_name_mapping = std::map<uint64_t, std::string>;
 
 struct mapped_section
 {
+    uint64_t first_execute = UINT64_MAX;
     std::string name{};
     basic_memory_region<> region{};
 };
