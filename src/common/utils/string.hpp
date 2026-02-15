@@ -175,8 +175,8 @@ namespace utils::string
 
         for (size_t i = 0; i < size; ++i)
         {
-            const auto high = parse_nibble(str[i * 2 + 0]);
-            const auto low = parse_nibble(str[i * 2 + 1]);
+            const auto high = parse_nibble(str[(i * 2) + 0]);
+            const auto low = parse_nibble(str[(i * 2) + 1]);
             const auto value = (high << 4) | low;
 
             data.push_back(value);
