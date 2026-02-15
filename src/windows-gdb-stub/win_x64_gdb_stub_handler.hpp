@@ -138,9 +138,14 @@ class win_x64_gdb_stub_handler : public x64_gdb_stub_handler
         return get_windows_path(mod_manager.executable->path);
     }
 
-    bool consume_library_stop() override
+    void consume_library_stop() override
+{
+        library_stop_pending_ = false;
+    }
+
+    bool should_signal_library() override
     {
-        return library_stop_pending_.exchange(false);
+        return library_stop_pending_;
     }
 
   private:
@@ -148,7 +153,7 @@ class win_x64_gdb_stub_handler : public x64_gdb_stub_handler
     utils::optional_function<bool()> should_stop_{};
 
     // Track library stop events
-    std::atomic<bool> library_stop_pending_{false};
+    bool library_stop_pending_{false};
     utils::callback_id_type mod_load_id{};
     utils::callback_id_type mod_unload_id{};
 };

@@ -67,10 +67,8 @@ namespace gdb_stub
             return {};
         }
 
-        virtual bool consume_library_stop()
-        {
-            return false;
-        }
+        virtual void consume_library_stop() = 0;
+        virtual bool should_signal_library() = 0;
 
         virtual std::string get_executable_path()
         {
