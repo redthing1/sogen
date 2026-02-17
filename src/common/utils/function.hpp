@@ -62,11 +62,11 @@ namespace utils
     template <typename Signature>
     class callback_list;
 
-    template <typename R, typename... Args>
-    class callback_list<R(Args...)>
+    template <typename... Args>
+    class callback_list<void(Args...)>
     {
       public:
-        using function_type = std::function<R(Args...)>;
+        using function_type = std::function<void(Args...)>;
 
         callback_id_type add(function_type fn)
         {
