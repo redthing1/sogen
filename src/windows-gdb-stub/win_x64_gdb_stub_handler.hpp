@@ -114,8 +114,7 @@ class win_x64_gdb_stub_handler : public x64_gdb_stub_handler
         }
         catch (...)
         {
-            // Pseudo-modules like <wow64-heaven-gate> aren't in the filesystem
-            return path.string();
+            return win_emu_->file_sys.mapped_path_to_windows_path(path).string();
         }
     }
 
@@ -126,7 +125,12 @@ class win_x64_gdb_stub_handler : public x64_gdb_stub_handler
         libs.reserve(this->win_emu_->mod_manager.modules().size());
         for (const auto& [base_addr, mod] : mod_manager.modules())
         {
-            libs.push_back({get_windows_path(mod.path), base_addr + 0x1000});
+            const auto module_path = get_windows_path(mod.path);
+
+            if (!module_path.empty())
+            {
+                libs.push_back({.name = module_path, .segment_address = base_addr + 0x1000});
+            }
         }
 
         return libs;
@@ -139,7 +143,7 @@ class win_x64_gdb_stub_handler : public x64_gdb_stub_handler
     }
 
     void consume_library_stop() override
-{
+    {
         library_stop_pending_ = false;
     }
 

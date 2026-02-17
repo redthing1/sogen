@@ -132,6 +132,19 @@ class file_system
         return windows_path{drive, std::move(folders)};
     }
 
+    windows_path mapped_path_to_windows_path(const std::filesystem::path& local_path) const
+    {
+        for (const auto& [src, dest] : this->mappings_)
+        {
+            if (dest == local_path)
+            {
+                return src;
+            }
+        }
+
+        return {};
+    }
+
     void map(windows_path src, std::filesystem::path dest)
     {
         this->mappings_[std::move(src)] = std::move(dest);
