@@ -67,7 +67,11 @@ namespace gdb_stub
             return {};
         }
 
-        virtual bool consume_library_stop()
+        virtual void reset_library_stop()
+        {
+        }
+
+        virtual bool should_signal_library()
         {
             return false;
         }

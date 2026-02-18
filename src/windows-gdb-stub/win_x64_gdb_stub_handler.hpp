@@ -14,35 +14,19 @@ class win_x64_gdb_stub_handler : public x64_gdb_stub_handler
           win_emu_(&win_emu),
           should_stop_(std::move(should_stop))
     {
-        // Chain module load/unload callbacks to stop on library changes
-        auto& callbacks = win_emu_->callbacks;
-
-        old_on_module_load_ = std::move(callbacks.on_module_load);
-        callbacks.on_module_load = [this](mapped_module& mod) {
-            if (old_on_module_load_)
-            {
-                old_on_module_load_(mod);
-            }
+        auto hook = [this](mapped_module&) {
             library_stop_pending_ = true;
             win_emu_->stop();
         };
 
-        old_on_module_unload_ = std::move(callbacks.on_module_unload);
-        callbacks.on_module_unload = [this](mapped_module& mod) {
-            if (old_on_module_unload_)
-            {
-                old_on_module_unload_(mod);
-            }
-            library_stop_pending_ = true;
-            win_emu_->stop();
-        };
+        mod_load_id = win_emu_->callbacks.on_module_load.add(hook);
+        mod_unload_id = win_emu_->callbacks.on_module_unload.add(hook);
     }
 
     ~win_x64_gdb_stub_handler() override
     {
-        // Restore original callbacks
-        win_emu_->callbacks.on_module_load = std::move(old_on_module_load_);
-        win_emu_->callbacks.on_module_unload = std::move(old_on_module_unload_);
+        win_emu_->callbacks.on_module_load.remove(mod_load_id);
+        win_emu_->callbacks.on_module_unload.remove(mod_unload_id);
     }
 
     void on_interrupt() override
@@ -130,8 +114,7 @@ class win_x64_gdb_stub_handler : public x64_gdb_stub_handler
         }
         catch (...)
         {
-            // Pseudo-modules like <wow64-heaven-gate> aren't in the filesystem
-            return path.string();
+            return win_emu_->file_sys.mapped_path_to_windows_path(path).string();
         }
     }
 
@@ -142,7 +125,12 @@ class win_x64_gdb_stub_handler : public x64_gdb_stub_handler
         libs.reserve(this->win_emu_->mod_manager.modules().size());
         for (const auto& [base_addr, mod] : mod_manager.modules())
         {
-            libs.push_back({get_windows_path(mod.path), base_addr + 0x1000});
+            const auto module_path = get_windows_path(mod.path);
+
+            if (!module_path.empty())
+            {
+                libs.push_back({.name = module_path, .segment_address = base_addr + 0x1000});
+            }
         }
 
         return libs;
@@ -154,9 +142,14 @@ class win_x64_gdb_stub_handler : public x64_gdb_stub_handler
         return get_windows_path(mod_manager.executable->path);
     }
 
-    bool consume_library_stop() override
+    void reset_library_stop() override
     {
-        return library_stop_pending_.exchange(false);
+        library_stop_pending_ = false;
+    }
+
+    bool should_signal_library() override
+    {
+        return library_stop_pending_;
     }
 
   private:
@@ -164,7 +157,7 @@ class win_x64_gdb_stub_handler : public x64_gdb_stub_handler
     utils::optional_function<bool()> should_stop_{};
 
     // Track library stop events
-    std::atomic<bool> library_stop_pending_{false};
-    utils::optional_function<void(mapped_module&)> old_on_module_load_{};
-    utils::optional_function<void(mapped_module&)> old_on_module_unload_{};
+    std::atomic<bool> library_stop_pending_{true};
+    utils::callback_id_type mod_load_id{};
+    utils::callback_id_type mod_unload_id{};
 };

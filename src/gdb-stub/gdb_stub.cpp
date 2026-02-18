@@ -151,6 +151,8 @@ namespace gdb_stub
                 return;
             }
 
+            c.handler.reset_library_stop();
+
             const auto [annex, data] = split_string(args, ':');
             (void)annex; // annex is empty for libraries
 
@@ -311,8 +313,7 @@ namespace gdb_stub
 
             std::string reply = "T05";
 
-            // Include "library:" when this stop was triggered by a library load/unload
-            if (c.handler.consume_library_stop())
+            if (c.handler.should_signal_library())
             {
                 reply += "library:;";
             }

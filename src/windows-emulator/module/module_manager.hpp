@@ -86,8 +86,8 @@ class module_manager
   public:
     struct callbacks
     {
-        utils::optional_function<void(mapped_module& mod)> on_module_load{};
-        utils::optional_function<void(mapped_module& mod)> on_module_unload{};
+        utils::callback_list<void(mapped_module& mod)> on_module_load{};
+        utils::callback_list<void(mapped_module& mod)> on_module_unload{};
     };
 
     using module_map = std::map<uint64_t, mapped_module>;
