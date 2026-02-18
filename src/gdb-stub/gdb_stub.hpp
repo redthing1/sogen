@@ -67,7 +67,7 @@ namespace gdb_stub
             return {};
         }
 
-        virtual void consume_library_stop()
+        virtual void reset_library_stop()
         {
         }
 

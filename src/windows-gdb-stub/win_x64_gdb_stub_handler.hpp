@@ -142,7 +142,7 @@ class win_x64_gdb_stub_handler : public x64_gdb_stub_handler
         return get_windows_path(mod_manager.executable->path);
     }
 
-    void consume_library_stop() override
+    void reset_library_stop() override
     {
         library_stop_pending_ = false;
     }

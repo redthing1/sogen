@@ -151,7 +151,7 @@ namespace gdb_stub
                 return;
             }
 
-            c.handler.consume_library_stop();
+            c.handler.reset_library_stop();
 
             const auto [annex, data] = split_string(args, ':');
             (void)annex; // annex is empty for libraries
