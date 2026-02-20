@@ -309,6 +309,11 @@ bool memory_manager::commit_memory(const uint64_t address, const size_t size, co
         return false;
     }
 
+    if (memory_region_policy::is_section_kind(entry->second.kind))
+    {
+        return false;
+    }
+
     const auto end = address + size;
     const auto region_end = entry->first + entry->second.length;
 

@@ -40,4 +40,4 @@ add_subdirectory(capstone)
 ##########################################
 
 include(googletest.cmake)
-include(zlib.cmake)
+include(zstd.cmake)

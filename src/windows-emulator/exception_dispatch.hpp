@@ -5,6 +5,16 @@
 #include <platform/traits.hpp>
 #include <platform/primitives.hpp>
 
+//
+// DebugService Control Types
+//
+#define BREAKPOINT_BREAK          0
+#define BREAKPOINT_PRINT          1
+#define BREAKPOINT_PROMPT         2
+#define BREAKPOINT_LOAD_SYMBOLS   3
+#define BREAKPOINT_UNLOAD_SYMBOLS 4
+#define BREAKPOINT_COMMAND_STRING 5
+
 class windows_emulator;
 
 void dispatch_exception(windows_emulator& win_emu, DWORD status, const std::vector<EmulatorTraits<Emu64>::ULONG_PTR>& parameters);
@@ -15,6 +25,7 @@ void dispatch_exception(windows_emulator& win_emu, const T status, const std::ve
     dispatch_exception(win_emu, static_cast<DWORD>(status), parameters);
 }
 
+bool dispatch_debug_exception(windows_emulator& win_emu, CONTEXT64& ctx, EMU_EXCEPTION_RECORD<EmulatorTraits<Emu64>>& record);
 void dispatch_access_violation(windows_emulator& win_emu, uint64_t address, memory_operation operation);
 void dispatch_guard_page_violation(windows_emulator& win_emu, uint64_t address, memory_operation operation);
 void dispatch_illegal_instruction_violation(windows_emulator& win_emu);

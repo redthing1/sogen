@@ -349,6 +349,20 @@ namespace
             return win_emu.mod_manager.find_by_address(address); //
         });
 
+        if (binary)
+        {
+            for (auto& section : binary->sections)
+            {
+                if (is_within_start_and_length(address, section.region.start, section.region.length) && section.first_execute == UINT64_MAX)
+                {
+                    section.first_execute = address;
+                    win_emu.log.print(color::green, "Section %s (%s) first execute at 0x%" PRIx64 " 0x%" PRIx64 " (tid: %" PRIx32 ")\n",
+                                      binary->name.c_str(), section.name.c_str(), section.first_execute,
+                                      section.first_execute - binary->image_base + binary->image_base_file, current_thread.id);
+                }
+            }
+        }
+
         const auto previous_binary = utils::make_lazy([&] {
             if (is_previous_main_exe)
             {
@@ -612,8 +626,8 @@ void register_analysis_callbacks(analysis_context& c)
     cb.on_memory_violate = make_callback(c, handle_memory_violate);
     cb.on_memory_allocate = make_callback(c, handle_memory_allocate);
 
-    cb.on_module_load = make_callback(c, handle_module_load);
-    cb.on_module_unload = make_callback(c, handle_module_unload);
+    (void)cb.on_module_load.add(make_callback(c, handle_module_load));
+    (void)cb.on_module_unload.add(make_callback(c, handle_module_unload));
 
     cb.on_thread_switch = make_callback(c, handle_thread_switch);
     cb.on_thread_set_name = make_callback(c, handle_thread_set_name);

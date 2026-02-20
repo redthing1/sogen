@@ -4,12 +4,38 @@
 #include "platform/win_pefile.hpp"
 #include "windows-emulator/logger.hpp"
 #include "../wow64_heaven_gate.hpp"
+#include "../version/windows_version_manager.hpp"
+#include "../process_context.hpp"
 
 #include <serialization_helper.hpp>
 #include <cinttypes>
 #include <random>
 #include <algorithm>
 #include <vector>
+
+namespace
+{
+    uint64_t get_system_dll_init_block_size(const windows_version_manager& version)
+    {
+        if (version.is_build_after_or_equal(WINDOWS_VERSION::WINDOWS_11_24H2))
+        {
+            return PS_SYSTEM_DLL_INIT_BLOCK_SIZE_V3;
+        }
+        if (version.is_build_after_or_equal(WINDOWS_VERSION::WINDOWS_10_2004))
+        {
+            return PS_SYSTEM_DLL_INIT_BLOCK_SIZE_V3_2004;
+        }
+        if (version.is_build_after_or_equal(WINDOWS_VERSION::WINDOWS_10_1709))
+        {
+            return PS_SYSTEM_DLL_INIT_BLOCK_SIZE_V2;
+        }
+        if (version.is_build_after_or_equal(WINDOWS_VERSION::WINDOWS_10_1703))
+        {
+            return PS_SYSTEM_DLL_INIT_BLOCK_SIZE_V2_1703;
+        }
+        return PS_SYSTEM_DLL_INIT_BLOCK_SIZE_V1;
+    }
+}
 
 namespace utils
 {
@@ -221,6 +247,11 @@ mapped_module* module_manager::map_module_core(const pe_detection_result& detect
         mapped_module mod = mapper();
         mod.is_static = is_static;
 
+        if (!mod.path.empty())
+        {
+            this->modules_load_count[mod.path]++;
+        }
+
         const auto image_base = mod.image_base;
         const auto entry = this->modules_.try_emplace(image_base, std::move(mod));
         this->last_module_cache_ = this->modules_.end();
@@ -257,23 +288,19 @@ void module_manager::load_native_64bit_modules(const windows_path& executable_pa
     this->win32u = this->map_module(win32u_path, logger, true);
 }
 
-// WOW64 module loading (with TODO placeholders for 32-bit details)
+// WOW64 module loading
 void module_manager::load_wow64_modules(const windows_path& executable_path, const windows_path& ntdll_path,
-                                        const windows_path& win32u_path, const windows_path& ntdll32_path, const logger& logger)
+                                        const windows_path& win32u_path, const windows_path& ntdll32_path, windows_version_manager& version,
+                                        const logger& logger)
 {
     logger.info("Loading WOW64 modules for 32-bit application\n");
 
-    // Load 32-bit main executable
     this->executable = this->map_module(executable_path, logger, true);
+    this->ntdll = this->map_module(ntdll_path, logger, true);
+    this->win32u = this->map_module(win32u_path, logger, true);
 
-    // Load 64-bit system modules for WOW64 subsystem
-    this->ntdll = this->map_module(ntdll_path, logger, true);   // 64-bit ntdll
-    this->win32u = this->map_module(win32u_path, logger, true); // 64-bit win32u
+    this->wow64_modules_.ntdll32 = this->map_module(ntdll32_path, logger, true);
 
-    // Load 32-bit ntdll module for WOW64 subsystem
-    this->wow64_modules_.ntdll32 = this->map_module(ntdll32_path, logger, true); // 32-bit ntdll
-
-    // Get original ImageBase values from PE files
     const auto ntdll32_original_imagebase = this->wow64_modules_.ntdll32->get_image_base_file();
     const auto ntdll64_original_imagebase = this->ntdll->get_image_base_file();
 
@@ -283,12 +310,10 @@ void module_manager::load_wow64_modules(const windows_path& executable_path, con
         return;
     }
 
-    // Set up LdrSystemDllInitBlock structure
     PS_SYSTEM_DLL_INIT_BLOCK init_block = {};
-    constexpr uint64_t symtem_dll_init_block_fix_size = 0xF0; // Wine or WIN10
+    const auto init_block_size = get_system_dll_init_block_size(version);
 
-    // Basic structure initialization
-    init_block.Size = symtem_dll_init_block_fix_size;
+    init_block.Size = static_cast<ULONG>(init_block_size);
 
     // Calculate relocation values
     // SystemDllWowRelocation = mapped_base - original_imagebase for 32-bit ntdll
@@ -344,8 +369,7 @@ void module_manager::load_wow64_modules(const windows_path& executable_path, con
         return;
     }
 
-    // Write the initialized structure to the export address
-    this->memory_->write_memory(ldr_init_block_addr, &init_block, symtem_dll_init_block_fix_size);
+    this->memory_->write_memory(ldr_init_block_addr, &init_block, static_cast<size_t>(init_block_size));
 
     logger.info("Successfully initialized LdrSystemDllInitBlock at 0x%" PRIx64 "\n", ldr_init_block_addr);
 
@@ -422,14 +446,16 @@ void module_manager::install_wow64_heaven_gate(const logger& logger)
     }
 }
 
-// Refactored map_main_modules with execution mode detection
-void module_manager::map_main_modules(const windows_path& executable_path, const windows_path& system32_path,
-                                      const windows_path& syswow64_path, const logger& logger)
+void module_manager::map_main_modules(const windows_path& executable_path, windows_version_manager& version, process_context& context,
+                                      const logger& logger)
 {
-    // Detect execution mode based on executable architecture
-    current_execution_mode_ = detect_execution_mode(executable_path, logger);
+    const auto& system_root = version.get_system_root();
+    const auto system32_path = system_root / "System32";
+    const auto syswow64_path = system_root / "SysWOW64";
 
-    // Load modules based on detected execution mode
+    current_execution_mode_ = detect_execution_mode(executable_path, logger);
+    context.is_wow64_process = (current_execution_mode_ == execution_mode::wow64_32bit);
+
     switch (current_execution_mode_)
     {
     case execution_mode::native_64bit:
@@ -437,7 +463,8 @@ void module_manager::map_main_modules(const windows_path& executable_path, const
         break;
 
     case execution_mode::wow64_32bit:
-        load_wow64_modules(executable_path, system32_path / "ntdll.dll", system32_path / "win32u.dll", syswow64_path / "ntdll.dll", logger);
+        load_wow64_modules(executable_path, system32_path / "ntdll.dll", system32_path / "win32u.dll", syswow64_path / "ntdll.dll", version,
+                           logger);
         break;
 
     case execution_mode::unknown:
@@ -446,22 +473,45 @@ void module_manager::map_main_modules(const windows_path& executable_path, const
     }
 }
 
-mapped_module* module_manager::map_module(const windows_path& file, const logger& logger, const bool is_static)
+std::optional<uint64_t> module_manager::get_module_load_count_by_path(const windows_path& path)
 {
-    return this->map_local_module(this->file_sys_->translate(file), logger, is_static);
+    auto local_file = std::filesystem::weakly_canonical(std::filesystem::absolute(this->file_sys_->translate(path)));
+
+    if (auto load_count_entry = modules_load_count.find(local_file); load_count_entry != modules_load_count.end())
+    {
+        return load_count_entry->second;
+    }
+
+    return {};
+}
+
+mapped_module* module_manager::map_module(const windows_path& file, const logger& logger, const bool is_static, bool allow_duplicate)
+{
+    auto local_file = this->file_sys_->translate(file);
+
+    if (local_file.filename() == "win32u.dll")
+    {
+        return this->map_local_module(local_file, logger, is_static, false);
+    }
+
+    return this->map_local_module(local_file, logger, is_static, allow_duplicate);
 }
 
 // Refactored map_local_module using the new architecture
-mapped_module* module_manager::map_local_module(const std::filesystem::path& file, const logger& logger, const bool is_static)
+mapped_module* module_manager::map_local_module(const std::filesystem::path& file, const logger& logger, const bool is_static,
+                                                bool allow_duplicate)
 {
     auto local_file = weakly_canonical(absolute(file));
 
-    // Check if module is already loaded
-    for (auto& mod : this->modules_ | std::views::values)
+    if (!allow_duplicate)
     {
-        if (mod.path == local_file)
+        // Check if module is already loaded
+        for (auto& mod : this->modules_ | std::views::values)
         {
-            return &mod;
+            if (mod.path == local_file)
+            {
+                return &mod;
+            }
         }
     }
 
@@ -480,14 +530,17 @@ mapped_module* module_manager::map_local_module(const std::filesystem::path& fil
 
 // Refactored map_memory_module using the new architecture
 mapped_module* module_manager::map_memory_module(uint64_t base_address, uint64_t image_size, const std::string& module_name,
-                                                 const logger& logger, bool is_static)
+                                                 const logger& logger, bool is_static, bool allow_duplicate)
 {
-    // Check if module is already loaded at this address
-    for (auto& mod : this->modules_ | std::views::values)
+    if (!allow_duplicate)
     {
-        if (mod.image_base == base_address)
+        // Check if module is already loaded at this address
+        for (auto& mod : this->modules_ | std::views::values)
         {
-            return &mod;
+            if (mod.image_base == base_address)
+            {
+                return &mod;
+            }
         }
     }
 
@@ -507,6 +560,7 @@ mapped_module* module_manager::map_memory_module(uint64_t base_address, uint64_t
 void module_manager::serialize(utils::buffer_serializer& buffer) const
 {
     buffer.write_map(this->modules_);
+    buffer.write_map(this->modules_load_count);
 
     buffer.write(this->executable ? this->executable->image_base : 0);
     buffer.write(this->ntdll ? this->ntdll->image_base : 0);
@@ -524,6 +578,7 @@ void module_manager::serialize(utils::buffer_serializer& buffer) const
 void module_manager::deserialize(utils::buffer_deserializer& buffer)
 {
     buffer.read_map(this->modules_);
+    buffer.read_map(this->modules_load_count);
     this->last_module_cache_ = this->modules_.end();
 
     const auto executable_base = buffer.read<uint64_t>();
@@ -562,6 +617,17 @@ bool module_manager::unmap(const uint64_t address)
 
     this->callbacks_->on_module_unload(mod->second);
     unmap_module(*this->memory_, mod->second);
+
+    auto module_load_count = this->modules_load_count[mod->second.path] - 1;
+    if (module_load_count == 0)
+    {
+        this->modules_load_count.erase(mod->second.path);
+    }
+    else
+    {
+        this->modules_load_count[mod->second.path] = module_load_count;
+    }
+
     this->modules_.erase(mod);
     this->last_module_cache_ = this->modules_.end();
 

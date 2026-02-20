@@ -33,7 +33,9 @@
 
 struct emulator_settings;
 struct application_settings;
+class windows_version_manager;
 
+using knowndlls_map = std::map<std::u16string, section>;
 struct process_context
 {
     struct callbacks
@@ -62,6 +64,22 @@ struct process_context
         }
     };
 
+    struct class_entry
+    {
+        emulator_pointer guest_obj_addr{};
+        EMU_WNDCLASSEX wnd_class{};
+        CLSMENUNAME<EmulatorTraits<Emu64>> menu_name{};
+
+        class_entry() = default;
+
+        class_entry(const emulator_pointer guest_obj, const EMU_WNDCLASSEX& wnd_class, const CLSMENUNAME<EmulatorTraits<Emu64>>& menu_name)
+            : guest_obj_addr(guest_obj),
+              wnd_class(wnd_class),
+              menu_name(menu_name)
+        {
+        }
+    };
+
     process_context(x86_64_emulator& emu, memory_manager& memory, utils::clock& clock, callbacks& cb)
         : callbacks_(&cb),
           base_allocator(emu),
@@ -72,11 +90,9 @@ struct process_context
     {
     }
 
-    void setup(x86_64_emulator& emu, memory_manager& memory, registry_manager& registry, const application_settings& app_settings,
-               const mapped_module& executable, const mapped_module& ntdll, const apiset::container& apiset_container,
-               const mapped_module* ntdll32 = nullptr);
-
-    void setup_callback_hook(windows_emulator& win_emu, memory_manager& memory);
+    void setup(x86_64_emulator& emu, memory_manager& memory, registry_manager& registry, file_system& file_system,
+               windows_version_manager& version, const application_settings& app_settings, const mapped_module& executable,
+               const mapped_module& ntdll, const apiset::container& apiset_container, const mapped_module* ntdll32 = nullptr);
 
     handle create_thread(memory_manager& memory, uint64_t start_address, uint64_t argument, uint64_t stack_size, uint32_t create_flags,
                          bool initial_thread = false);
@@ -87,6 +103,13 @@ struct process_context
     bool delete_atom(uint16_t atom_id);
     const std::u16string* get_atom_name(uint16_t atom_id) const;
 
+    template <typename T>
+    void build_knowndlls_section_table(registry_manager& registry, const file_system& file_system, const apiset_map& apiset, bool is_32bit);
+
+    std::optional<section> get_knowndll_section_by_name(const std::u16string& name, bool is_32bit) const;
+    void add_knowndll_section(const std::u16string& name, const section& section, bool is_32bit);
+    bool has_knowndll_section(const std::u16string& name, bool is_32bit) const;
+
     void serialize(utils::buffer_serializer& buffer) const;
     void deserialize(utils::buffer_deserializer& buffer);
 
@@ -94,13 +117,6 @@ struct process_context
 
     // WOW64 support flag - set during process setup based on executable architecture
     bool is_wow64_process{false};
-
-    uint32_t windows_build_number{0};
-
-    bool is_older_windows_build() const
-    {
-        return windows_build_number < 26040;
-    }
 
     callbacks* callbacks_{};
 
@@ -123,6 +139,8 @@ struct process_context
     uint64_t ki_user_apc_dispatcher{};
     uint64_t ki_user_exception_dispatcher{};
     uint64_t instrumentation_callback{};
+    uint64_t zw_callback_return{};
+    uint64_t dispatch_client_message{};
 
     // For WOW64 processes
     std::optional<emulator_object<PEB32>> peb32;
@@ -142,14 +160,17 @@ struct process_context
     handle_store<handle_types::timer, timer> timers{};
     handle_store<handle_types::registry, registry_key, 2> registry_keys{};
     std::map<uint16_t, atom_entry> atoms{};
+    utils::insensitive_u16string_map<class_entry> classes{};
+
+    apiset_map apiset;
+    knowndlls_map knowndlls32_sections;
+    knowndlls_map knowndlls64_sections;
 
     std::vector<std::byte> default_register_set{};
 
     uint32_t spawned_thread_count{0};
     handle_store<handle_types::thread, emulator_thread> threads{};
     emulator_thread* active_thread{nullptr};
-
-    emulator_pointer callback_sentinel_addr{0};
 
     // Extended parameters from last NtMapViewOfSectionEx call
     // These can be used by other syscalls like NtAllocateVirtualMemoryEx

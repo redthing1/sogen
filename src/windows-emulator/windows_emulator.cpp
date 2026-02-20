@@ -351,10 +351,9 @@ void windows_emulator::setup_process(const application_settings& app_settings)
     const auto& emu = this->emu();
     auto& context = this->process;
 
-    this->mod_manager.map_main_modules(app_settings.application, R"(C:\Windows\System32)", R"(C:\Windows\SysWOW64)", this->log);
+    this->version.load_from_registry(this->registry, this->log);
 
-    // Set WOW64 flag based on the detected execution mode
-    context.is_wow64_process = (this->mod_manager.get_execution_mode() == execution_mode::wow64_32bit);
+    this->mod_manager.map_main_modules(app_settings.application, this->version, context, this->log);
 
     const auto* executable = this->mod_manager.executable;
     const auto* ntdll = this->mod_manager.ntdll;
@@ -362,8 +361,8 @@ void windows_emulator::setup_process(const application_settings& app_settings)
 
     const auto apiset_data = apiset::obtain(this->emulation_root);
 
-    this->process.setup(this->emu(), this->memory, this->registry, app_settings, *executable, *ntdll, apiset_data,
-                        this->mod_manager.wow64_modules_.ntdll32);
+    this->process.setup(this->emu(), this->memory, this->registry, this->file_sys, this->version, app_settings, *executable, *ntdll,
+                        apiset_data, this->mod_manager.wow64_modules_.ntdll32);
 
     const auto ntdll_data = emu.read_memory(ntdll->image_base, static_cast<size_t>(ntdll->size_of_image));
     const auto win32u_data = emu.read_memory(win32u->image_base, static_cast<size_t>(win32u->size_of_image));
@@ -371,7 +370,7 @@ void windows_emulator::setup_process(const application_settings& app_settings)
     this->dispatcher.setup(ntdll->exports, ntdll_data, win32u->exports, win32u_data);
 
     const auto main_thread_id = context.create_thread(this->memory, this->mod_manager.executable->entry_point, 0,
-                                                      this->mod_manager.executable->size_of_stack_commit, 0, true);
+                                                      this->mod_manager.executable->size_of_stack_reserve, 0, true);
 
     switch_to_thread(*this, main_thread_id);
 }
@@ -554,7 +553,6 @@ void windows_emulator::start(size_t count)
 {
     this->should_stop = false;
     this->setup_process_if_necessary();
-    this->process.setup_callback_hook(*this, this->memory);
 
     const auto use_count = count > 0;
     const auto start_instructions = this->executed_instructions_;
@@ -622,6 +620,10 @@ void windows_emulator::register_factories(utils::buffer_deserializer& buffer)
     buffer.register_factory<socket_factory_wrapper>([this] {
         return socket_factory_wrapper{this->socket_factory()}; //
     });
+
+    buffer.register_factory<window>([this] {
+        return window{this->emu()}; //
+    });
 }
 
 void windows_emulator::serialize(utils::buffer_serializer& buffer) const
@@ -631,11 +633,13 @@ void windows_emulator::serialize(utils::buffer_serializer& buffer) const
     buffer.write(this->switch_thread_);
     buffer.write(this->use_relative_time_);
 
+    this->version.serialize(buffer);
+
     this->emu().serialize_state(buffer, false);
     this->memory.serialize_memory_state(buffer, false);
     this->mod_manager.serialize(buffer);
-    this->process.serialize(buffer);
     this->dispatcher.serialize(buffer);
+    this->process.serialize(buffer);
 }
 
 void windows_emulator::deserialize(utils::buffer_deserializer& buffer)
@@ -654,13 +658,15 @@ void windows_emulator::deserialize(utils::buffer_deserializer& buffer)
         throw std::runtime_error("Can not deserialize emulator with different time dimensions");
     }
 
+    this->version.deserialize(buffer);
+
     this->memory.unmap_all_memory();
 
     this->emu().deserialize_state(buffer, false);
     this->memory.deserialize_memory_state(buffer, false);
     this->mod_manager.deserialize(buffer);
-    this->process.deserialize(buffer);
     this->dispatcher.deserialize(buffer);
+    this->process.deserialize(buffer);
 }
 
 void windows_emulator::save_snapshot()
@@ -670,6 +676,8 @@ void windows_emulator::save_snapshot()
     buffer.write_optional(this->application_settings_);
     buffer.write(this->executed_instructions_);
     buffer.write(this->switch_thread_);
+
+    this->version.serialize(buffer);
 
     this->emu().serialize_state(buffer, true);
     this->memory.serialize_memory_state(buffer, true);
@@ -697,6 +705,8 @@ void windows_emulator::restore_snapshot()
     buffer.read_optional(this->application_settings_);
     buffer.read(this->executed_instructions_);
     buffer.read(this->switch_thread_);
+
+    this->version.deserialize(buffer);
 
     this->emu().deserialize_state(buffer, true);
     this->memory.deserialize_memory_state(buffer, true);

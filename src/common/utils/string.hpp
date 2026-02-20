@@ -30,6 +30,21 @@ namespace utils::string
         array[std::min(Size - 1, size)] = {};
     }
 
+    template <typename T, size_t Size, class Traits = std::char_traits<T>>
+        requires(std::is_trivially_copyable_v<T>)
+    // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays,hicpp-avoid-c-arrays,modernize-avoid-c-arrays)
+    void copy(T (&array)[Size], const std::basic_string_view<T, Traits> str)
+    {
+        if constexpr (Size == 0)
+        {
+            return;
+        }
+
+        const auto size = std::min(Size - 1, str.size());
+        memcpy(array, str.data(), size * sizeof(T));
+        array[size] = {};
+    }
+
     inline char char_to_lower(const char val)
     {
         return static_cast<char>(std::tolower(static_cast<unsigned char>(val)));
@@ -160,8 +175,8 @@ namespace utils::string
 
         for (size_t i = 0; i < size; ++i)
         {
-            const auto high = parse_nibble(str[i * 2 + 0]);
-            const auto low = parse_nibble(str[i * 2 + 1]);
+            const auto high = parse_nibble(str[(i * 2) + 0]);
+            const auto low = parse_nibble(str[(i * 2) + 1]);
             const auto value = (high << 4) | low;
 
             data.push_back(value);
@@ -180,5 +195,92 @@ namespace utils::string
     bool equals_ignore_case(const std::basic_string_view<Elem, Traits>& lhs, const std::basic_string_view<Elem, Traits>& rhs)
     {
         return std::ranges::equal(lhs, rhs, [](const auto c1, const auto c2) { return char_to_lower(c1) == char_to_lower(c2); });
+    }
+
+    template <class Elem, class Traits, class Alloc>
+    bool starts_with_ignore_case(const std::basic_string<Elem, Traits, Alloc>& lhs, const std::basic_string<Elem, Traits, Alloc>& rhs)
+    {
+        if (lhs.length() < rhs.length())
+        {
+            return false;
+        }
+
+        return std::ranges::equal(lhs.substr(0, rhs.length()), rhs,
+                                  [](const auto c1, const auto c2) { return char_to_lower(c1) == char_to_lower(c2); });
+    }
+
+    template <class Elem, class Traits>
+    bool starts_with_ignore_case(const std::basic_string_view<Elem, Traits>& lhs, const std::basic_string_view<Elem, Traits>& rhs)
+    {
+        if (lhs.length() < rhs.length())
+        {
+            return false;
+        }
+
+        return std::ranges::equal(lhs.substr(0, rhs.length()), rhs,
+                                  [](const auto c1, const auto c2) { return char_to_lower(c1) == char_to_lower(c2); });
+    }
+
+    template <class Elem, class Traits, class Alloc>
+    bool ends_with_ignore_case(const std::basic_string<Elem, Traits, Alloc>& lhs, const std::basic_string<Elem, Traits, Alloc>& rhs)
+    {
+        if (lhs.length() < rhs.length())
+        {
+            return false;
+        }
+
+        auto start = lhs.length() - rhs.length();
+        return std::ranges::equal(lhs.substr(start, rhs.length()), rhs,
+                                  [](const auto c1, const auto c2) { return char_to_lower(c1) == char_to_lower(c2); });
+    }
+
+    template <class Elem, class Traits>
+    bool ends_with_ignore_case(const std::basic_string_view<Elem, Traits>& lhs, const std::basic_string_view<Elem, Traits>& rhs)
+    {
+        if (lhs.length() < rhs.length())
+        {
+            return false;
+        }
+
+        auto start = lhs.length() - rhs.length();
+        return std::ranges::equal(lhs.substr(start, rhs.length()), rhs,
+                                  [](const auto c1, const auto c2) { return char_to_lower(c1) == char_to_lower(c2); });
+    }
+
+    template <class Elem, class Traits>
+    int compare_ignore_case(std::basic_string_view<Elem, Traits> lhs, std::basic_string_view<Elem, Traits> rhs)
+    {
+        const std::size_t n = std::min(lhs.size(), rhs.size());
+
+        for (std::size_t i = 0; i < n; ++i)
+        {
+            auto c1 = char_to_lower(lhs[i]);
+            auto c2 = char_to_lower(rhs[i]);
+
+            if (c1 < c2)
+            {
+                return -1;
+            }
+            if (c1 > c2)
+            {
+                return 1;
+            }
+        }
+
+        if (lhs.size() < rhs.size())
+        {
+            return -1;
+        }
+        if (lhs.size() > rhs.size())
+        {
+            return 1;
+        }
+        return 0;
+    }
+
+    template <class Elem, class Traits, class Alloc>
+    int compare_ignore_case(const std::basic_string<Elem, Traits, Alloc>& lhs, const std::basic_string<Elem, Traits, Alloc>& rhs)
+    {
+        return compare_ignore_case(std::basic_string_view<Elem, Traits>(lhs), std::basic_string_view<Elem, Traits>(rhs));
     }
 }

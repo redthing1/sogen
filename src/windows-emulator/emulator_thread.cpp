@@ -3,6 +3,7 @@
 
 #include "cpu_context.hpp"
 #include "process_context.hpp"
+#include "syscall_utils.hpp"
 
 namespace
 {
@@ -52,7 +53,7 @@ namespace
         }
         else
         {
-            const uint64_t stack_end = stack_base + stack_size - sizeof(WOW64_CPURESERVED) - 0x548;
+            const uint64_t stack_end = stack_base + stack_size - sizeof(WOW64_CPURESERVED) - 0x1578;
             emu.reg(x86_register::rsp, stack_end);
         }
     }
@@ -159,6 +160,9 @@ emulator_thread::emulator_thread(memory_manager& memory, const process_context& 
             teb_obj.SameTebFlags.SkipThreadAttach = (create_flags & THREAD_CREATE_FLAGS_SKIP_THREAD_ATTACH) ? 1 : 0;
             teb_obj.SameTebFlags.LoaderWorker = (create_flags & THREAD_CREATE_FLAGS_LOADER_WORKER) ? 1 : 0;
             teb_obj.SameTebFlags.SkipLoaderInit = (create_flags & THREAD_CREATE_FLAGS_SKIP_LOADER_INIT) ? 1 : 0;
+
+            const auto desktop_info_obj = this->gs_segment->reserve<USER_DESKTOPINFO>();
+            teb_obj.Win32ClientInfo.arr[4] = desktop_info_obj.value();
         });
 
         return;
@@ -172,9 +176,9 @@ emulator_thread::emulator_thread(memory_manager& memory, const process_context& 
     memory.set_default_allocation_address(DEFAULT_ALLOCATION_ADDRESS_32BIT);
 
     // Calculate required GS segment size for WOW64 (64-bit TEB + 32-bit TEB)
-    constexpr uint64_t wow_teb_offset = 0x2000;
-    constexpr size_t teb64_size = sizeof(TEB64);
-    constexpr size_t teb32_size = sizeof(TEB32);                                // 4120 bytes
+    constexpr auto teb64_size = sizeof(TEB64);
+    constexpr auto teb32_size = sizeof(TEB32); // 4120 bytes
+    constexpr auto wow_teb_offset = page_align_up(teb64_size);
     const uint64_t required_gs_size = teb64_size + wow_teb_offset + teb32_size; // Need space for both TEBs
     const auto actual_gs_size =
         static_cast<size_t>((required_gs_size > GS_SEGMENT_SIZE) ? page_align_up(required_gs_size) : GS_SEGMENT_SIZE);
@@ -197,7 +201,7 @@ emulator_thread::emulator_thread(memory_manager& memory, const process_context& 
         return;
     }
 
-    uint64_t wow64_cpureserved_base = this->stack_base + this->stack_size - sizeof(WOW64_CPURESERVED);
+    const uint64_t wow64_cpureserved_base = this->stack_base + this->stack_size - sizeof(WOW64_CPURESERVED) - 0x1030;
 
     // Initialize 64-bit TEB first
     this->teb64->access([&](TEB64& teb_obj) {
@@ -274,7 +278,7 @@ emulator_thread::emulator_thread(memory_manager& memory, const process_context& 
             teb32_obj.ProcessEnvironmentBlock = 0;
         }
 
-        teb32_obj.WowTebOffset = -0x2000;
+        teb32_obj.WowTebOffset = -static_cast<int32_t>(wow_teb_offset);
         teb32_obj.InitialThread = initial_thread;
         teb32_obj.SkipThreadAttach = (create_flags & THREAD_CREATE_FLAGS_SKIP_THREAD_ATTACH) ? 1 : 0;
         teb32_obj.LoaderWorker = (create_flags & THREAD_CREATE_FLAGS_LOADER_WORKER) ? 1 : 0;
@@ -350,6 +354,7 @@ void emulator_thread::mark_as_ready(const NTSTATUS status)
     this->pending_status = status;
     this->await_time = {};
     this->await_objects = {};
+    this->await_msg = {};
 
     // TODO: Find out if this is correct
     if (this->waiting_for_alert)
@@ -358,6 +363,40 @@ void emulator_thread::mark_as_ready(const NTSTATUS status)
     }
 
     this->waiting_for_alert = false;
+}
+
+std::optional<msg> emulator_thread::peek_pending_message(hwnd hwnd_filter, UINT filter_min, UINT filter_max, bool remove)
+{
+    for (auto it = message_queue.begin(); it != message_queue.end(); ++it)
+    {
+        if (hwnd_filter != 0 && hwnd_filter != static_cast<hwnd>(-1) && it->window != hwnd_filter)
+        {
+            continue;
+        }
+
+        if (hwnd_filter == static_cast<hwnd>(-1) && it->window != 0)
+        {
+            continue;
+        }
+
+        if ((filter_min != 0 || filter_max != 0) && (it->message < filter_min || it->message > filter_max))
+        {
+            continue;
+        }
+
+        auto msg = *it;
+        if (remove)
+        {
+            message_queue.erase(it);
+        }
+        return msg;
+    }
+    return std::nullopt;
+}
+
+void emulator_thread::post_message(const msg& msg)
+{
+    message_queue.push_back(msg);
 }
 
 bool emulator_thread::is_terminated() const
@@ -431,6 +470,19 @@ bool emulator_thread::is_thread_ready(process_context& process, utils::clock& cl
         return false;
     }
 
+    if (this->await_msg.has_value())
+    {
+        if (const auto m =
+                this->peek_pending_message(this->await_msg->hwnd_filter, this->await_msg->filter_min, this->await_msg->filter_max, true))
+        {
+            this->await_msg->message.write(*m);
+            this->mark_as_ready(m->message != WM_QUIT ? TRUE : FALSE);
+            return true;
+        }
+
+        return false;
+    }
+
     return true;
 }
 
@@ -494,5 +546,94 @@ void emulator_thread::refresh_execution_context(x86_64_emulator& emu) const
     {
         // Refresh GDT entry for FS selector on context switch
         setup_wow64_fs_segment(*this->memory_ptr, this->teb32->value());
+    }
+}
+
+callback_frame::callback_frame() = default;
+
+callback_frame::callback_frame(callback_id callback_id, std::unique_ptr<completion_state> completion_state)
+{
+    this->handler_id = callback_id;
+    this->state = std::move(completion_state);
+}
+
+callback_frame::callback_frame(callback_frame&& obj) noexcept = default;
+callback_frame& callback_frame::operator=(callback_frame&& obj) noexcept = default;
+
+callback_frame::~callback_frame() = default;
+
+void callback_frame::save_registers(x86_64_emulator& emu)
+{
+    if (this->rip != 0)
+    {
+        throw std::runtime_error("Attempt to overwrite callback frame register snapshot");
+    }
+
+    this->rip = emu.reg(x86_register::rip);
+    this->rsp = emu.reg(x86_register::rsp);
+    this->r10 = emu.reg(x86_register::r10);
+    this->rcx = emu.reg(x86_register::rcx);
+    this->rdx = emu.reg(x86_register::rdx);
+    this->r8 = emu.reg(x86_register::r8);
+    this->r9 = emu.reg(x86_register::r9);
+}
+
+void callback_frame::restore_registers(x86_64_emulator& emu) const
+{
+    if (this->rip == 0)
+    {
+        throw std::runtime_error("Attempt to restore registers from an uninitialized callback frame");
+    }
+
+    emu.reg(x86_register::rip, this->rip);
+    emu.reg(x86_register::rsp, this->rsp);
+    emu.reg(x86_register::r10, this->r10);
+    emu.reg(x86_register::rcx, this->rcx);
+    emu.reg(x86_register::rdx, this->rdx);
+    emu.reg(x86_register::r8, this->r8);
+    emu.reg(x86_register::r9, this->r9);
+}
+
+void callback_frame::serialize(utils::buffer_serializer& buffer) const
+{
+    buffer.write(this->handler_id);
+    buffer.write(this->rip);
+    buffer.write(this->rsp);
+    buffer.write(this->r10);
+    buffer.write(this->rcx);
+    buffer.write(this->rdx);
+    buffer.write(this->r8);
+    buffer.write(this->r9);
+
+    buffer.write(static_cast<bool>(this->state));
+    if (this->state)
+    {
+        buffer.write(*this->state);
+    }
+}
+
+void callback_frame::deserialize(utils::buffer_deserializer& buffer)
+{
+    buffer.read(this->handler_id);
+    buffer.read(this->rip);
+    buffer.read(this->rsp);
+    buffer.read(this->r10);
+    buffer.read(this->rcx);
+    buffer.read(this->rdx);
+    buffer.read(this->r8);
+    buffer.read(this->r9);
+
+    bool has_state{};
+    buffer.read(has_state);
+
+    if (has_state)
+    {
+        this->state = syscall_dispatcher::create_completion_state(this->handler_id);
+        if (!this->state)
+        {
+            throw std::runtime_error(
+                "Serialized data indicates a completion state is present, but state creation failed for this callback id");
+        }
+        buffer.read(*this->state);
     }
 }

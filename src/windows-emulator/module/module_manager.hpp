@@ -7,6 +7,9 @@
 #include "platform/win_pefile.hpp"
 
 class logger;
+class registry_manager;
+class windows_version_manager;
+struct process_context;
 
 // Execution mode for the emulated process
 enum class execution_mode
@@ -83,21 +86,23 @@ class module_manager
   public:
     struct callbacks
     {
-        utils::optional_function<void(mapped_module& mod)> on_module_load{};
-        utils::optional_function<void(mapped_module& mod)> on_module_unload{};
+        utils::callback_list<void(mapped_module& mod)> on_module_load{};
+        utils::callback_list<void(mapped_module& mod)> on_module_unload{};
     };
 
     using module_map = std::map<uint64_t, mapped_module>;
 
     module_manager(memory_manager& memory, file_system& file_sys, callbacks& cb);
 
-    void map_main_modules(const windows_path& executable_path, const windows_path& system32_path, const windows_path& syswow64_path,
+    void map_main_modules(const windows_path& executable_path, windows_version_manager& version, process_context& context,
                           const logger& logger);
 
-    mapped_module* map_module(const windows_path& file, const logger& logger, bool is_static = false);
-    mapped_module* map_local_module(const std::filesystem::path& file, const logger& logger, bool is_static = false);
+    std::optional<uint64_t> get_module_load_count_by_path(const windows_path& path);
+    mapped_module* map_module(const windows_path& file, const logger& logger, bool is_static = false, bool allow_duplicate = false);
+    mapped_module* map_local_module(const std::filesystem::path& file, const logger& logger, bool is_static = false,
+                                    bool allow_duplicate = false);
     mapped_module* map_memory_module(uint64_t base_address, uint64_t image_size, const std::string& module_name, const logger& logger,
-                                     bool is_static = false);
+                                     bool is_static = false, bool allow_duplicate = false);
 
     mapped_module* find_by_address(const uint64_t address)
     {
@@ -157,6 +162,7 @@ class module_manager
     mapped_module* executable{};
     mapped_module* ntdll{};
     mapped_module* win32u{};
+    std::map<std::filesystem::path, uint64_t> modules_load_count;
 
     // WOW64-specific modules (for validation and future use)
     struct wow64_modules
@@ -190,7 +196,7 @@ class module_manager
     void load_native_64bit_modules(const windows_path& executable_path, const windows_path& ntdll_path, const windows_path& win32u_path,
                                    const logger& logger);
     void load_wow64_modules(const windows_path& executable_path, const windows_path& ntdll_path, const windows_path& win32u_path,
-                            const windows_path& ntdll32_path, const logger& logger);
+                            const windows_path& ntdll32_path, windows_version_manager& version, const logger& logger);
 
     void install_wow64_heaven_gate(const logger& logger);
 

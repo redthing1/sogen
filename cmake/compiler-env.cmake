@@ -78,21 +78,33 @@ endif()
 
 ##########################################
 
-if(LINUX)
-  add_link_options(
-    -Wl,--no-undefined
-    -Wl,--gc-sections
-    -Wl,-z,now
-    -Wl,-z,noexecstack
-    -static-libstdc++
+if(LINUX OR APPLE)
+  momo_add_c_and_cxx_compile_options(
+    -fdiagnostics-color=always
   )
 
-  momo_add_c_and_cxx_compile_options(
+  momo_add_c_and_cxx_release_compile_options(
     -ffunction-sections
     -fdata-sections
     -fstack-protector-strong
-    -fdiagnostics-color=always
   )
+  
+  if(LINUX)
+    add_link_options(
+      -Wl,--no-undefined
+      -Wl,-z,now
+      -Wl,-z,noexecstack
+      -static-libstdc++
+    )
+
+    momo_add_release_link_options(
+      -Wl,--gc-sections
+    )
+  else()
+    momo_add_release_link_options(
+      -dead_strip
+    )
+  endif()
 
   add_compile_definitions(
     _REENTRANT
@@ -179,6 +191,15 @@ if(MSVC)
 
   momo_add_compile_options(CXX
     /Zc:__cplusplus
+  )
+
+  momo_add_c_and_cxx_release_compile_options(
+    /Gw
+  )
+
+  momo_add_release_link_options(
+    /OPT:REF
+    /OPT:ICF
   )
 
   add_link_options(

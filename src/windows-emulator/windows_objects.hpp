@@ -5,6 +5,7 @@
 #include <serialization_helper.hpp>
 #include <utils/file_handle.hpp>
 #include <platform/synchronisation.hpp>
+#include <platform/win_pefile.hpp>
 
 struct timer : ref_counted_object
 {
@@ -79,13 +80,17 @@ struct user_object : ref_counted_object
 struct window : user_object<USER_WINDOW>
 {
     uint32_t thread_id{};
+    hwnd handle{};
     std::u16string name{};
     std::u16string class_name{};
     int32_t width{};
     int32_t height{};
     int32_t x{};
     int32_t y{};
-    std::unordered_map<std::u16string, uint64_t> props;
+    uint32_t ex_style{};
+    uint32_t style{};
+    std::map<std::u16string, uint64_t> props{};
+    emulator_pointer wnd_proc{};
 
     window(memory_interface& memory)
         : user_object(memory)
@@ -96,26 +101,34 @@ struct window : user_object<USER_WINDOW>
     {
         user_object::serialize_object(buffer);
         buffer.write(this->thread_id);
+        buffer.write(this->handle);
         buffer.write(this->name);
         buffer.write(this->class_name);
         buffer.write(this->width);
         buffer.write(this->height);
         buffer.write(this->x);
         buffer.write(this->y);
+        buffer.write(this->ex_style);
+        buffer.write(this->style);
         buffer.write_map(this->props);
+        buffer.write(this->wnd_proc);
     }
 
     void deserialize_object(utils::buffer_deserializer& buffer) override
     {
         user_object::deserialize_object(buffer);
         buffer.read(this->thread_id);
+        buffer.read(this->handle);
         buffer.read(this->name);
         buffer.read(this->class_name);
         buffer.read(this->width);
         buffer.read(this->height);
         buffer.read(this->x);
         buffer.read(this->y);
+        buffer.read(this->ex_style);
+        buffer.read(this->style);
         buffer.read_map(this->props);
+        buffer.read(this->wnd_proc);
     }
 };
 
@@ -214,6 +227,8 @@ struct file : ref_counted_object
 {
     utils::file_handle handle{};
     std::u16string name{};
+    std::u16string open_mode{};
+    std::filesystem::path host_path{};
     std::optional<file_enumeration_state> enumeration_state{};
 
     bool is_file() const
@@ -228,16 +243,49 @@ struct file : ref_counted_object
 
     void serialize_object(utils::buffer_serializer& buffer) const override
     {
-        // TODO: Serialize handle
         buffer.write(this->name);
+        buffer.write(this->open_mode);
+        buffer.write(this->host_path.u16string());
         buffer.write_optional(this->enumeration_state);
+
+        const auto has_handle = static_cast<bool>(this->handle);
+        buffer.write(has_handle);
+
+        if (has_handle)
+        {
+            buffer.write(this->handle);
+        }
     }
 
     void deserialize_object(utils::buffer_deserializer& buffer) override
     {
         buffer.read(this->name);
+        buffer.read(this->open_mode);
+        this->host_path = buffer.read<std::u16string>();
         buffer.read_optional(this->enumeration_state);
+
+        const auto has_handle = buffer.read<bool>();
+
         this->handle = {};
+
+        if (has_handle)
+        {
+#if defined(OS_WINDOWS)
+            FILE* native_file = _wfopen(this->host_path.c_str(), reinterpret_cast<const wchar_t*>(this->open_mode.c_str()));
+#else
+            FILE* native_file = fopen(u16_to_u8(this->host_path.u16string()).c_str(), u16_to_u8(this->open_mode).c_str());
+#endif
+
+            if (native_file)
+            {
+                this->handle = native_file;
+                buffer.read(this->handle);
+            }
+            else
+            {
+                throw std::runtime_error("Failed to reobtain file handle");
+            }
+        }
     }
 };
 
@@ -248,31 +296,45 @@ struct section : ref_counted_object
     uint64_t maximum_size{};
     uint32_t section_page_protection{};
     uint32_t allocation_attributes{};
-
-    // Cached PE image information for image sections
-    struct image_info
-    {
-        uint64_t entry_point_rva{};
-        uint64_t image_base{};
-        uint64_t size_of_stack_reserve{};
-        uint64_t size_of_stack_commit{};
-        uint32_t size_of_code{};
-        uint32_t loader_flags{};
-        uint32_t checksum{};
-        uint16_t machine{};
-        uint16_t subsystem{};
-        uint16_t subsystem_major_version{};
-        uint16_t subsystem_minor_version{};
-        uint16_t image_characteristics{};
-        uint16_t dll_characteristics{};
-        bool has_code{false};
-        std::array<char, 7> _padding{};
-    };
-    std::optional<image_info> cached_image_info{};
+    std::optional<winpe::pe_image_basic_info> cached_image_info{};
 
     bool is_image() const
     {
         return this->allocation_attributes & SEC_IMAGE;
+    }
+
+    void cache_image_info_from_filedata(const std::vector<std::byte>& file_data)
+    {
+        winpe::pe_image_basic_info info{};
+
+        // Read the PE magic to determine if it's 32-bit or 64-bit
+        bool parsed = false;
+        if (file_data.size() >= sizeof(PEDosHeader_t))
+        {
+            const auto* dos_header = reinterpret_cast<const PEDosHeader_t*>(file_data.data());
+            if (dos_header->e_magic == PEDosHeader_t::k_Magic &&
+                file_data.size() >= dos_header->e_lfanew + sizeof(uint32_t) + sizeof(PEFileHeader_t) + sizeof(uint16_t))
+            {
+                const auto* magic_ptr =
+                    reinterpret_cast<const uint16_t*>(file_data.data() + dos_header->e_lfanew + sizeof(uint32_t) + sizeof(PEFileHeader_t));
+                const uint16_t magic = *magic_ptr;
+
+                // Parse based on the actual PE type
+                if (magic == PEOptionalHeader_t<std::uint32_t>::k_Magic)
+                {
+                    parsed = winpe::parse_pe_headers<uint32_t>(file_data, info);
+                }
+                else if (magic == PEOptionalHeader_t<std::uint64_t>::k_Magic)
+                {
+                    parsed = winpe::parse_pe_headers<uint64_t>(file_data, info);
+                }
+            }
+        }
+
+        if (parsed)
+        {
+            this->cached_image_info = info;
+        }
     }
 
     void serialize_object(utils::buffer_serializer& buffer) const override
@@ -282,7 +344,7 @@ struct section : ref_counted_object
         buffer.write(this->maximum_size);
         buffer.write(this->section_page_protection);
         buffer.write(this->allocation_attributes);
-        buffer.write_optional<image_info>(this->cached_image_info);
+        buffer.write_optional<winpe::pe_image_basic_info>(this->cached_image_info);
     }
 
     void deserialize_object(utils::buffer_deserializer& buffer) override

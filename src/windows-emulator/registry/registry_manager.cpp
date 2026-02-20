@@ -245,3 +245,34 @@ std::optional<std::string_view> registry_manager::get_sub_key_name(const registr
 
     return *name;
 }
+
+std::optional<std::u16string> registry_manager::read_u16string(const registry_key& key, size_t index)
+{
+    const auto value_opt = this->get_value(key, index);
+    if (!value_opt)
+    {
+        return {};
+    }
+
+    const auto& value = value_opt.value();
+
+    if (value.type != REG_SZ && value.type != REG_EXPAND_SZ)
+    {
+        return {};
+    }
+
+    if (value.data.empty() || value.data.size() % 2 != 0)
+    {
+        return {};
+    }
+
+    const auto char_count = value.data.size() / sizeof(char16_t);
+    const auto* data_ptr = reinterpret_cast<const char16_t*>(value.data.data());
+    if (data_ptr[char_count - 1] != u'\0')
+    {
+        return {};
+    }
+
+    auto s = std::u16string(data_ptr, char_count - 1);
+    return s;
+}

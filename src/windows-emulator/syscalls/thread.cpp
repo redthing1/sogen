@@ -58,9 +58,29 @@ namespace syscalls
 
         if (info_class == ThreadHideFromDebugger)
         {
-            c.win_emu.current_thread().debugger_hide = true;
-            c.win_emu.callbacks.on_suspicious_activity("Hiding thread from debugger");
-            return STATUS_SUCCESS;
+            BOOLEAN hide = true;
+
+            if (thread_information != 0 && thread_information % 4 != 0)
+            {
+                return STATUS_DATATYPE_MISALIGNMENT;
+            }
+
+            if (thread_information_length == 0 || thread_information_length == sizeof(hide))
+            {
+                if (thread_information_length == sizeof(hide))
+                {
+                    if (thread_information == 0 || !c.win_emu.memory.try_read_memory(thread_information, &hide, sizeof(hide)))
+                    {
+                        return STATUS_INTERNAL_ERROR;
+                    }
+                }
+
+                c.win_emu.current_thread().debugger_hide = hide;
+                c.win_emu.callbacks.on_suspicious_activity("Hiding thread from debugger");
+                return STATUS_SUCCESS;
+            }
+
+            return STATUS_INFO_LENGTH_MISMATCH;
         }
 
         if (info_class == ThreadNameInformation)
@@ -296,18 +316,23 @@ namespace syscalls
 
         if (info_class == ThreadHideFromDebugger)
         {
-            if (return_length)
+            if (thread_information != 0 && thread_information % 4 != 0)
             {
-                return_length.write(sizeof(BOOLEAN));
+                return STATUS_DATATYPE_MISALIGNMENT;
             }
 
-            if (thread_information_length < sizeof(BOOLEAN))
+            if (thread_information_length != sizeof(BOOLEAN))
             {
-                return STATUS_BUFFER_OVERFLOW;
+                return STATUS_INFO_LENGTH_MISMATCH;
+            }
+
+            if (return_length)
+            {
+                return_length.try_write(sizeof(BOOLEAN));
             }
 
             const emulator_object<BOOLEAN> info{c.emu, thread_information};
-            info.write(cur_emulator_thread.debugger_hide);
+            info.try_write(cur_emulator_thread.debugger_hide);
 
             c.win_emu.callbacks.on_suspicious_activity("Checking if the thread is hidden from the debugger");
 
@@ -338,11 +363,27 @@ namespace syscalls
         return STATUS_NOT_SUPPORTED;
     }
 
-    NTSTATUS handle_NtOpenThread(const syscall_context&, handle /*thread_handle*/, ACCESS_MASK /*desired_access*/,
+    NTSTATUS handle_NtOpenThread(const syscall_context& c, const emulator_object<handle> thread_handle, ACCESS_MASK /*desired_access*/,
                                  emulator_object<OBJECT_ATTRIBUTES<EmulatorTraits<Emu64>>> /*object_attributes*/,
-                                 emulator_pointer /*client_id*/)
+                                 emulator_object<CLIENT_ID64> client_id)
     {
-        return STATUS_NOT_SUPPORTED;
+        if (!client_id)
+        {
+            return STATUS_INVALID_PARAMETER;
+        }
+
+        const auto id = client_id.read();
+
+        for (auto& [h_val, t] : c.proc.threads)
+        {
+            if (t.id == id.UniqueThread)
+            {
+                thread_handle.write(c.proc.threads.make_handle(h_val));
+                return STATUS_SUCCESS;
+            }
+        }
+
+        return STATUS_INVALID_CID;
     }
 
     NTSTATUS handle_NtOpenThreadToken(const syscall_context&, const handle thread_handle, const ACCESS_MASK /*desired_access*/,
@@ -463,10 +504,41 @@ namespace syscalls
         return STATUS_SUCCESS;
     }
 
+    NTSTATUS handle_NtSuspendThread(const syscall_context& c, const handle thread_handle,
+                                    const emulator_object<ULONG> previous_suspend_count)
+    {
+        auto* thread = thread_handle == CURRENT_THREAD ? c.proc.active_thread : c.proc.threads.get(thread_handle);
+
+        if (!thread)
+        {
+            return STATUS_INVALID_HANDLE;
+        }
+
+        const auto old_count = thread->suspended;
+        if (previous_suspend_count)
+        {
+            previous_suspend_count.write(old_count);
+        }
+
+        if (thread->suspended >= 0x7F) // MAXIMUM_SUSPEND_COUNT
+        {
+            return STATUS_SUSPEND_COUNT_EXCEEDED;
+        }
+
+        thread->suspended += 1;
+
+        if (thread == c.proc.active_thread)
+        {
+            c.win_emu.yield_thread();
+        }
+
+        return STATUS_SUCCESS;
+    }
+
     NTSTATUS handle_NtResumeThread(const syscall_context& c, const handle thread_handle,
                                    const emulator_object<ULONG> previous_suspend_count)
     {
-        auto* thread = c.proc.threads.get(thread_handle);
+        auto* thread = thread_handle == CURRENT_THREAD ? c.proc.active_thread : c.proc.threads.get(thread_handle);
         if (!thread)
         {
             return STATUS_INVALID_HANDLE;
@@ -624,8 +696,7 @@ namespace syscalls
                                      /*object_attributes*/,
                                      const handle process_handle, const uint64_t start_routine, const uint64_t argument,
                                      const ULONG create_flags, const EmulatorTraits<Emu64>::SIZE_T /*zero_bits*/,
-                                     const EmulatorTraits<Emu64>::SIZE_T stack_size,
-                                     const EmulatorTraits<Emu64>::SIZE_T /*maximum_stack_size*/,
+                                     const EmulatorTraits<Emu64>::SIZE_T stack_size, const EmulatorTraits<Emu64>::SIZE_T maximum_stack_size,
                                      const emulator_object<PS_ATTRIBUTE_LIST<EmulatorTraits<Emu64>>> attribute_list)
     {
         if (process_handle != CURRENT_PROCESS)
@@ -633,7 +704,18 @@ namespace syscalls
             return STATUS_NOT_SUPPORTED;
         }
 
-        const auto h = c.proc.create_thread(c.win_emu.memory, start_routine, argument, stack_size, create_flags);
+        if (stack_size > maximum_stack_size)
+        {
+            return STATUS_INVALID_PARAMETER;
+        }
+
+        uint64_t actual_stack_size = maximum_stack_size;
+        if (maximum_stack_size == 0)
+        {
+            actual_stack_size = c.win_emu.mod_manager.executable->size_of_stack_reserve;
+        }
+
+        const auto h = c.proc.create_thread(c.win_emu.memory, start_routine, argument, actual_stack_size, create_flags);
         thread_handle.write(h);
 
         if (!attribute_list)
@@ -740,5 +822,34 @@ namespace syscalls
                                      const uint64_t apc_argument1, const uint64_t apc_argument2, const uint64_t apc_argument3)
     {
         return handle_NtQueueApcThreadEx(c, thread_handle, make_handle(0), apc_routine, apc_argument1, apc_argument2, apc_argument3);
+    }
+
+    NTSTATUS handle_NtCallbackReturn(const syscall_context& c)
+    {
+        auto& t = c.win_emu.current_thread();
+
+        if (t.callback_stack.empty())
+        {
+            throw std::runtime_error("Unexpected callback return");
+        }
+
+        const uint64_t callback_result = c.emu.reg(x86_register::rax);
+
+        const auto frame = std::move(t.callback_stack.back());
+        t.callback_stack.pop_back();
+
+        frame.restore_registers(c.emu);
+
+        auto dispatch_result = c.win_emu.dispatcher.dispatch_completion(c.win_emu, frame.handler_id, frame.state.get(), callback_result);
+
+        if (dispatch_result != dispatch_result::new_callback)
+        {
+            // Move past syscall instruction
+            const auto new_ip = c.emu.read_instruction_pointer();
+            c.emu.reg(x86_register::rip, new_ip + 2);
+        }
+
+        c.write_status = false;
+        return {};
     }
 }

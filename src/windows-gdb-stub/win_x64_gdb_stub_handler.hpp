@@ -1,8 +1,10 @@
 #pragma once
 #include "x64_gdb_stub_handler.hpp"
 
+#include <atomic>
 #include <windows_emulator.hpp>
 #include <utils/function.hpp>
+#include <utils/string.hpp>
 
 class win_x64_gdb_stub_handler : public x64_gdb_stub_handler
 {
@@ -12,6 +14,19 @@ class win_x64_gdb_stub_handler : public x64_gdb_stub_handler
           win_emu_(&win_emu),
           should_stop_(std::move(should_stop))
     {
+        auto hook = [this](mapped_module&) {
+            library_stop_pending_ = true;
+            win_emu_->stop();
+        };
+
+        mod_load_id = win_emu_->callbacks.on_module_load.add(hook);
+        mod_unload_id = win_emu_->callbacks.on_module_unload.add(hook);
+    }
+
+    ~win_x64_gdb_stub_handler() override
+    {
+        win_emu_->callbacks.on_module_load.remove(mod_load_id);
+        win_emu_->callbacks.on_module_unload.remove(mod_unload_id);
     }
 
     void on_interrupt() override
@@ -91,7 +106,58 @@ class win_x64_gdb_stub_handler : public x64_gdb_stub_handler
         return static_cast<uint32_t>(*status);
     }
 
+    std::string get_windows_path(const std::filesystem::path& path)
+    {
+        try
+        {
+            return win_emu_->file_sys.local_to_windows_path(path).string();
+        }
+        catch (...)
+        {
+            return win_emu_->file_sys.mapped_path_to_windows_path(path).string();
+        }
+    }
+
+    std::vector<gdb_stub::library_info> get_libraries() override
+    {
+        std::vector<gdb_stub::library_info> libs{};
+        const auto& mod_manager = this->win_emu_->mod_manager;
+        libs.reserve(this->win_emu_->mod_manager.modules().size());
+        for (const auto& [base_addr, mod] : mod_manager.modules())
+        {
+            const auto module_path = get_windows_path(mod.path);
+
+            if (!module_path.empty())
+            {
+                libs.push_back({.name = module_path, .segment_address = base_addr + 0x1000});
+            }
+        }
+
+        return libs;
+    }
+
+    std::string get_executable_path() override
+    {
+        const auto& mod_manager = this->win_emu_->mod_manager;
+        return get_windows_path(mod_manager.executable->path);
+    }
+
+    void reset_library_stop() override
+    {
+        library_stop_pending_ = false;
+    }
+
+    bool should_signal_library() override
+    {
+        return library_stop_pending_;
+    }
+
   private:
     windows_emulator* win_emu_{};
     utils::optional_function<bool()> should_stop_{};
+
+    // Track library stop events
+    std::atomic<bool> library_stop_pending_{true};
+    utils::callback_id_type mod_load_id{};
+    utils::callback_id_type mod_unload_id{};
 };
