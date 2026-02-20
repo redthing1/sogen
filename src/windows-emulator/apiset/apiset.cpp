@@ -14,6 +14,42 @@ namespace apiset
 {
     namespace
     {
+        bool is_valid_apiset_blob(const std::span<const std::byte> data)
+        {
+            if (data.size() < sizeof(API_SET_NAMESPACE))
+            {
+                return false;
+            }
+
+            const auto* ns = reinterpret_cast<const API_SET_NAMESPACE*>(data.data());
+            if (!ns)
+            {
+                return false;
+            }
+
+            if (ns->Size < sizeof(API_SET_NAMESPACE) || ns->Size > data.size())
+            {
+                return false;
+            }
+
+            if (ns->Count == 0)
+            {
+                return false;
+            }
+
+            if (ns->EntryOffset < sizeof(API_SET_NAMESPACE) || ns->EntryOffset >= ns->Size)
+            {
+                return false;
+            }
+
+            if (ns->HashOffset >= ns->Size)
+            {
+                return false;
+            }
+
+            return true;
+        }
+
         uint64_t copy_string(x86_64_emulator& emu, emulator_allocator& allocator, const void* base_ptr, const uint64_t offset,
                              const size_t length)
         {
@@ -45,12 +81,23 @@ namespace apiset
         std::vector<std::byte> decompress_apiset(const std::vector<std::byte>& apiset)
         {
             auto buffer = utils::compression::zstd::decompress(apiset);
-            if (buffer.empty())
+            if (!buffer.empty() && is_valid_apiset_blob(buffer))
             {
-                throw std::runtime_error("Failed to decompress API-SET");
+                return buffer;
             }
 
-            return buffer;
+            buffer = utils::compression::zlib::decompress(apiset);
+            if (!buffer.empty() && is_valid_apiset_blob(buffer))
+            {
+                return buffer;
+            }
+
+            if (is_valid_apiset_blob(apiset))
+            {
+                return apiset;
+            }
+
+            throw std::runtime_error("Failed to decompress API-SET");
         }
 
         std::vector<std::byte> obtain_data(const location location, const std::filesystem::path& root)

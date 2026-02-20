@@ -10,4 +10,9 @@ namespace utils::compression
         std::vector<std::byte> compress(std::span<const std::byte> data, int compression_level = 8);
         std::vector<std::byte> decompress(std::span<const std::byte> data);
     }
+
+    namespace zlib
+    {
+        std::vector<std::byte> decompress(std::span<const std::byte> data);
+    }
 }
