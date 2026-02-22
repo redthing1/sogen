@@ -12,7 +12,6 @@ namespace
     constexpr ULONG k_thread_state_win32_thread_info = 0xE;
     constexpr size_t k_win32_thread_info_slab_size = 0x2000;
     constexpr uint64_t k_win32_thread_info_bias = 0x800;
-    constexpr size_t k_dispatch_client_message_index = 21;
     // callback table indices used by wow64.dll!Wow64KiUserCallbackDispatcher.
     constexpr uint32_t k_wow64_client_setup_callback_id = 0x54;
     constexpr uint32_t k_wow64_enum_display_monitors_callback_id_legacy = 0x2D;
@@ -331,35 +330,8 @@ namespace syscalls
             c.proc.active_thread->win32k_thread_setup_done = true;
         }
 
-        try
-        {
-            c.proc.user_handles.get_server_info().access([&](USER_SERVERINFO& server_info) {
-                if (apfn_client_a != 0)
-                {
-                    c.win_emu.memory.read_memory(apfn_client_a, &server_info.apfnClientA, sizeof(server_info.apfnClientA));
-                }
-
-                if (apfn_client_w != 0)
-                {
-                    c.win_emu.memory.read_memory(apfn_client_w, &server_info.apfnClientW, sizeof(server_info.apfnClientW));
-                }
-
-                if (apfn_client_worker != 0)
-                {
-                    c.win_emu.memory.read_memory(apfn_client_worker, &server_info.apfnClientWorker, sizeof(server_info.apfnClientWorker));
-                }
-
-                if (server_info.apfnClientA[k_dispatch_client_message_index] != 0)
-                {
-                    c.proc.dispatch_client_message = server_info.apfnClientA[k_dispatch_client_message_index];
-                }
-                else if (server_info.apfnClientW[k_dispatch_client_message_index] != 0)
-                {
-                    c.proc.dispatch_client_message = server_info.apfnClientW[k_dispatch_client_message_index];
-                }
-            });
-        }
-        catch (...)
+        if (!win32k_userconnect::try_update_client_pfn_arrays_from_addresses(c.win_emu.memory, c.proc, apfn_client_a, apfn_client_w,
+                                                                             apfn_client_worker))
         {
             return STATUS_UNSUCCESSFUL;
         }

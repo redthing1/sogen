@@ -128,9 +128,15 @@ namespace
                     win_emu.log.warn("ApiPort WOW64 userconnect write failed: status=0x%X, ptr=0x%llX, len=0x%llX\n", status,
                                      static_cast<unsigned long long>(payload.user_connect_ptr),
                                      static_cast<unsigned long long>(payload.user_connect_length));
+                    return status;
                 }
 
-                return status;
+                if (!win32k_userconnect::try_bootstrap_client_pfn_arrays_from_ntdll(win_emu))
+                {
+                    win_emu.log.warn("ApiPort userconnect callback-table bootstrap failed\n");
+                }
+
+                return STATUS_SUCCESS;
             }
 
             uint32_t server_dll_index{};
@@ -151,6 +157,11 @@ namespace
             {
                 win_emu.log.warn("ApiPort userconnect shared info write failed\n");
                 return STATUS_INVALID_PARAMETER;
+            }
+
+            if (!win32k_userconnect::try_bootstrap_client_pfn_arrays_from_ntdll(win_emu))
+            {
+                win_emu.log.warn("ApiPort userconnect callback-table bootstrap failed\n");
             }
 
             return STATUS_SUCCESS;
