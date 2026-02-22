@@ -403,3 +403,205 @@ struct semaphore : ref_counted_object
         buffer.read(this->max_count);
     }
 };
+
+struct io_completion_message
+{
+    uint64_t key_context{};
+    uint64_t apc_context{};
+    IO_STATUS_BLOCK<EmulatorTraits<Emu64>> io_status_block{};
+    handle wait_packet_handle{};
+
+    void serialize(utils::buffer_serializer& buffer) const
+    {
+        buffer.write(this->key_context);
+        buffer.write(this->apc_context);
+        buffer.write(this->io_status_block);
+        buffer.write(this->wait_packet_handle);
+    }
+
+    void deserialize(utils::buffer_deserializer& buffer)
+    {
+        buffer.read(this->key_context);
+        buffer.read(this->apc_context);
+        buffer.read(this->io_status_block);
+        buffer.read(this->wait_packet_handle);
+    }
+};
+
+struct io_completion : ref_counted_object
+{
+    std::u16string name{};
+    uint32_t number_of_concurrent_threads{};
+    std::vector<io_completion_message> queue{};
+
+    void enqueue(io_completion_message message)
+    {
+        this->queue.push_back(std::move(message));
+    }
+
+    bool dequeue(io_completion_message& out_message)
+    {
+        if (this->queue.empty())
+        {
+            return false;
+        }
+
+        out_message = this->queue.front();
+        this->queue.erase(this->queue.begin());
+        return true;
+    }
+
+    bool remove_by_wait_packet(const handle wait_packet_handle)
+    {
+        const auto entry = std::find_if(this->queue.begin(), this->queue.end(), [&](const io_completion_message& message) {
+            return message.wait_packet_handle == wait_packet_handle;
+        });
+
+        if (entry == this->queue.end())
+        {
+            return false;
+        }
+
+        this->queue.erase(entry);
+        return true;
+    }
+
+    void serialize_object(utils::buffer_serializer& buffer) const override
+    {
+        buffer.write(this->name);
+        buffer.write(this->number_of_concurrent_threads);
+        buffer.write_vector(this->queue);
+    }
+
+    void deserialize_object(utils::buffer_deserializer& buffer) override
+    {
+        buffer.read(this->name);
+        buffer.read(this->number_of_concurrent_threads);
+        buffer.read_vector(this->queue);
+    }
+};
+
+struct wait_completion_packet : ref_counted_object
+{
+    std::u16string name{};
+    handle io_completion_handle{};
+    handle target_object_handle{};
+    uint64_t key_context{};
+    uint64_t apc_context{};
+    IO_STATUS_BLOCK<EmulatorTraits<Emu64>> io_status_block{};
+    uint64_t io_status_information{};
+    bool associated{};
+    bool queued_completion{};
+
+    void serialize_object(utils::buffer_serializer& buffer) const override
+    {
+        buffer.write(this->name);
+        buffer.write(this->io_completion_handle);
+        buffer.write(this->target_object_handle);
+        buffer.write(this->key_context);
+        buffer.write(this->apc_context);
+        buffer.write(this->io_status_block);
+        buffer.write(this->io_status_information);
+        buffer.write(this->associated);
+        buffer.write(this->queued_completion);
+    }
+
+    void deserialize_object(utils::buffer_deserializer& buffer) override
+    {
+        buffer.read(this->name);
+        buffer.read(this->io_completion_handle);
+        buffer.read(this->target_object_handle);
+        buffer.read(this->key_context);
+        buffer.read(this->apc_context);
+        buffer.read(this->io_status_block);
+        buffer.read(this->io_status_information);
+        buffer.read(this->associated);
+        buffer.read(this->queued_completion);
+    }
+};
+
+struct worker_factory : ref_counted_object
+{
+    std::u16string name{};
+    handle io_completion_handle{};
+    handle worker_process_handle{};
+    uint64_t start_routine{};
+    uint64_t start_parameter{};
+    uint32_t max_thread_count{};
+    uint64_t stack_reserve{};
+    uint64_t stack_commit{};
+    bool shutdown{};
+
+    int64_t timeout{};
+    int64_t retry_timeout{};
+    int64_t idle_timeout{};
+    uint32_t binding_count{};
+    uint32_t thread_minimum{};
+    uint32_t thread_maximum{};
+    uint32_t paused{};
+    uint32_t thread_base_priority{};
+    uint32_t timeout_waiters{};
+    uint32_t flags{};
+    uint32_t thread_soft_maximum{};
+
+    uint32_t last_info_class{};
+    uint32_t last_info_length{};
+    uint64_t last_info_value{};
+    std::vector<handle> worker_threads{};
+
+    void serialize_object(utils::buffer_serializer& buffer) const override
+    {
+        buffer.write(this->name);
+        buffer.write(this->io_completion_handle);
+        buffer.write(this->worker_process_handle);
+        buffer.write(this->start_routine);
+        buffer.write(this->start_parameter);
+        buffer.write(this->max_thread_count);
+        buffer.write(this->stack_reserve);
+        buffer.write(this->stack_commit);
+        buffer.write(this->shutdown);
+        buffer.write(this->timeout);
+        buffer.write(this->retry_timeout);
+        buffer.write(this->idle_timeout);
+        buffer.write(this->binding_count);
+        buffer.write(this->thread_minimum);
+        buffer.write(this->thread_maximum);
+        buffer.write(this->paused);
+        buffer.write(this->thread_base_priority);
+        buffer.write(this->timeout_waiters);
+        buffer.write(this->flags);
+        buffer.write(this->thread_soft_maximum);
+        buffer.write(this->last_info_class);
+        buffer.write(this->last_info_length);
+        buffer.write(this->last_info_value);
+        buffer.write_vector(this->worker_threads);
+    }
+
+    void deserialize_object(utils::buffer_deserializer& buffer) override
+    {
+        buffer.read(this->name);
+        buffer.read(this->io_completion_handle);
+        buffer.read(this->worker_process_handle);
+        buffer.read(this->start_routine);
+        buffer.read(this->start_parameter);
+        buffer.read(this->max_thread_count);
+        buffer.read(this->stack_reserve);
+        buffer.read(this->stack_commit);
+        buffer.read(this->shutdown);
+        buffer.read(this->timeout);
+        buffer.read(this->retry_timeout);
+        buffer.read(this->idle_timeout);
+        buffer.read(this->binding_count);
+        buffer.read(this->thread_minimum);
+        buffer.read(this->thread_maximum);
+        buffer.read(this->paused);
+        buffer.read(this->thread_base_priority);
+        buffer.read(this->timeout_waiters);
+        buffer.read(this->flags);
+        buffer.read(this->thread_soft_maximum);
+        buffer.read(this->last_info_class);
+        buffer.read(this->last_info_length);
+        buffer.read(this->last_info_value);
+        buffer.read_vector(this->worker_threads);
+    }
+};
