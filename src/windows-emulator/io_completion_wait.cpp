@@ -60,7 +60,7 @@ namespace io_completion_wait
                 }
             }
 
-            completion.enqueue(std::move(message));
+            completion.enqueue(message);
         }
     }
 

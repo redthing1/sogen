@@ -67,7 +67,7 @@ namespace syscalls
         message.io_status_block.Status = io_status;
         message.io_status_block.Information = io_status_information;
 
-        completion->enqueue(std::move(message));
+        completion->enqueue(message);
         return STATUS_SUCCESS;
     }
 
@@ -126,7 +126,7 @@ namespace syscalls
         message.io_status_block.Information = io_status_information;
         message.wait_packet_handle = wait_packet_handle;
 
-        completion->enqueue(std::move(message));
+        completion->enqueue(message);
         return STATUS_SUCCESS;
     }
 

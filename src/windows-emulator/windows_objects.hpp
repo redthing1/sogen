@@ -434,9 +434,9 @@ struct io_completion : ref_counted_object
     uint32_t number_of_concurrent_threads{};
     std::vector<io_completion_message> queue{};
 
-    void enqueue(io_completion_message message)
+    void enqueue(const io_completion_message& message)
     {
-        this->queue.push_back(std::move(message));
+        this->queue.push_back(message);
     }
 
     bool dequeue(io_completion_message& out_message)
