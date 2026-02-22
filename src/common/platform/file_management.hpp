@@ -245,6 +245,27 @@ using OBJECT_INFORMATION_CLASS = enum _OBJECT_INFORMATION_CLASS
     MaxObjectInfoClass
 };
 
+using WORKERFACTORYINFOCLASS = enum _WORKERFACTORYINFOCLASS
+{
+    WorkerFactoryTimeout = 0,
+    WorkerFactoryRetryTimeout,
+    WorkerFactoryIdleTimeout,
+    WorkerFactoryBindingCount,
+    WorkerFactoryThreadMinimum,
+    WorkerFactoryThreadMaximum,
+    WorkerFactoryPaused,
+    WorkerFactoryBasicInformation,
+    WorkerFactoryAdjustThreadGoal,
+    WorkerFactoryCallbackType,
+    WorkerFactoryStackInformation,
+    WorkerFactoryThreadBasePriority,
+    WorkerFactoryTimeoutWaiters,
+    WorkerFactoryFlags,
+    WorkerFactoryThreadSoftMaximum,
+    WorkerFactoryThreadCpuSets,
+    MaxWorkerFactoryInfoClass
+};
+
 using HARDERROR_RESPONSE_OPTION = enum _HARDERROR_RESPONSE_OPTION
 {
     OptionAbortRetryIgnore,
@@ -285,6 +306,14 @@ struct IO_STATUS_BLOCK
     };
 
     typename Traits::ULONG_PTR Information;
+};
+
+template <typename Traits>
+struct FILE_IO_COMPLETION_INFORMATION
+{
+    typename Traits::PVOID KeyContext;
+    typename Traits::PVOID ApcContext;
+    IO_STATUS_BLOCK<Traits> IoStatusBlock;
 };
 
 template <typename Traits>

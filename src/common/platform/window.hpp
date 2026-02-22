@@ -28,6 +28,7 @@ typedef struct _LARGE_STRING
 
 using hdc = pointer;
 using hwnd = pointer;
+using hdesk = pointer;
 using hmenu = pointer;
 using hinstance = pointer;
 using hicon = pointer;
