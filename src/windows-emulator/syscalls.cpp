@@ -448,6 +448,53 @@ namespace syscalls
     NTSTATUS handle_NtTraceControl(const syscall_context& c, ULONG function_code, uint64_t input_buffer, ULONG input_buffer_length,
                                    uint64_t output_buffer, ULONG output_buffer_length, emulator_object<ULONG> return_length);
 
+    // syscalls/io_completion.cpp:
+    NTSTATUS handle_NtCreateIoCompletion(const syscall_context& c, emulator_object<handle> io_completion_handle, ACCESS_MASK desired_access,
+                                         emulator_object<OBJECT_ATTRIBUTES<EmulatorTraits<Emu64>>> object_attributes,
+                                         ULONG number_of_concurrent_threads);
+    NTSTATUS handle_NtSetIoCompletion(const syscall_context& c, handle io_completion_handle, emulator_pointer key_context,
+                                      emulator_pointer apc_context, NTSTATUS io_status,
+                                      EMULATOR_CAST(EmulatorTraits<Emu64>::ULONG_PTR, ULONG_PTR) io_status_information);
+    NTSTATUS handle_NtSetIoCompletionEx(const syscall_context& c, handle io_completion_handle, handle io_completion_packet_handle,
+                                        emulator_pointer key_context, emulator_pointer apc_context, NTSTATUS io_status,
+                                        EMULATOR_CAST(EmulatorTraits<Emu64>::ULONG_PTR, ULONG_PTR) io_status_information);
+    NTSTATUS handle_NtRemoveIoCompletion(const syscall_context& c, handle io_completion_handle,
+                                         emulator_object<emulator_pointer> key_context, emulator_object<emulator_pointer> apc_context,
+                                         emulator_object<IO_STATUS_BLOCK<EmulatorTraits<Emu64>>> io_status_block,
+                                         emulator_object<LARGE_INTEGER> timeout);
+    NTSTATUS handle_NtRemoveIoCompletionEx(const syscall_context& c, handle io_completion_handle,
+                                           emulator_object<FILE_IO_COMPLETION_INFORMATION<EmulatorTraits<Emu64>>> io_completion_information,
+                                           ULONG count, emulator_object<ULONG> num_entries_removed, emulator_object<LARGE_INTEGER> timeout,
+                                           BOOLEAN alertable);
+    NTSTATUS handle_NtCreateWaitCompletionPacket(const syscall_context& c, emulator_object<handle> wait_packet_handle,
+                                                 ACCESS_MASK desired_access,
+                                                 emulator_object<OBJECT_ATTRIBUTES<EmulatorTraits<Emu64>>> object_attributes);
+    NTSTATUS handle_NtAssociateWaitCompletionPacket(const syscall_context& c, handle wait_completion_packet_handle,
+                                                    handle io_completion_handle, handle target_object_handle, emulator_pointer key_context,
+                                                    emulator_pointer apc_context, NTSTATUS io_status,
+                                                    EMULATOR_CAST(EmulatorTraits<Emu64>::ULONG_PTR, ULONG_PTR) io_status_information,
+                                                    emulator_object<BOOLEAN> already_signaled);
+    NTSTATUS handle_NtCancelWaitCompletionPacket(const syscall_context& c, handle wait_completion_packet_handle,
+                                                 BOOLEAN remove_signaled_packet);
+
+    // syscalls/worker_factory.cpp:
+    NTSTATUS handle_NtCreateWorkerFactory(const syscall_context& c, emulator_object<handle> worker_factory_handle,
+                                          ACCESS_MASK desired_access,
+                                          emulator_object<OBJECT_ATTRIBUTES<EmulatorTraits<Emu64>>> object_attributes,
+                                          handle io_completion_handle, handle worker_process_handle, emulator_pointer start_routine,
+                                          emulator_pointer start_parameter, ULONG max_thread_count,
+                                          EMULATOR_CAST(EmulatorTraits<Emu64>::SIZE_T, SIZE_T) stack_reserve,
+                                          EMULATOR_CAST(EmulatorTraits<Emu64>::SIZE_T, SIZE_T) stack_commit);
+    NTSTATUS handle_NtWorkerFactoryWorkerReady(const syscall_context& c, handle worker_factory_handle);
+    NTSTATUS handle_NtSetInformationWorkerFactory(const syscall_context& c, handle worker_factory_handle, WORKERFACTORYINFOCLASS info_class,
+                                                  emulator_pointer worker_factory_information, ULONG worker_factory_information_length);
+    NTSTATUS handle_NtShutdownWorkerFactory(const syscall_context& c, handle worker_factory_handle,
+                                            emulator_object<LONG> pending_worker_count);
+    NTSTATUS handle_NtReleaseWorkerFactoryWorker(const syscall_context& c, handle worker_factory_handle);
+    NTSTATUS handle_NtWaitForWorkViaWorkerFactory(const syscall_context& c, handle worker_factory_handle,
+                                                  emulator_object<FILE_IO_COMPLETION_INFORMATION<EmulatorTraits<Emu64>>> mini_packets,
+                                                  ULONG count, emulator_object<ULONG> packets_returned, emulator_pointer deferred_work);
+
     NTSTATUS handle_NtQueryPerformanceCounter(const syscall_context& c, const emulator_object<LARGE_INTEGER> performance_counter,
                                               const emulator_object<LARGE_INTEGER> performance_frequency)
     {
@@ -478,65 +525,6 @@ namespace syscalls
     NTSTATUS handle_NtManageHotPatch()
     {
         return STATUS_NOT_SUPPORTED;
-    }
-
-    NTSTATUS handle_NtCreateWorkerFactory()
-    {
-        return STATUS_SUCCESS;
-    }
-
-    NTSTATUS handle_NtSetInformationWorkerFactory()
-    {
-        return STATUS_SUCCESS;
-    }
-
-    NTSTATUS handle_NtShutdownWorkerFactory()
-    {
-        return STATUS_SUCCESS;
-    }
-
-    NTSTATUS handle_NtReleaseWorkerFactoryWorker()
-    {
-        return STATUS_SUCCESS;
-    }
-
-    NTSTATUS handle_NtCreateIoCompletion(const syscall_context& c, const emulator_object<handle> event_handle,
-                                         const ACCESS_MASK desired_access,
-                                         const emulator_object<OBJECT_ATTRIBUTES<EmulatorTraits<Emu64>>> object_attributes,
-                                         const uint32_t /*number_of_concurrent_threads*/)
-    {
-        return handle_NtCreateEvent(c, event_handle, desired_access, object_attributes, NotificationEvent, FALSE);
-    }
-
-    NTSTATUS handle_NtSetIoCompletion()
-    {
-        return STATUS_NOT_SUPPORTED;
-    }
-
-    NTSTATUS handle_NtRemoveIoCompletion(const syscall_context&, const emulator_object<handle> /*io_completion__handle*/,
-                                         const emulator_object<int64_t> key_context, const emulator_pointer /*apc_context*/,
-                                         const emulator_object<IO_STATUS_BLOCK<EmulatorTraits<Emu64>>> /*io_status_block*/,
-                                         const emulator_object<LARGE_INTEGER> timeout)
-    {
-        if (timeout && timeout.read().QuadPart == 0)
-        {
-            return STATUS_TIMEOUT;
-        }
-
-        key_context.write_if_valid(-1);
-        return STATUS_SUCCESS;
-    }
-
-    NTSTATUS handle_NtRemoveIoCompletionEx()
-    {
-        return STATUS_NOT_SUPPORTED;
-    }
-
-    NTSTATUS handle_NtCreateWaitCompletionPacket(const syscall_context& c, const emulator_object<handle> event_handle,
-                                                 const ACCESS_MASK desired_access,
-                                                 const emulator_object<OBJECT_ATTRIBUTES<EmulatorTraits<Emu64>>> object_attributes)
-    {
-        return handle_NtCreateEvent(c, event_handle, desired_access, object_attributes, NotificationEvent, FALSE);
     }
 
     NTSTATUS handle_NtApphelpCacheControl()
@@ -779,16 +767,6 @@ namespace syscalls
         return 0;
     }
 
-    NTSTATUS handle_NtAssociateWaitCompletionPacket()
-    {
-        return STATUS_SUCCESS;
-    }
-
-    NTSTATUS handle_NtCancelWaitCompletionPacket()
-    {
-        return STATUS_SUCCESS;
-    }
-
     NTSTATUS handle_NtSetWnfProcessNotificationEvent()
     {
         return STATUS_NOT_SUPPORTED;
@@ -852,11 +830,14 @@ void syscall_dispatcher::add_handlers(std::map<std::string, syscall_handler>& ha
     add_handler(NtAllocateVirtualMemoryEx);
     add_handler(NtCreateIoCompletion);
     add_handler(NtSetIoCompletion);
+    add_handler(NtSetIoCompletionEx);
     add_handler(NtRemoveIoCompletion);
     add_handler(NtCreateWaitCompletionPacket);
     add_handler(NtCreateWorkerFactory);
+    add_handler(NtWorkerFactoryWorkerReady);
     add_handler(NtSetInformationWorkerFactory);
     add_handler(NtShutdownWorkerFactory);
+    add_handler(NtWaitForWorkViaWorkerFactory);
     add_handler(NtManageHotPatch);
     add_handler(NtOpenSection);
     add_handler(NtMapViewOfSection);

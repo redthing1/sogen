@@ -3,6 +3,7 @@
 
 #include "cpu_context.hpp"
 #include "process_context.hpp"
+#include "io_completion_wait.hpp"
 #include "syscall_utils.hpp"
 
 namespace
@@ -355,6 +356,7 @@ void emulator_thread::mark_as_ready(const NTSTATUS status)
     this->await_time = {};
     this->await_objects = {};
     this->await_msg = {};
+    this->await_io_completion = {};
 
     // TODO: Find out if this is correct
     if (this->waiting_for_alert)
@@ -468,6 +470,71 @@ bool emulator_thread::is_thread_ready(process_context& process, utils::clock& cl
         }
 
         return false;
+    }
+
+    if (this->await_io_completion.has_value())
+    {
+        auto timeout_expired = [&](const pending_io_completion_wait& wait) {
+            constexpr auto infinite = std::chrono::steady_clock::time_point::min();
+            return wait.timeout.has_value() && wait.timeout.value() != infinite && wait.timeout.value() < clock.steady_now();
+        };
+
+        const auto& wait = *this->await_io_completion;
+        if (!process.io_completions.get(wait.io_completion_handle))
+        {
+            this->mark_as_ready(STATUS_INVALID_HANDLE);
+            return true;
+        }
+
+        if (wait.type == io_completion_wait_type::remove_single)
+        {
+            io_completion_message message{};
+            if (io_completion_wait::dequeue_io_completion_message(process, wait.io_completion_handle, message))
+            {
+                emulator_object<emulator_pointer>{*this->memory_ptr, wait.key_context_ptr}.write_if_valid(message.key_context);
+                emulator_object<emulator_pointer>{*this->memory_ptr, wait.apc_context_ptr}.write_if_valid(message.apc_context);
+                emulator_object<IO_STATUS_BLOCK<EmulatorTraits<Emu64>>>{*this->memory_ptr, wait.io_status_block_ptr}.write_if_valid(
+                    message.io_status_block);
+
+                this->mark_as_ready(STATUS_SUCCESS);
+                return true;
+            }
+
+            if (timeout_expired(wait))
+            {
+                this->mark_as_ready(STATUS_TIMEOUT);
+                return true;
+            }
+
+            return false;
+        }
+
+        if (wait.type == io_completion_wait_type::remove_multiple)
+        {
+            const auto removed = io_completion_wait::dequeue_io_completion_entries(
+                process, wait.io_completion_handle,
+                emulator_object<FILE_IO_COMPLETION_INFORMATION<EmulatorTraits<Emu64>>>{*this->memory_ptr, wait.completion_entries_ptr},
+                wait.max_entries);
+
+            if (removed > 0)
+            {
+                emulator_object<ULONG>{*this->memory_ptr, wait.entries_removed_ptr}.write_if_valid(removed);
+                this->mark_as_ready(STATUS_SUCCESS);
+                return true;
+            }
+
+            if (timeout_expired(wait))
+            {
+                emulator_object<ULONG>{*this->memory_ptr, wait.entries_removed_ptr}.write_if_valid(0);
+                this->mark_as_ready(STATUS_TIMEOUT);
+                return true;
+            }
+
+            return false;
+        }
+
+        this->mark_as_ready(STATUS_INVALID_PARAMETER);
+        return true;
     }
 
     if (this->await_msg.has_value())

@@ -468,6 +468,9 @@ void process_context::serialize(utils::buffer_serializer& buffer) const
     buffer.write(this->sections);
     buffer.write(this->devices);
     buffer.write(this->semaphores);
+    buffer.write(this->io_completions);
+    buffer.write(this->wait_completion_packets);
+    buffer.write(this->worker_factories);
     buffer.write(this->ports);
     buffer.write(this->mutants);
     buffer.write(this->windows);
@@ -524,6 +527,9 @@ void process_context::deserialize(utils::buffer_deserializer& buffer)
     buffer.read(this->sections);
     buffer.read(this->devices);
     buffer.read(this->semaphores);
+    buffer.read(this->io_completions);
+    buffer.read(this->wait_completion_packets);
+    buffer.read(this->worker_factories);
     buffer.read(this->ports);
     buffer.read(this->mutants);
     buffer.read(this->windows);
@@ -567,10 +573,18 @@ generic_handle_store* process_context::get_handle_store(const handle handle)
         return &devices;
     case handle_types::semaphore:
         return &semaphores;
+    case handle_types::io_completion:
+        return &io_completions;
+    case handle_types::wait_completion_packet:
+        return &wait_completion_packets;
+    case handle_types::worker_factory:
+        return &worker_factories;
     case handle_types::registry:
         return &registry_keys;
     case handle_types::mutant:
         return &mutants;
+    case handle_types::timer:
+        return &timers;
     case handle_types::port:
         return &ports;
     case handle_types::section:
