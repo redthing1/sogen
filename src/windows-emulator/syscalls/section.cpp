@@ -17,6 +17,9 @@ namespace syscalls
         constexpr uint64_t k_base_static_server_data_table_index = 2;
         constexpr uint64_t k_base_static_server_data_ini_file_mapping_offset = 0x170;
         constexpr uint64_t k_base_static_server_data_bias_offset = 0x9e8;
+        constexpr uint64_t k_base_static_server_data_legacy_time_zone_id_offset = 0x9c8;
+        constexpr uint64_t k_base_static_server_data_win2019_time_zone_id_offset = 0xa70;
+        constexpr uint32_t k_time_zone_id_invalid = 0xFFFFFFFF;
 
         struct ini_file_mapping64
         {
@@ -46,7 +49,7 @@ namespace syscalls
             const auto base_static_server_data_offset =
                 align_up_u64((k_base_static_server_data_table_index + 1) * sizeof(uint32_t), sizeof(uint64_t));
 
-            // Put the emulator-owned ini mapping object at the end to avoid overlap
+            // Emulator-owned ini mapping object at the end
             const auto ini_file_mapping_offset =
                 align_up_u64(shared_section_size - sizeof(ini_file_mapping64), alignof(ini_file_mapping64));
 
@@ -55,6 +58,11 @@ namespace syscalls
                                  sizeof(uint64_t)) ||
                 !is_within_range(shared_section_size, base_static_server_data_offset + k_base_static_server_data_bias_offset,
                                  sizeof(uint64_t)) ||
+                !is_within_range(shared_section_size, base_static_server_data_offset + k_base_static_server_data_legacy_time_zone_id_offset,
+                                 sizeof(uint32_t)) ||
+                !is_within_range(shared_section_size,
+                                 base_static_server_data_offset + k_base_static_server_data_win2019_time_zone_id_offset,
+                                 sizeof(uint32_t)) ||
                 !is_within_range(shared_section_size, ini_file_mapping_offset, sizeof(ini_file_mapping64)))
             {
                 return STATUS_INVALID_PARAMETER;
@@ -71,6 +79,9 @@ namespace syscalls
 
             c.emu.write_memory<uint64_t>(obj_address + k_base_static_server_data_ini_file_mapping_offset, ini_file_mapping_relative);
             c.emu.write_memory<uint64_t>(obj_address + k_base_static_server_data_bias_offset, 0);
+
+            c.emu.write_memory<uint32_t>(obj_address + k_base_static_server_data_legacy_time_zone_id_offset, k_time_zone_id_invalid);
+            c.emu.write_memory<uint32_t>(obj_address + k_base_static_server_data_win2019_time_zone_id_offset, k_time_zone_id_invalid);
 
             const ini_file_mapping64 zero_ini_file_mapping{};
             c.emu.write_memory(ini_file_mapping_address, &zero_ini_file_mapping, sizeof(zero_ini_file_mapping));
