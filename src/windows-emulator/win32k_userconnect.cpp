@@ -2,6 +2,58 @@
 #include "win32k_userconnect.hpp"
 
 #include "process_context.hpp"
+#include "windows_emulator.hpp"
+
+namespace
+{
+    constexpr size_t k_dispatch_client_message_index = 21;
+    constexpr size_t k_ntdll_probe_size = 128;
+    constexpr size_t k_expected_pfn_pointer_count = 3;
+
+    std::vector<uint64_t> scan_rip_relative_lea_references(const std::vector<uint8_t>& bytes, const uint64_t code_base,
+                                                           const size_t max_results)
+    {
+        std::vector<uint64_t> results;
+        results.reserve(max_results);
+
+        for (size_t i = 0; i + 6 < bytes.size(); ++i)
+        {
+            if (bytes[i] != 0x48 || bytes[i + 1] != 0x8D || (bytes[i + 2] & 0xC7) != 0x05)
+            {
+                continue;
+            }
+
+            int32_t disp{};
+            std::memcpy(&disp, &bytes[i + 3], sizeof(disp));
+            results.push_back(code_base + i + 7 + disp);
+
+            if (results.size() >= max_results)
+            {
+                break;
+            }
+        }
+
+        return results;
+    }
+
+    void refresh_dispatch_client_message(process_context& process)
+    {
+        uint64_t dispatch_client_message = 0;
+
+        process.user_handles.get_server_info().access([&](const USER_SERVERINFO& server_info) {
+            dispatch_client_message = server_info.apfnClientA[k_dispatch_client_message_index];
+            if (dispatch_client_message == 0)
+            {
+                dispatch_client_message = server_info.apfnClientW[k_dispatch_client_message_index];
+            }
+        });
+
+        if (dispatch_client_message != 0)
+        {
+            process.dispatch_client_message = dispatch_client_message;
+        }
+    }
+}
 
 namespace win32k_userconnect
 {
@@ -147,5 +199,64 @@ namespace win32k_userconnect
         }
 
         return try_write_user_shared_info(memory, destination, process);
+    }
+
+    bool try_update_client_pfn_arrays_from_addresses(memory_interface& memory, process_context& process, const uint64_t apfn_client_a,
+                                                     const uint64_t apfn_client_w, const uint64_t apfn_client_worker)
+    {
+        try
+        {
+            process.user_handles.get_server_info().access([&](USER_SERVERINFO& server_info) {
+                if (apfn_client_a != 0)
+                {
+                    memory.read_memory(apfn_client_a, &server_info.apfnClientA, sizeof(server_info.apfnClientA));
+                }
+
+                if (apfn_client_w != 0)
+                {
+                    memory.read_memory(apfn_client_w, &server_info.apfnClientW, sizeof(server_info.apfnClientW));
+                }
+
+                if (apfn_client_worker != 0)
+                {
+                    memory.read_memory(apfn_client_worker, &server_info.apfnClientWorker, sizeof(server_info.apfnClientWorker));
+                }
+            });
+        }
+        catch (...)
+        {
+            return false;
+        }
+
+        refresh_dispatch_client_message(process);
+        return true;
+    }
+
+    bool try_bootstrap_client_pfn_arrays_from_ntdll(windows_emulator& win_emu)
+    {
+        if (!win_emu.mod_manager.ntdll)
+        {
+            return false;
+        }
+
+        const auto retrieve_user_pfn = win_emu.mod_manager.ntdll->find_export("RtlRetrieveNtUserPfn");
+        if (retrieve_user_pfn == 0)
+        {
+            return false;
+        }
+
+        std::vector<uint8_t> code_window(k_ntdll_probe_size);
+        if (!win_emu.memory.try_read_memory(retrieve_user_pfn, code_window.data(), code_window.size()))
+        {
+            return false;
+        }
+
+        const auto pointers = scan_rip_relative_lea_references(code_window, retrieve_user_pfn, k_expected_pfn_pointer_count);
+        if (pointers.size() != k_expected_pfn_pointer_count)
+        {
+            return false;
+        }
+
+        return try_update_client_pfn_arrays_from_addresses(win_emu.memory, win_emu.process, pointers[0], pointers[1], pointers[2]);
     }
 }
