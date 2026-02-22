@@ -643,6 +643,12 @@ void callback_frame::save_registers(x86_64_emulator& emu)
     this->rdx = emu.reg(x86_register::rdx);
     this->r8 = emu.reg(x86_register::r8);
     this->r9 = emu.reg(x86_register::r9);
+    this->cs = emu.reg<uint16_t>(x86_register::cs);
+    this->ss = emu.reg<uint16_t>(x86_register::ss);
+    this->ds = emu.reg<uint16_t>(x86_register::ds);
+    this->es = emu.reg<uint16_t>(x86_register::es);
+    this->fs = emu.reg<uint16_t>(x86_register::fs);
+    this->gs = emu.reg<uint16_t>(x86_register::gs);
 }
 
 void callback_frame::restore_registers(x86_64_emulator& emu) const
@@ -652,6 +658,12 @@ void callback_frame::restore_registers(x86_64_emulator& emu) const
         throw std::runtime_error("Attempt to restore registers from an uninitialized callback frame");
     }
 
+    emu.reg<uint16_t>(x86_register::cs, this->cs);
+    emu.reg<uint16_t>(x86_register::ss, this->ss);
+    emu.reg<uint16_t>(x86_register::ds, this->ds);
+    emu.reg<uint16_t>(x86_register::es, this->es);
+    emu.reg<uint16_t>(x86_register::fs, this->fs);
+    emu.reg<uint16_t>(x86_register::gs, this->gs);
     emu.reg(x86_register::rip, this->rip);
     emu.reg(x86_register::rsp, this->rsp);
     emu.reg(x86_register::r10, this->r10);
@@ -671,6 +683,12 @@ void callback_frame::serialize(utils::buffer_serializer& buffer) const
     buffer.write(this->rdx);
     buffer.write(this->r8);
     buffer.write(this->r9);
+    buffer.write(this->cs);
+    buffer.write(this->ss);
+    buffer.write(this->ds);
+    buffer.write(this->es);
+    buffer.write(this->fs);
+    buffer.write(this->gs);
 
     buffer.write(static_cast<bool>(this->state));
     if (this->state)
@@ -689,6 +707,12 @@ void callback_frame::deserialize(utils::buffer_deserializer& buffer)
     buffer.read(this->rdx);
     buffer.read(this->r8);
     buffer.read(this->r9);
+    buffer.read(this->cs);
+    buffer.read(this->ss);
+    buffer.read(this->ds);
+    buffer.read(this->es);
+    buffer.read(this->fs);
+    buffer.read(this->gs);
 
     bool has_state{};
     buffer.read(has_state);

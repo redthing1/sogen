@@ -132,6 +132,24 @@ struct window : user_object<USER_WINDOW>
     }
 };
 
+struct desktop : ref_counted_object
+{
+    std::u16string name{};
+    uint64_t mapped_object{};
+
+    void serialize_object(utils::buffer_serializer& buffer) const override
+    {
+        buffer.write(this->name);
+        buffer.write(this->mapped_object);
+    }
+
+    void deserialize_object(utils::buffer_deserializer& buffer) override
+    {
+        buffer.read(this->name);
+        buffer.read(this->mapped_object);
+    }
+};
+
 struct mutant : ref_counted_object
 {
     uint32_t locked_count{0};
