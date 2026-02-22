@@ -401,6 +401,7 @@ void process_context::setup(x86_64_emulator& emu, memory_manager& memory, regist
     this->ki_user_apc_dispatcher = ntdll.find_export("KiUserApcDispatcher");
     this->ki_user_exception_dispatcher = ntdll.find_export("KiUserExceptionDispatcher");
     this->instrumentation_callback = 0;
+    this->wow64_ki_user_callback_dispatcher = 0;
     this->zw_callback_return = ntdll.find_export("ZwCallbackReturn");
     this->etw_notification_event.reset();
 
@@ -457,6 +458,7 @@ void process_context::serialize(utils::buffer_serializer& buffer) const
     buffer.write(this->ki_user_apc_dispatcher);
     buffer.write(this->ki_user_exception_dispatcher);
     buffer.write(this->instrumentation_callback);
+    buffer.write(this->wow64_ki_user_callback_dispatcher);
     buffer.write(this->zw_callback_return);
     buffer.write(this->dispatch_client_message);
     buffer.write_optional(this->etw_notification_event);
@@ -473,6 +475,8 @@ void process_context::serialize(utils::buffer_serializer& buffer) const
     buffer.write(this->worker_factories);
     buffer.write(this->ports);
     buffer.write(this->mutants);
+    buffer.write(this->default_desktop);
+    buffer.write(this->desktops);
     buffer.write(this->windows);
     buffer.write(this->timers);
     buffer.write(this->registry_keys);
@@ -516,6 +520,7 @@ void process_context::deserialize(utils::buffer_deserializer& buffer)
     buffer.read(this->ki_user_apc_dispatcher);
     buffer.read(this->ki_user_exception_dispatcher);
     buffer.read(this->instrumentation_callback);
+    buffer.read(this->wow64_ki_user_callback_dispatcher);
     buffer.read(this->zw_callback_return);
     buffer.read(this->dispatch_client_message);
     buffer.read_optional(this->etw_notification_event);
@@ -532,6 +537,8 @@ void process_context::deserialize(utils::buffer_deserializer& buffer)
     buffer.read(this->worker_factories);
     buffer.read(this->ports);
     buffer.read(this->mutants);
+    buffer.read(this->default_desktop);
+    buffer.read(this->desktops);
     buffer.read(this->windows);
     buffer.read(this->timers);
     buffer.read(this->registry_keys);
@@ -585,6 +592,8 @@ generic_handle_store* process_context::get_handle_store(const handle handle)
         return &mutants;
     case handle_types::timer:
         return &timers;
+    case handle_types::desktop:
+        return &desktops;
     case handle_types::port:
         return &ports;
     case handle_types::section:

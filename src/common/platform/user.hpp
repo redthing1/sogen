@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 
 // NOLINTBEGIN(modernize-use-using,cppcoreguidelines-avoid-c-arrays,hicpp-avoid-c-arrays,modernize-avoid-c-arrays)
@@ -44,6 +45,36 @@ struct USER_SHAREDINFO
     EMULATOR_CAST(uint64_t, USER_DISPINFO*) pDispInfo;
     uint8_t unknown[0xFF];
 };
+
+struct WIN32K_USERCONNECT32
+{
+    uint32_t psi;
+    uint8_t reserved0[0x14];
+    uint32_t disp_info_low;
+    uint32_t disp_info_high;
+    uint32_t ahe_list;
+    uint32_t reserved1;
+    uint32_t he_entry_size;
+    uint32_t reserved2;
+    uint32_t monitor_info;
+    uint32_t reserved3;
+    uint32_t shared_delta_low;
+    uint32_t shared_delta_high;
+    uint8_t wndmsg_table[0xC8];
+    uint32_t wndmsg_count;
+    uint32_t reserved4;
+    uint32_t wndmsg_bits;
+    uint32_t reserved5;
+    uint32_t ime_msg_count;
+    uint32_t reserved6;
+    uint32_t ime_msg_bits;
+    uint8_t reserved7[0x114];
+};
+static_assert(offsetof(WIN32K_USERCONNECT32, ahe_list) == 0x20);
+static_assert(offsetof(WIN32K_USERCONNECT32, he_entry_size) == 0x28);
+static_assert(offsetof(WIN32K_USERCONNECT32, wndmsg_count) == 0x108);
+static_assert(offsetof(WIN32K_USERCONNECT32, ime_msg_count) == 0x118);
+static_assert(sizeof(WIN32K_USERCONNECT32) == 0x238);
 
 enum USER_HANDLETYPE : uint8_t
 {

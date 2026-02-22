@@ -373,7 +373,13 @@ namespace syscalls
     // syscalls/user.cpp:
     NTSTATUS handle_NtUserDisplayConfigGetDeviceInfo();
     NTSTATUS handle_NtUserRegisterWindowMessage();
-    NTSTATUS handle_NtUserGetThreadState();
+    NTSTATUS handle_NtUserGetThreadState(const syscall_context& c, ULONG routine);
+    NTSTATUS handle_NtUserProcessConnect(const syscall_context& c, handle process_handle, ULONG length, emulator_pointer user_connect);
+    NTSTATUS handle_NtUserInitializeClientPfnArrays(const syscall_context& c, emulator_pointer apfn_client_a,
+                                                    emulator_pointer apfn_client_w, emulator_pointer apfn_client_worker,
+                                                    emulator_pointer hmod_user);
+    uint64_t handle_NtUserRemoteConnectState(const syscall_context& c);
+    hdesk handle_NtUserGetThreadDesktop(const syscall_context& c, ULONG thread_id);
     hdc handle_NtUserGetDCEx(const syscall_context& c, hwnd window, uint64_t clip_region, ULONG flags);
     hdc handle_NtUserGetDC(const syscall_context& c, hwnd window);
     NTSTATUS handle_NtUserGetWindowDC();
@@ -888,6 +894,10 @@ void syscall_dispatcher::add_handlers(std::map<std::string, syscall_handler>& ha
     add_handler(NtGdiInit);
     add_handler(NtGdiInit2);
     add_handler(NtUserGetThreadState);
+    add_handler(NtUserProcessConnect);
+    add_handler(NtUserInitializeClientPfnArrays);
+    add_handler(NtUserRemoteConnectState);
+    add_handler(NtUserGetThreadDesktop);
     add_handler(NtOpenKeyEx);
     add_handler(NtUserDisplayConfigGetDeviceInfo);
     add_handler(NtOpenEvent);
