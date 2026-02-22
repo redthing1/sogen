@@ -111,6 +111,8 @@ namespace syscalls
             return u"Window";
         case handle_types::timer:
             return u"Timer";
+        case handle_types::desktop:
+            return u"Desktop";
         case handle_types::io_completion:
             return u"IoCompletion";
         case handle_types::wait_completion_packet:
@@ -197,6 +199,17 @@ namespace syscalls
                 std::ranges::transform(registry_path, registry_path.begin(), std::towupper);
 
                 device_path = registry_path;
+                break;
+            }
+            case handle_types::desktop: {
+                const auto* desk = c.proc.desktops.get(handle);
+                if (!desk)
+                {
+                    return STATUS_INVALID_HANDLE;
+                }
+
+                device_path = u"\\Windows\\Desktop\\";
+                device_path.append(desk->name);
                 break;
             }
             case handle_types::io_completion: {

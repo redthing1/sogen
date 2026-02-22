@@ -22,6 +22,7 @@ struct handle_types
         window,
         timer,
         monitor,
+        desktop,
         io_completion,
         wait_completion_packet,
         worker_factory,
