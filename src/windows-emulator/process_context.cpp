@@ -402,6 +402,7 @@ void process_context::setup(x86_64_emulator& emu, memory_manager& memory, regist
     this->ki_user_exception_dispatcher = ntdll.find_export("KiUserExceptionDispatcher");
     this->instrumentation_callback = 0;
     this->zw_callback_return = ntdll.find_export("ZwCallbackReturn");
+    this->etw_notification_event.reset();
 
     this->default_register_set = emu.save_registers();
 
@@ -458,6 +459,7 @@ void process_context::serialize(utils::buffer_serializer& buffer) const
     buffer.write(this->instrumentation_callback);
     buffer.write(this->zw_callback_return);
     buffer.write(this->dispatch_client_message);
+    buffer.write_optional(this->etw_notification_event);
 
     buffer.write(this->user_handles);
     buffer.write(this->default_monitor_handle);
@@ -516,6 +518,7 @@ void process_context::deserialize(utils::buffer_deserializer& buffer)
     buffer.read(this->instrumentation_callback);
     buffer.read(this->zw_callback_return);
     buffer.read(this->dispatch_client_message);
+    buffer.read_optional(this->etw_notification_event);
 
     buffer.read(this->user_handles);
     buffer.read(this->default_monitor_handle);

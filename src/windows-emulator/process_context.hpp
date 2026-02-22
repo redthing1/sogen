@@ -141,6 +141,7 @@ struct process_context
     uint64_t instrumentation_callback{};
     uint64_t zw_callback_return{};
     uint64_t dispatch_client_message{};
+    std::optional<handle> etw_notification_event{};
 
     // For WOW64 processes
     std::optional<emulator_object<PEB32>> peb32;
