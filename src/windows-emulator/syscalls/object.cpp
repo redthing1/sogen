@@ -267,6 +267,45 @@ namespace syscalls
                || h.value.type == handle_types::event;
     }
 
+    NTSTATUS validate_wait_handle(const syscall_context& c, const handle h)
+    {
+        if (!is_awaitable_object_type(h))
+        {
+            return STATUS_OBJECT_TYPE_MISMATCH;
+        }
+
+        switch (h.value.type)
+        {
+        case handle_types::event:
+            if (h.value.is_pseudo)
+            {
+                return STATUS_SUCCESS;
+            }
+
+            return c.proc.events.get(h) ? STATUS_SUCCESS : STATUS_INVALID_HANDLE;
+
+        case handle_types::thread:
+            return c.proc.threads.get(h) ? STATUS_SUCCESS : STATUS_INVALID_HANDLE;
+
+        case handle_types::mutant:
+            return c.proc.mutants.get(h) ? STATUS_SUCCESS : STATUS_INVALID_HANDLE;
+
+        case handle_types::semaphore:
+            return c.proc.semaphores.get(h) ? STATUS_SUCCESS : STATUS_INVALID_HANDLE;
+
+        case handle_types::timer:
+            if (h.value.is_pseudo)
+            {
+                return STATUS_SUCCESS;
+            }
+
+            return c.proc.timers.get(h) ? STATUS_SUCCESS : STATUS_INVALID_HANDLE;
+
+        default:
+            return STATUS_OBJECT_TYPE_MISMATCH;
+        }
+    }
+
     NTSTATUS handle_NtCompareObjects(const syscall_context&, const handle first, const handle second)
     {
         return (first == second) ? STATUS_SUCCESS : STATUS_NOT_SAME_OBJECT;
@@ -291,10 +330,10 @@ namespace syscalls
         {
             const auto h = handles.read(i);
 
-            if (!is_awaitable_object_type(h))
+            const auto validation_status = validate_wait_handle(c, h);
+            if (!NT_SUCCESS(validation_status))
             {
-                c.win_emu.log.warn("Unsupported handle type for NtWaitForMultipleObjects: %d!\n", h.value.type);
-                return STATUS_NOT_SUPPORTED;
+                return validation_status;
             }
 
             t.await_objects.push_back(h);
@@ -329,10 +368,10 @@ namespace syscalls
             const auto raw_handle = handles.read(i);
             const auto h = make_handle(static_cast<uint64_t>(raw_handle));
 
-            if (!is_awaitable_object_type(h))
+            const auto validation_status = validate_wait_handle(c, h);
+            if (!NT_SUCCESS(validation_status))
             {
-                c.win_emu.log.warn("Unsupported handle type for NtWaitForMultipleObjects32: %d!\n", h.value.type);
-                return STATUS_INVALID_HANDLE;
+                return validation_status;
             }
 
             t.await_objects.push_back(h);
@@ -350,10 +389,10 @@ namespace syscalls
     NTSTATUS handle_NtWaitForSingleObject(const syscall_context& c, const handle h, const BOOLEAN alertable,
                                           const emulator_object<LARGE_INTEGER> timeout)
     {
-        if (!is_awaitable_object_type(h))
+        const auto validation_status = validate_wait_handle(c, h);
+        if (!NT_SUCCESS(validation_status))
         {
-            c.win_emu.log.warn("Unsupported handle type for NtWaitForSingleObject: %d!\n", h.value.type);
-            return STATUS_NOT_SUPPORTED;
+            return validation_status;
         }
 
         auto& t = c.win_emu.current_thread();
