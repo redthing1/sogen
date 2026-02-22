@@ -32,38 +32,32 @@ namespace syscalls
 
         static_assert(sizeof(ini_file_mapping64) == 0x20);
 
-        constexpr uint64_t align_up_u64(const uint64_t value, const uint64_t alignment)
-        {
-            return (value + (alignment - 1)) & ~(alignment - 1);
-        }
-
-        bool is_within_range(const uint64_t total_size, const uint64_t offset, const uint64_t size)
-        {
-            return offset <= total_size && size <= (total_size - offset);
-        }
-
         NTSTATUS initialize_shared_section_base_static_server_data_mapping(const syscall_context& c, const uint64_t shared_section_address,
                                                                            const uint64_t shared_section_size, uint64_t& obj_address)
         {
             // BaseStaticServerData starts after shared pointer table entries
             const auto base_static_server_data_offset =
-                align_up_u64((k_base_static_server_data_table_index + 1) * sizeof(uint32_t), sizeof(uint64_t));
+                align_up((k_base_static_server_data_table_index + 1) * sizeof(uint32_t), sizeof(uint64_t));
 
             // Emulator-owned ini mapping object at the end
-            const auto ini_file_mapping_offset =
-                align_up_u64(shared_section_size - sizeof(ini_file_mapping64), alignof(ini_file_mapping64));
+            const auto ini_file_mapping_offset = align_up(shared_section_size - sizeof(ini_file_mapping64), alignof(ini_file_mapping64));
 
-            if (!is_within_range(shared_section_size, sizeof(uint32_t) * k_base_static_server_data_table_index, sizeof(uint32_t)) ||
-                !is_within_range(shared_section_size, base_static_server_data_offset + k_base_static_server_data_ini_file_mapping_offset,
-                                 sizeof(uint64_t)) ||
-                !is_within_range(shared_section_size, base_static_server_data_offset + k_base_static_server_data_bias_offset,
-                                 sizeof(uint64_t)) ||
-                !is_within_range(shared_section_size, base_static_server_data_offset + k_base_static_server_data_legacy_time_zone_id_offset,
-                                 sizeof(uint32_t)) ||
-                !is_within_range(shared_section_size,
-                                 base_static_server_data_offset + k_base_static_server_data_win2019_time_zone_id_offset,
-                                 sizeof(uint32_t)) ||
-                !is_within_range(shared_section_size, ini_file_mapping_offset, sizeof(ini_file_mapping64)))
+            const auto has_room = [&](const uint64_t offset, const uint64_t size) {
+                return size <= shared_section_size && offset <= shared_section_size - size;
+            };
+
+            const bool table_index_has_room = has_room(sizeof(uint32_t) * k_base_static_server_data_table_index, sizeof(uint32_t));
+            const bool ini_mapping_has_room =
+                has_room(base_static_server_data_offset + k_base_static_server_data_ini_file_mapping_offset, sizeof(uint64_t));
+            const bool bias_has_room = has_room(base_static_server_data_offset + k_base_static_server_data_bias_offset, sizeof(uint64_t));
+            const bool legacy_tz_id_has_room =
+                has_room(base_static_server_data_offset + k_base_static_server_data_legacy_time_zone_id_offset, sizeof(uint32_t));
+            const bool win2019_tz_id_has_room =
+                has_room(base_static_server_data_offset + k_base_static_server_data_win2019_time_zone_id_offset, sizeof(uint32_t));
+            const bool ini_file_mapping_has_room = has_room(ini_file_mapping_offset, sizeof(ini_file_mapping64));
+
+            if (!table_index_has_room || !ini_mapping_has_room || !bias_has_room || !legacy_tz_id_has_room || !win2019_tz_id_has_room ||
+                !ini_file_mapping_has_room)
             {
                 return STATUS_INVALID_PARAMETER;
             }
