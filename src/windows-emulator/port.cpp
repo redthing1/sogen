@@ -4,6 +4,7 @@
 #include "windows_emulator.hpp"
 #include "ports/api_port.hpp"
 #include "ports/dns_resolver.hpp"
+#include "ports/lsa_policy_lookup.hpp"
 
 namespace
 {
@@ -36,6 +37,11 @@ std::unique_ptr<port> create_port(const std::u16string_view port)
     if (port == u"\\RPC Control\\DNSResolver")
     {
         return create_dns_resolver();
+    }
+
+    if (port == u"\\RPC Control\\LSARPC_ENDPOINT" || port == u"\\RPC Control\\lsapolicylookup")
+    {
+        return create_lsa_policy_lookup_port();
     }
 
     if (port == u"\\WindowsErrorReportingServicePort")
