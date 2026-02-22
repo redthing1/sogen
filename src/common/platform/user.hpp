@@ -1,11 +1,15 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 
 // NOLINTBEGIN(modernize-use-using,cppcoreguidelines-avoid-c-arrays,hicpp-avoid-c-arrays,modernize-avoid-c-arrays)
 
 #define FNID_START      0x29A
 #define FNID_ARRAY_SIZE 24
+
+constexpr size_t USER_NUM_SYSCOLORS = 31;
+constexpr size_t USER_SERVERINFO_SYSTEM_BRUSH_CAPACITY = 47;
 
 struct USER_SERVERINFO
 {
@@ -15,8 +19,12 @@ struct USER_SERVERINFO
     uint64_t apfnClientA[FNID_ARRAY_SIZE];
     uint64_t apfnClientW[FNID_ARRAY_SIZE];
     uint64_t apfnClientWorker[FNID_ARRAY_SIZE];
-    uint8_t unknown2[0x1000];
+    uint8_t unknown2[0xE90];
+    uint64_t ahbrSystem[USER_SERVERINFO_SYSTEM_BRUSH_CAPACITY];
 };
+static_assert(offsetof(USER_SERVERINFO, apfnClientA) == 0x188);
+static_assert(offsetof(USER_SERVERINFO, ahbrSystem) == 0x1258);
+static_assert(sizeof(USER_SERVERINFO) == 0x13D0);
 
 struct USER_DISPINFO
 {
@@ -44,6 +52,32 @@ struct USER_SHAREDINFO
     EMULATOR_CAST(uint64_t, USER_DISPINFO*) pDispInfo;
     uint8_t unknown[0xFF];
 };
+
+struct WIN32K_USERCONNECT32
+{
+    uint32_t psi;
+    uint8_t reserved0[0x14];
+    uint32_t disp_info_low;
+    uint32_t disp_info_high;
+    uint32_t ahe_list;
+    uint32_t reserved1;
+    uint32_t he_entry_size;
+    uint32_t reserved2;
+    uint32_t monitor_info;
+    uint32_t reserved3;
+    uint32_t shared_delta_low;
+    uint32_t shared_delta_high;
+    uint8_t wndmsg_table[0xC8];
+    uint32_t wndmsg_count;
+    uint32_t reserved4;
+    uint32_t wndmsg_bits;
+    uint32_t reserved5;
+    uint32_t ime_msg_count;
+    uint32_t reserved6;
+    uint32_t ime_msg_bits;
+    uint8_t reserved7[0x114];
+};
+static_assert(sizeof(WIN32K_USERCONNECT32) == 0x238);
 
 enum USER_HANDLETYPE : uint8_t
 {
