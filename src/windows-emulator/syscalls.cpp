@@ -442,6 +442,10 @@ namespace syscalls
     NTSTATUS handle_NtUserEnableWindow();
     NTSTATUS handle_NtUserGetSystemMenu();
 
+    // syscalls/trace.cpp:
+    NTSTATUS handle_NtTraceControl(const syscall_context& c, ULONG function_code, uint64_t input_buffer, ULONG input_buffer_length,
+                                   uint64_t output_buffer, ULONG output_buffer_length, emulator_object<ULONG> return_length);
+
     NTSTATUS handle_NtQueryPerformanceCounter(const syscall_context& c, const emulator_object<LARGE_INTEGER> performance_counter,
                                               const emulator_object<LARGE_INTEGER> performance_frequency)
     {
@@ -787,11 +791,6 @@ namespace syscalls
     }
 
     NTSTATUS handle_NtRequestWaitReplyPort()
-    {
-        return STATUS_NOT_SUPPORTED;
-    }
-
-    NTSTATUS handle_NtTraceControl()
     {
         return STATUS_NOT_SUPPORTED;
     }
