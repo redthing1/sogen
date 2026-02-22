@@ -154,6 +154,9 @@ struct process_context
     handle_store<handle_types::section, section> sections{};
     handle_store<handle_types::device, io_device_container> devices{};
     handle_store<handle_types::semaphore, semaphore> semaphores{};
+    handle_store<handle_types::io_completion, io_completion> io_completions{};
+    handle_store<handle_types::wait_completion_packet, wait_completion_packet> wait_completion_packets{};
+    handle_store<handle_types::worker_factory, worker_factory> worker_factories{};
     handle_store<handle_types::port, port_container> ports{};
     handle_store<handle_types::mutant, mutant> mutants{};
     user_handle_store<handle_types::window, window> windows{user_handles};

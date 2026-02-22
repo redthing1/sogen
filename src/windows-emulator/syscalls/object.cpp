@@ -1,5 +1,6 @@
 #include "../std_include.hpp"
 #include "../emulator_utils.hpp"
+#include "../io_completion_wait.hpp"
 #include "../syscall_utils.hpp"
 
 namespace syscalls
@@ -18,6 +19,24 @@ namespace syscalls
         if (value.is_pseudo)
         {
             return STATUS_SUCCESS;
+        }
+
+        if (value.type == handle_types::wait_completion_packet)
+        {
+            auto* wait_packet = c.proc.wait_completion_packets.get(h);
+            if (wait_packet && wait_packet->ref_count == 1)
+            {
+                io_completion_wait::cleanup_wait_packet_on_close(c.proc, h);
+            }
+        }
+
+        if (value.type == handle_types::worker_factory)
+        {
+            auto* factory = c.proc.worker_factories.get(h);
+            if (factory && factory->ref_count == 1)
+            {
+                io_completion_wait::release_handle_reference(c.proc, factory->io_completion_handle);
+            }
         }
 
         auto* handle_store = c.proc.get_handle_store(h);
@@ -92,6 +111,12 @@ namespace syscalls
             return u"Window";
         case handle_types::timer:
             return u"Timer";
+        case handle_types::io_completion:
+            return u"IoCompletion";
+        case handle_types::wait_completion_packet:
+            return u"WaitCompletionPacket";
+        case handle_types::worker_factory:
+            return u"TpWorkerFactory";
         default:
             return u"";
         }
@@ -172,6 +197,36 @@ namespace syscalls
                 std::ranges::transform(registry_path, registry_path.begin(), std::towupper);
 
                 device_path = registry_path;
+                break;
+            }
+            case handle_types::io_completion: {
+                const auto* io = c.proc.io_completions.get(handle);
+                if (!io)
+                {
+                    return STATUS_INVALID_HANDLE;
+                }
+
+                device_path = io->name;
+                break;
+            }
+            case handle_types::wait_completion_packet: {
+                const auto* packet = c.proc.wait_completion_packets.get(handle);
+                if (!packet)
+                {
+                    return STATUS_INVALID_HANDLE;
+                }
+
+                device_path = packet->name;
+                break;
+            }
+            case handle_types::worker_factory: {
+                const auto* factory = c.proc.worker_factories.get(handle);
+                if (!factory)
+                {
+                    return STATUS_INVALID_HANDLE;
+                }
+
+                device_path = factory->name;
                 break;
             }
             default:

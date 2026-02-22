@@ -73,6 +73,52 @@ struct pending_msg
     }
 };
 
+enum class io_completion_wait_type : uint8_t
+{
+    remove_single = 0,
+    remove_multiple = 1,
+};
+
+struct pending_io_completion_wait
+{
+    io_completion_wait_type type{io_completion_wait_type::remove_single};
+    handle io_completion_handle{};
+    emulator_pointer key_context_ptr{};
+    emulator_pointer apc_context_ptr{};
+    emulator_pointer io_status_block_ptr{};
+    emulator_pointer completion_entries_ptr{};
+    emulator_pointer entries_removed_ptr{};
+    ULONG max_entries{};
+    std::optional<std::chrono::steady_clock::time_point> timeout{};
+
+    void serialize(utils::buffer_serializer& buffer) const
+    {
+        buffer.write(static_cast<uint8_t>(this->type));
+        buffer.write(this->io_completion_handle);
+        buffer.write(this->key_context_ptr);
+        buffer.write(this->apc_context_ptr);
+        buffer.write(this->io_status_block_ptr);
+        buffer.write(this->completion_entries_ptr);
+        buffer.write(this->entries_removed_ptr);
+        buffer.write(this->max_entries);
+        buffer.write_optional(this->timeout);
+    }
+
+    void deserialize(utils::buffer_deserializer& buffer)
+    {
+        const auto raw_type = buffer.read<uint8_t>();
+        this->type = static_cast<io_completion_wait_type>(raw_type);
+        buffer.read(this->io_completion_handle);
+        buffer.read(this->key_context_ptr);
+        buffer.read(this->apc_context_ptr);
+        buffer.read(this->io_status_block_ptr);
+        buffer.read(this->completion_entries_ptr);
+        buffer.read(this->entries_removed_ptr);
+        buffer.read(this->max_entries);
+        buffer.read_optional(this->timeout);
+    }
+};
+
 enum class callback_id : uint32_t
 {
     Invalid = 0,
@@ -167,6 +213,7 @@ class emulator_thread : public ref_counted_object
     uint32_t suspended{0};
     std::optional<std::chrono::steady_clock::time_point> await_time{};
     std::optional<pending_msg> await_msg{};
+    std::optional<pending_io_completion_wait> await_io_completion{};
 
     bool apc_alertable{false};
     std::vector<pending_apc> pending_apcs{};
@@ -258,6 +305,7 @@ class emulator_thread : public ref_counted_object
         buffer.write(this->suspended);
         buffer.write_optional(this->await_time);
         buffer.write_optional(this->await_msg);
+        buffer.write_optional(this->await_io_completion);
 
         buffer.write(this->apc_alertable);
         buffer.write_vector(this->pending_apcs);
@@ -311,6 +359,7 @@ class emulator_thread : public ref_counted_object
         buffer.read(this->suspended);
         buffer.read_optional(this->await_time);
         buffer.read_optional(this->await_msg, [this] { return pending_msg{*this->memory_ptr}; });
+        buffer.read_optional(this->await_io_completion, [] { return pending_io_completion_wait{}; });
 
         buffer.read(this->apc_alertable);
         buffer.read_vector(this->pending_apcs);
