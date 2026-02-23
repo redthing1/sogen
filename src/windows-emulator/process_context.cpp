@@ -113,7 +113,8 @@ namespace
         return result;
     }
 
-    utils::unordered_insensitive_u16string_map<std::u16string> get_environment_variables(registry_manager& registry)
+    utils::unordered_insensitive_u16string_map<std::u16string> get_environment_variables(registry_manager& registry,
+                                                                                         const windows_version_manager& version)
     {
         utils::unordered_insensitive_u16string_map<std::u16string> env_map;
         std::unordered_set<std::u16string_view> keys_to_expand;
@@ -158,11 +159,26 @@ namespace
             env_map[u"EMULATOR_ICICLE"] = u"1";
         }
 
+        const auto system_root = version.get_system_root().u16string();
+
+        std::u16string system_drive = u"C:";
+        if (system_root.size() >= 2 && system_root[1] == u':')
+        {
+            system_drive = system_root.substr(0, 2);
+        }
+
+        auto system_temp = system_root;
+        if (!system_temp.empty() && system_temp.back() != u'\\')
+        {
+            system_temp.push_back(u'\\');
+        }
+        system_temp += u"SystemTemp";
+
         env_map[u"COMPUTERNAME"] = u"momo";
         env_map[u"USERNAME"] = u"momo";
-        env_map[u"SystemDrive"] = u"C:";
-        env_map[u"SystemRoot"] = u"C:\\WINDOWS";
-        env_map[u"SystemTemp"] = u"C:\\Windows\\SystemTemp";
+        env_map[u"SystemDrive"] = system_drive;
+        env_map[u"SystemRoot"] = system_root;
+        env_map[u"SystemTemp"] = system_temp;
         env_map[u"TMP"] = u"C:\\Users\\momo\\AppData\\Temp";
         env_map[u"TEMP"] = u"C:\\Users\\momo\\AppData\\Temp";
         env_map[u"USERPROFILE"] = u"C:\\Users\\momo";
@@ -232,7 +248,7 @@ void process_context::setup(x86_64_emulator& emu, memory_manager& memory, regist
 
         proc_params.Environment = allocator.copy_string(u"=::=::\\");
 
-        const auto env_map = get_environment_variables(registry);
+        const auto env_map = get_environment_variables(registry, version);
         for (const auto& [name, value] : env_map)
         {
             std::u16string entry;
@@ -392,8 +408,9 @@ void process_context::setup(x86_64_emulator& emu, memory_manager& memory, regist
     }
 
     this->apiset = apiset::get_namespace_table(reinterpret_cast<const API_SET_NAMESPACE*>(apiset_container.data.data()));
-    this->build_knowndlls_section_table<uint64_t>(registry, file_system, apiset, false);
-    this->build_knowndlls_section_table<uint32_t>(registry, file_system, apiset, true);
+    const auto& system_root = version.get_system_root();
+    this->build_knowndlls_section_table<uint64_t>(registry, file_system, apiset, system_root, false);
+    this->build_knowndlls_section_table<uint32_t>(registry, file_system, apiset, system_root, true);
 
     this->ntdll_image_base = ntdll.image_base;
     this->ldr_initialize_thunk = ntdll.find_export("LdrInitializeThunk");
@@ -740,20 +757,13 @@ const std::u16string* process_context::get_atom_name(const uint16_t atom_id) con
 
 template <typename T>
 void process_context::build_knowndlls_section_table(registry_manager& registry, const file_system& file_system, const apiset_map& apiset,
-                                                    bool is_32bit)
+                                                    const windows_path& system_root, bool is_32bit)
 {
     windows_path system_root_path;
     std::set<std::u16string> visisted;
     std::queue<std::u16string> q;
 
-    if (is_32bit)
-    {
-        system_root_path = "C:\\Windows\\SysWOW64";
-    }
-    else
-    {
-        system_root_path = "C:\\Windows\\System32";
-    }
+    system_root_path = is_32bit ? (system_root / "SysWOW64") : (system_root / "System32");
 
     std::optional<registry_key> knowndlls_key =
         registry.get_key({R"(\Registry\Machine\System\CurrentControlSet\Control\Session Manager\KnownDLLs)"});
