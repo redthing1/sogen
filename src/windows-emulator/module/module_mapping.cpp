@@ -4,6 +4,7 @@
 
 #include <utils/io.hpp>
 #include <utils/buffer_accessor.hpp>
+#include <utils/string.hpp>
 #include <platform/win_pefile.hpp>
 
 #if defined(__clang__) || defined(__GNUC__)
@@ -12,6 +13,22 @@
 
 namespace
 {
+    bool must_map_module_below_4gb(const std::string& module_name, const PEMachineType machine, const uint64_t image_base)
+    {
+        if (machine != PEMachineType::AMD64)
+        {
+            return false;
+        }
+
+        // wow64 startup needs wow64cpu.dll to be reachable through 32-bit address
+        if (!utils::string::equals_ignore_case(std::string_view{module_name}, std::string_view{"wow64cpu.dll"}))
+        {
+            return false;
+        }
+
+        return image_base > std::numeric_limits<uint32_t>::max();
+    }
+
     template <typename T>
     std::vector<std::byte> read_mapped_memory(const memory_manager& memory, const mapped_module& binary)
     {
@@ -276,6 +293,13 @@ mapped_module map_module_from_data(memory_manager& memory, const std::span<const
     binary.image_base_file = optional_header.ImageBase;
     binary.size_of_image = page_align_up(optional_header.SizeOfImage); // TODO: Sanitize
 
+    const bool force_wow64cpu_32bit_va = must_map_module_below_4gb(binary.name, nt_headers.FileHeader.Machine, binary.image_base);
+
+    if (force_wow64cpu_32bit_va)
+    {
+        binary.image_base = memory.find_free_allocation_base(static_cast<size_t>(binary.size_of_image), DEFAULT_ALLOCATION_ADDRESS_32BIT);
+    }
+
     // Store PE header fields
     binary.machine = static_cast<uint16_t>(nt_headers.FileHeader.Machine);
     binary.size_of_stack_reserve = optional_header.SizeOfStackReserve;
@@ -288,7 +312,12 @@ mapped_module map_module_from_data(memory_manager& memory, const std::span<const
         // Check if this is a 32-bit module (WOW64)
         const bool is_32bit = (nt_headers.FileHeader.Machine == PEMachineType::I386);
 
-        if (is_32bit)
+        if (force_wow64cpu_32bit_va)
+        {
+            binary.image_base =
+                memory.find_free_allocation_base(static_cast<size_t>(binary.size_of_image), DEFAULT_ALLOCATION_ADDRESS_32BIT);
+        }
+        else if (is_32bit)
         {
             // Use 32-bit allocation for WOW64 modules
             binary.image_base =

@@ -12,19 +12,25 @@ namespace
     constexpr ULONG k_thread_state_win32_thread_info = 0xE;
     constexpr size_t k_win32_thread_info_slab_size = 0x2000;
     constexpr uint64_t k_win32_thread_info_bias = 0x800;
-    // callback table indices used by wow64.dll!Wow64KiUserCallbackDispatcher.
+    // callback id used by wow64.dll!Wow64KiUserCallbackDispatcher
     constexpr uint32_t k_wow64_client_setup_callback_id = 0x54;
-    constexpr uint32_t k_wow64_enum_display_monitors_callback_id_legacy = 0x2D;
+    // user32 callback id for ___ClientMonitorEnumProc@4
+    constexpr uint32_t k_wow64_enum_display_monitors_callback_id = 0x57;
     constexpr size_t k_wow64_callback_context_buffer_size = 0x140;
 
     struct wow64_enum_display_monitors_callback_args
     {
         uint32_t monitor{};
         uint32_t dc{};
+        RECT rect{};
         uint32_t param{};
         uint32_t callback{};
-        RECT rect{};
     };
+    static_assert(offsetof(wow64_enum_display_monitors_callback_args, monitor) == 0x0);
+    static_assert(offsetof(wow64_enum_display_monitors_callback_args, dc) == 0x4);
+    static_assert(offsetof(wow64_enum_display_monitors_callback_args, rect) == 0x8);
+    static_assert(offsetof(wow64_enum_display_monitors_callback_args, param) == 0x18);
+    static_assert(offsetof(wow64_enum_display_monitors_callback_args, callback) == 0x1C);
     static_assert(sizeof(wow64_enum_display_monitors_callback_args) == 0x20);
 
     void set_guest_last_error(const syscall_context& c, uint32_t last_error)
@@ -203,6 +209,8 @@ namespace
         }
 
         const auto callback_buffer = ensure_wow64_callback_buffer(c, thread);
+        std::array<std::byte, k_wow64_callback_context_buffer_size> zeros{};
+        c.emu.write_memory(callback_buffer, zeros.data(), zeros.size());
 
         c.emu.reg(x86_register::rcx, callback_buffer);
         c.emu.reg(x86_register::rdx, static_cast<uint64_t>(callback_id));
@@ -217,14 +225,12 @@ namespace
         return schedule_wow64_callback(c, thread, k_wow64_client_setup_callback_id, 0, 0);
     }
 
-    uint32_t resolve_wow64_enum_display_monitors_callback_id()
-    {
-        return k_wow64_enum_display_monitors_callback_id_legacy;
-    }
 }
 
 namespace syscalls
 {
+    hdc handle_NtGdiGetDCforBitmap(const syscall_context& c, handle bitmap);
+
     NTSTATUS handle_NtUserDisplayConfigGetDeviceInfo()
     {
         return STATUS_NOT_SUPPORTED;
@@ -383,9 +389,9 @@ namespace syscalls
         return target->win32k_desktop.bits;
     }
 
-    hdc handle_NtUserGetDCEx(const syscall_context& /*c*/, const hwnd window, const uint64_t /*clip_region*/, const ULONG /*flags*/)
+    hdc handle_NtUserGetDCEx(const syscall_context& c, const hwnd /*window*/, const uint64_t /*clip_region*/, const ULONG /*flags*/)
     {
-        return window;
+        return handle_NtGdiGetDCforBitmap(c, {});
     }
 
     hdc handle_NtUserGetDC(const syscall_context& c, const hwnd window)
@@ -393,14 +399,14 @@ namespace syscalls
         return handle_NtUserGetDCEx(c, window, 0, 0);
     }
 
-    NTSTATUS handle_NtUserGetWindowDC()
+    hdc handle_NtUserGetWindowDC(const syscall_context& c, const hwnd /*window*/)
     {
-        return 1;
+        return handle_NtGdiGetDCforBitmap(c, {});
     }
 
-    NTSTATUS handle_NtUserReleaseDC()
+    BOOL handle_NtUserReleaseDC()
     {
-        return STATUS_SUCCESS;
+        return TRUE;
     }
 
     NTSTATUS handle_NtUserGetCursorPos()
@@ -1056,6 +1062,8 @@ namespace syscalls
                 return FALSE;
             }
 
+            c.proc.active_thread->win32k_enum_display_monitors_pending = false;
+
             if (hmon > std::numeric_limits<uint32_t>::max() || hdc_in > std::numeric_limits<uint32_t>::max() ||
                 callback > std::numeric_limits<uint32_t>::max() || param > std::numeric_limits<uint32_t>::max())
             {
@@ -1072,12 +1080,13 @@ namespace syscalls
             const auto arg_buffer = c.proc.base_allocator.reserve(sizeof(args), alignof(uint32_t));
             emulator_object<wow64_enum_display_monitors_callback_args>{c.emu, arg_buffer}.write(args);
 
-            if (!schedule_wow64_callback(c, *c.proc.active_thread, resolve_wow64_enum_display_monitors_callback_id(), arg_buffer,
+            if (!schedule_wow64_callback(c, *c.proc.active_thread, k_wow64_enum_display_monitors_callback_id, arg_buffer,
                                          static_cast<uint32_t>(sizeof(args))))
             {
                 return FALSE;
             }
 
+            c.proc.active_thread->win32k_enum_display_monitors_pending = true;
             return TRUE;
         }
 

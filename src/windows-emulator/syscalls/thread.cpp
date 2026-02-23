@@ -5,6 +5,60 @@
 
 #include <utils/finally.hpp>
 
+namespace
+{
+    struct wow64_callback_context
+    {
+        std::array<std::byte, 0x108> reserved0{};
+        uint64_t output_pointer{};
+        uint32_t output_length{};
+        uint32_t status{};
+        std::array<std::byte, 0x28> reserved1{};
+    };
+    static_assert(offsetof(wow64_callback_context, output_pointer) == 0x108);
+    static_assert(offsetof(wow64_callback_context, output_length) == 0x110);
+    static_assert(offsetof(wow64_callback_context, status) == 0x114);
+    static_assert(sizeof(wow64_callback_context) == 0x140);
+
+    void apply_pending_wow64_monitor_enum_result(const syscall_context& c)
+    {
+        auto* thread = c.proc.active_thread;
+        if (!thread || !thread->win32k_enum_display_monitors_pending)
+        {
+            return;
+        }
+
+        thread->win32k_enum_display_monitors_pending = false;
+
+        if (thread->win32k_callback_buffer == 0)
+        {
+            return;
+        }
+
+        wow64_callback_context callback_context{};
+        if (!c.win_emu.memory.try_read_memory(thread->win32k_callback_buffer, &callback_context, sizeof(callback_context)))
+        {
+            return;
+        }
+
+        if (!NT_SUCCESS(static_cast<NTSTATUS>(callback_context.status)) || callback_context.output_pointer == 0 ||
+            callback_context.output_length < sizeof(uint32_t))
+        {
+            return;
+        }
+
+        uint32_t callback_result{};
+        if (!c.win_emu.memory.try_read_memory(callback_context.output_pointer, &callback_result, sizeof(callback_result)))
+        {
+            return;
+        }
+
+        callback_context.status = callback_result;
+        c.win_emu.memory.try_write_memory(thread->win32k_callback_buffer + offsetof(wow64_callback_context, status),
+                                          &callback_context.status, sizeof(callback_context.status));
+    }
+}
+
 namespace syscalls
 {
     NTSTATUS handle_NtSetInformationThread(const syscall_context& c, const handle thread_handle, const THREADINFOCLASS info_class,
@@ -573,6 +627,7 @@ namespace syscalls
             argument = c.emu.read_memory<KCONTINUE_ARGUMENT>(continue_argument);
         }
 
+        apply_pending_wow64_monitor_enum_result(c);
         const auto context = thread_context.read();
         cpu_context::restore(c.emu, context);
 

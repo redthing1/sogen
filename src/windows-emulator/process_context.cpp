@@ -403,7 +403,30 @@ void process_context::setup(x86_64_emulator& emu, memory_manager& memory, regist
     this->instrumentation_callback = 0;
     this->wow64_ki_user_callback_dispatcher = 0;
     this->zw_callback_return = ntdll.find_export("ZwCallbackReturn");
+    this->gdi_default_dc_handle = 0;
     this->etw_notification_event.reset();
+
+    const auto gdi_shared_table = this->base_allocator.reserve<GDI_SHARED_MEMORY64>();
+    gdi_shared_table.access([](GDI_SHARED_MEMORY64& table) { table = {}; });
+
+    this->peb64.access([&](PEB64& peb64) {
+        peb64.GdiSharedHandleTable = gdi_shared_table.value();
+        peb64.GdiDCAttributeList = 0;
+    });
+
+    if (this->peb32)
+    {
+        uint32_t gdi_shared_table32 = 0;
+        if (gdi_shared_table.value() <= std::numeric_limits<uint32_t>::max())
+        {
+            gdi_shared_table32 = static_cast<uint32_t>(gdi_shared_table.value());
+        }
+
+        this->peb32->access([&](PEB32& peb32) {
+            peb32.GdiSharedHandleTable = gdi_shared_table32;
+            peb32.GdiDCAttributeList = 0;
+        });
+    }
 
     this->default_register_set = emu.save_registers();
 
@@ -461,6 +484,7 @@ void process_context::serialize(utils::buffer_serializer& buffer) const
     buffer.write(this->wow64_ki_user_callback_dispatcher);
     buffer.write(this->zw_callback_return);
     buffer.write(this->dispatch_client_message);
+    buffer.write(this->gdi_default_dc_handle);
     buffer.write_optional(this->etw_notification_event);
 
     buffer.write(this->user_handles);
@@ -523,6 +547,7 @@ void process_context::deserialize(utils::buffer_deserializer& buffer)
     buffer.read(this->wow64_ki_user_callback_dispatcher);
     buffer.read(this->zw_callback_return);
     buffer.read(this->dispatch_client_message);
+    buffer.read(this->gdi_default_dc_handle);
     buffer.read_optional(this->etw_notification_event);
 
     buffer.read(this->user_handles);

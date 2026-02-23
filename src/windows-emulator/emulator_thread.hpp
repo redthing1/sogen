@@ -229,6 +229,7 @@ class emulator_thread : public ref_counted_object
     uint64_t win32k_thread_info{0};
     handle win32k_desktop{};
     uint64_t win32k_callback_buffer{0};
+    bool win32k_enum_display_monitors_pending{false};
     bool win32k_thread_setup_pending{false};
     bool win32k_thread_setup_done{false};
 
@@ -326,6 +327,7 @@ class emulator_thread : public ref_counted_object
         buffer.write(this->win32k_thread_info);
         buffer.write(this->win32k_desktop);
         buffer.write(this->win32k_callback_buffer);
+        buffer.write(this->win32k_enum_display_monitors_pending);
         buffer.write(this->win32k_thread_setup_pending);
         buffer.write(this->win32k_thread_setup_done);
         buffer.write_optional(this->gs_segment);
@@ -385,6 +387,7 @@ class emulator_thread : public ref_counted_object
         buffer.read(this->win32k_thread_info);
         buffer.read(this->win32k_desktop);
         buffer.read(this->win32k_callback_buffer);
+        buffer.read(this->win32k_enum_display_monitors_pending);
         buffer.read(this->win32k_thread_setup_pending);
         buffer.read(this->win32k_thread_setup_done);
         buffer.read_optional(this->gs_segment, [this] { return emulator_allocator(*this->memory_ptr); });

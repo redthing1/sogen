@@ -142,6 +142,7 @@ struct process_context
     uint64_t wow64_ki_user_callback_dispatcher{};
     uint64_t zw_callback_return{};
     uint64_t dispatch_client_message{};
+    uint32_t gdi_default_dc_handle{};
     std::optional<handle> etw_notification_event{};
 
     // For WOW64 processes
