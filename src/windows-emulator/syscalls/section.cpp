@@ -199,9 +199,16 @@ namespace syscalls
                 ucs.MaximumLength = ucs.Length;
             });
 
+            std::u16string system32_path{windows_dir};
+            if (!system32_path.empty() && system32_path.back() != u'\\')
+            {
+                system32_path.push_back(u'\\');
+            }
+            system32_path += u"System32";
+
             const emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>> sysdir_obj{c.emu, windir_obj.value() + windir_obj.size()};
             sysdir_obj.access([&](UNICODE_STRING<EmulatorTraits<Emu64>>& ucs) {
-                c.proc.base_allocator.make_unicode_string(ucs, u"C:\\WINDOWS\\System32");
+                c.proc.base_allocator.make_unicode_string(ucs, system32_path);
                 ucs.Buffer = ucs.Buffer - obj_address;
             });
 
