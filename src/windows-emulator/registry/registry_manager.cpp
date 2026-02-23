@@ -28,6 +28,16 @@ namespace
         hives[key] = std::make_unique<hive_parser>(file);
     }
 
+    void register_optional_hive(registry_manager::hive_map& hives, const utils::path_key& key, const std::filesystem::path& file)
+    {
+        if (!std::filesystem::is_regular_file(file))
+        {
+            return;
+        }
+
+        hives[key] = std::make_unique<hive_parser>(file);
+    }
+
     std::pair<utils::path_key, bool> perform_path_substitution(const std::unordered_map<utils::path_key, utils::path_key>& path_mapping,
                                                                utils::path_key path)
     {
@@ -72,7 +82,7 @@ void registry_manager::setup()
     register_hive(this->hives_, machine / "sam", this->hive_path_ / "SAM");
     register_hive(this->hives_, machine / "software", this->hive_path_ / "SOFTWARE");
     register_hive(this->hives_, machine / "system", this->hive_path_ / "SYSTEM");
-    register_hive(this->hives_, machine / "hardware", this->hive_path_ / "HARDWARE");
+    register_optional_hive(this->hives_, machine / "hardware", this->hive_path_ / "HARDWARE");
 
     register_hive(this->hives_, root / "user", this->hive_path_ / "NTUSER.DAT");
 
