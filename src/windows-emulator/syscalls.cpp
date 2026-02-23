@@ -338,7 +338,8 @@ namespace syscalls
                                        uint64_t apc_argument1, uint64_t apc_argument2, uint64_t apc_argument3);
     NTSTATUS handle_NtQueueApcThread(const syscall_context& c, handle thread_handle, uint64_t apc_routine, uint64_t apc_argument1,
                                      uint64_t apc_argument2, uint64_t apc_argument3);
-    NTSTATUS handle_NtCallbackReturn(const syscall_context& c);
+    NTSTATUS handle_NtCallbackReturn(const syscall_context& c, emulator_pointer callback_result, ULONG callback_result_length,
+                                     NTSTATUS callback_status);
 
     // syscalls/timer.cpp:
     NTSTATUS handle_NtQueryTimerResolution(const syscall_context&, emulator_object<ULONG> maximum_time, emulator_object<ULONG> minimum_time,
@@ -420,6 +421,10 @@ namespace syscalls
     uint64_t handle_NtUserChangeWindowMessageFilterEx();
     BOOL handle_NtUserShowWindow(const syscall_context& c, hwnd hwnd, LONG cmd_show);
     BOOL completion_NtUserShowWindow(const syscall_context& c, hwnd hwnd, LONG cmd_show);
+    uint64_t handle_NtUserMessageCall(const syscall_context& c, hwnd hwnd, UINT msg, uint64_t w_param, uint64_t l_param,
+                                      uint64_t result_info, DWORD type, BOOL ansi);
+    uint64_t completion_NtUserMessageCall(const syscall_context& c, hwnd hwnd, UINT msg, uint64_t w_param, uint64_t l_param,
+                                          uint64_t result_info, DWORD type, BOOL ansi);
     BOOL handle_NtUserGetMessage(const syscall_context& c, emulator_object<msg> message, hwnd hwnd, UINT msg_filter_min,
                                  UINT msg_filter_max);
     BOOL handle_NtUserPeekMessage(const syscall_context& c, emulator_object<msg> message, hwnd hwnd, UINT msg_filter_min,
@@ -997,6 +1002,7 @@ void syscall_dispatcher::add_handlers(std::map<std::string, syscall_handler>& ha
     add_handler(NtUserUnhookWindowsHookEx);
     add_handler(NtUserCreateWindowEx);
     add_handler(NtUserShowWindow);
+    add_handler(NtUserMessageCall);
     add_handler(NtUserGetMessage);
     add_handler(NtUserPeekMessage);
     add_handler(NtUserMapVirtualKeyEx);
@@ -1074,6 +1080,7 @@ void syscall_dispatcher::add_callbacks()
     add_callback(NtUserCreateWindowEx, window_create_state);
     add_callback(NtUserDestroyWindow, window_destroy_state);
     add_callback(NtUserShowWindow, window_show_state);
+    add_stateless_callback(NtUserMessageCall);
     add_stateless_callback(NtUserEnumDisplayMonitors);
 
 #undef add_callback
