@@ -266,6 +266,8 @@ using WORKERFACTORYINFOCLASS = enum _WORKERFACTORYINFOCLASS
     MaxWorkerFactoryInfoClass
 };
 
+constexpr auto WORKER_FACTORY_FLAG_LOADER_POOL = 0x1; // real name is unknown
+
 using HARDERROR_RESPONSE_OPTION = enum _HARDERROR_RESPONSE_OPTION
 {
     OptionAbortRetryIgnore,
