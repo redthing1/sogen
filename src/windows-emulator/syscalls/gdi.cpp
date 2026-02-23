@@ -129,17 +129,17 @@ namespace syscalls
                 }
 
                 // wow64 gdi32full decodes low 32 bits: ror.d(encoded, 32 - (cookie & 0x1f)) ^ cookie
-                const uint32_t pointer32 = static_cast<uint32_t>(pointer);
-                const uint32_t cookie32 = static_cast<uint32_t>(cookie);
+                const auto pointer32 = static_cast<uint32_t>(pointer);
+                const auto cookie32 = static_cast<uint32_t>(cookie);
                 const uint32_t decoded = pointer32 ^ cookie32;
-                const uint32_t rotate = static_cast<uint32_t>(32 - (cookie32 & 0x1F));
-                return std::rotl(decoded, rotate & 0x1F);
+                const auto rotate = static_cast<int>(32 - (cookie32 & 0x1F));
+                return std::rotl(decoded, rotate);
             }
 
             // x64 gdi32full decodes UserPointer: ror.q(encoded, 64 - (cookie & 0x3f)) ^ cookie
             const uint64_t decoded = pointer ^ cookie;
-            const uint32_t rotate = static_cast<uint32_t>(64 - (cookie & 0x3F));
-            return std::rotl(decoded, rotate & 0x3F);
+            const auto rotate = static_cast<int>(64 - (cookie & 0x3F));
+            return std::rotl(decoded, rotate);
         }
 
         uint64_t read_gdi_shared_value(const syscall_context& c, const uint64_t offset)
@@ -254,13 +254,13 @@ namespace syscalls
                     continue;
                 }
 
-                uint16_t generation = static_cast<uint16_t>((current.Unique + 0x100u) & 0xFF00u);
+                auto generation = static_cast<uint16_t>((current.Unique + 0x100u) & 0xFF00u);
                 if (generation == 0)
                 {
                     generation = 0x100;
                 }
 
-                const uint16_t unique = static_cast<uint16_t>(generation | (type & 0x7Fu));
+                const auto unique = static_cast<uint16_t>(generation | (type & 0x7Fu));
                 const uint32_t handle_value = (static_cast<uint32_t>(unique) << 16) | index;
 
                 entry_obj.access([&](GDI_HANDLE_ENTRY64& writable) {
@@ -422,7 +422,7 @@ namespace syscalls
             const uint64_t system_font = read_gdi_object_slot(c, k_stock_system_font_index);
             if (system_font != 0)
             {
-                const uint32_t handle_value = static_cast<uint32_t>(system_font);
+                const auto handle_value = static_cast<uint32_t>(system_font);
                 c.emu.write_memory(dc_attr + k_gdi_dc_attr_font_offset, &handle_value, sizeof(handle_value));
             }
         }
@@ -547,7 +547,7 @@ namespace syscalls
             const emulator_object<GDI_HANDLE_ENTRY64> entry_obj{c.emu, entry_addr};
             entry = entry_obj.read();
 
-            const uint16_t unique = static_cast<uint16_t>(handle_value >> 16);
+            const auto unique = static_cast<uint16_t>(handle_value >> 16);
             return entry.Type != 0 && entry.Unique == unique;
         }
     }
