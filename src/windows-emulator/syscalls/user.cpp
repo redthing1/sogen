@@ -188,12 +188,14 @@ namespace
     }
 
     bool schedule_wow64_callback(const syscall_context& c, emulator_thread& thread, const uint32_t callback_id, const uint64_t arg_buffer,
-                                 const uint32_t arg_length)
+                                 const uint32_t arg_length, const std::optional<pending_wow64_callback>& pending_callback = std::nullopt)
     {
         if (!c.proc.is_wow64_process)
         {
             return false;
         }
+
+        thread.win32k_pending_wow64_callback.reset();
 
         const auto dispatcher = resolve_wow64_callback_dispatcher(c);
         if (dispatcher == 0)
@@ -217,6 +219,7 @@ namespace
         c.emu.reg(x86_register::r8, arg_buffer);
         c.emu.reg(x86_register::r9, static_cast<uint64_t>(arg_length));
         c.emu.reg(x86_register::rip, dispatcher);
+        thread.win32k_pending_wow64_callback = pending_callback;
         return true;
     }
 
@@ -1062,8 +1065,6 @@ namespace syscalls
                 return FALSE;
             }
 
-            c.proc.active_thread->win32k_enum_display_monitors_pending = false;
-
             if (hmon > std::numeric_limits<uint32_t>::max() || hdc_in > std::numeric_limits<uint32_t>::max() ||
                 callback > std::numeric_limits<uint32_t>::max() || param > std::numeric_limits<uint32_t>::max())
             {
@@ -1080,13 +1081,16 @@ namespace syscalls
             const auto arg_buffer = c.proc.base_allocator.reserve(sizeof(args), alignof(uint32_t));
             emulator_object<wow64_enum_display_monitors_callback_args>{c.emu, arg_buffer}.write(args);
 
+            pending_wow64_callback pending_callback{};
+            pending_callback.callback_id = k_wow64_enum_display_monitors_callback_id;
+            pending_callback.postprocess = wow64_callback_postprocess::bool_result_to_status;
+
             if (!schedule_wow64_callback(c, *c.proc.active_thread, k_wow64_enum_display_monitors_callback_id, arg_buffer,
-                                         static_cast<uint32_t>(sizeof(args))))
+                                         static_cast<uint32_t>(sizeof(args)), pending_callback))
             {
                 return FALSE;
             }
 
-            c.proc.active_thread->win32k_enum_display_monitors_pending = true;
             return TRUE;
         }
 
