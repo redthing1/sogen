@@ -45,7 +45,12 @@ endif()
 ##########################################
 
 option(SOGEN_BUILD_STATIC "Build sogen as static libraries for embedding (e.g., IDA plugins)" ${MOMO_IS_SUBPROJECT})
-option(SOGEN_BUILD_TOOLS "Build Sogen standalone tools (analyzer, debugger, fuzzer, etc.)" OFF)
+if (MOMO_IS_SUBPROJECT)
+  set(SOGEN_BUILD_TOOLS_DEFAULT OFF)
+else()
+  set(SOGEN_BUILD_TOOLS_DEFAULT ON)
+endif()
+option(SOGEN_BUILD_TOOLS "Build Sogen standalone tools (analyzer, debugger, fuzzer, etc.)" ${SOGEN_BUILD_TOOLS_DEFAULT})
 
 ##########################################
 
