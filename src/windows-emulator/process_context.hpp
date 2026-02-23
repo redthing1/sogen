@@ -140,8 +140,10 @@ struct process_context
     uint64_t ki_user_apc_dispatcher{};
     uint64_t ki_user_exception_dispatcher{};
     uint64_t instrumentation_callback{};
+    uint64_t wow64_ki_user_callback_dispatcher{};
     uint64_t zw_callback_return{};
     uint64_t dispatch_client_message{};
+    uint32_t gdi_default_dc_handle{};
     std::optional<handle> etw_notification_event{};
 
     // For WOW64 processes
@@ -161,6 +163,8 @@ struct process_context
     handle_store<handle_types::worker_factory, worker_factory> worker_factories{};
     handle_store<handle_types::port, port_container> ports{};
     handle_store<handle_types::mutant, mutant> mutants{};
+    handle default_desktop{};
+    handle_store<handle_types::desktop, desktop> desktops{};
     user_handle_store<handle_types::window, window> windows{user_handles};
     handle_store<handle_types::timer, timer> timers{};
     handle_store<handle_types::registry, registry_key, 2> registry_keys{};
