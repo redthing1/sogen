@@ -313,21 +313,58 @@ namespace syscalls
         return STATUS_NOT_SUPPORTED;
     }
 
-    bool is_awaitable_object_type(const handle h)
+    template <typename Store>
+    void collect_wait32_candidate(Store& store, const uint32_t id, std::optional<handle>& resolved, uint32_t& candidate_count)
     {
-        return h.value.type == handle_types::thread       //
-               || h.value.type == handle_types::mutant    //
-               || h.value.type == handle_types::semaphore //
-               || h.value.type == handle_types::timer     //
-               || h.value.type == handle_types::event;
+        if (!store.get_by_index(id))
+        {
+            return;
+        }
+
+        ++candidate_count;
+        if (!resolved)
+        {
+            resolved = store.make_handle(id);
+        }
+    }
+
+    std::optional<handle> resolve_wait32_handle(const syscall_context& c, const uint32_t raw_handle)
+    {
+        const auto decoded = make_handle(static_cast<uint64_t>(raw_handle));
+        if (decoded.value.type != handle_types::reserved)
+        {
+            return decoded;
+        }
+
+        // wait32 can give raw 32 bit handles without type bits
+        const auto id = static_cast<uint32_t>(decoded.value.id);
+        if (id == 0)
+        {
+            return std::nullopt;
+        }
+
+        std::optional<handle> resolved{};
+        uint32_t candidate_count = 0;
+
+        collect_wait32_candidate(c.proc.events, id, resolved, candidate_count);
+        collect_wait32_candidate(c.proc.threads, id, resolved, candidate_count);
+        collect_wait32_candidate(c.proc.mutants, id, resolved, candidate_count);
+        collect_wait32_candidate(c.proc.semaphores, id, resolved, candidate_count);
+        collect_wait32_candidate(c.proc.timers, id, resolved, candidate_count);
+
+        if (candidate_count == 1)
+        {
+            return resolved;
+        }
+
+        return std::nullopt;
     }
 
     NTSTATUS validate_wait_handle(const syscall_context& c, const handle h)
     {
-        if (!is_awaitable_object_type(h))
-        {
-            return STATUS_OBJECT_TYPE_MISMATCH;
-        }
+        const auto validate_handle_in_store = [&](auto& store) -> NTSTATUS {
+            return store.get(h) ? STATUS_SUCCESS : STATUS_INVALID_HANDLE;
+        };
 
         switch (h.value.type)
         {
@@ -337,16 +374,16 @@ namespace syscalls
                 return STATUS_SUCCESS;
             }
 
-            return c.proc.events.get(h) ? STATUS_SUCCESS : STATUS_INVALID_HANDLE;
+            return validate_handle_in_store(c.proc.events);
 
         case handle_types::thread:
-            return c.proc.threads.get(h) ? STATUS_SUCCESS : STATUS_INVALID_HANDLE;
+            return validate_handle_in_store(c.proc.threads);
 
         case handle_types::mutant:
-            return c.proc.mutants.get(h) ? STATUS_SUCCESS : STATUS_INVALID_HANDLE;
+            return validate_handle_in_store(c.proc.mutants);
 
         case handle_types::semaphore:
-            return c.proc.semaphores.get(h) ? STATUS_SUCCESS : STATUS_INVALID_HANDLE;
+            return validate_handle_in_store(c.proc.semaphores);
 
         case handle_types::timer:
             if (h.value.is_pseudo)
@@ -354,7 +391,7 @@ namespace syscalls
                 return STATUS_SUCCESS;
             }
 
-            return c.proc.timers.get(h) ? STATUS_SUCCESS : STATUS_INVALID_HANDLE;
+            return validate_handle_in_store(c.proc.timers);
 
         default:
             return STATUS_OBJECT_TYPE_MISMATCH;
@@ -431,16 +468,21 @@ namespace syscalls
         for (ULONG i = 0; i < count; ++i)
         {
             const auto raw_handle = handles.read(i);
-            const auto h = make_handle(static_cast<uint64_t>(raw_handle));
+            const auto h = resolve_wait32_handle(c, raw_handle);
+            if (!h)
+            {
+                t.await_time = {};
+                return STATUS_INVALID_HANDLE;
+            }
 
-            const auto validation_status = validate_wait_handle(c, h);
+            const auto validation_status = validate_wait_handle(c, *h);
             if (!NT_SUCCESS(validation_status))
             {
                 t.await_time = {};
                 return validation_status;
             }
 
-            wait_handles.push_back(h);
+            wait_handles.push_back(*h);
         }
 
         t.await_objects = std::move(wait_handles);
