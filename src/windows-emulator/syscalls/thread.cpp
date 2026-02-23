@@ -20,15 +20,21 @@ namespace
     static_assert(offsetof(wow64_callback_context, status) == 0x114);
     static_assert(sizeof(wow64_callback_context) == 0x140);
 
-    void apply_pending_wow64_monitor_enum_result(const syscall_context& c)
+    void apply_pending_wow64_callback_postprocess(const syscall_context& c)
     {
         auto* thread = c.proc.active_thread;
-        if (!thread || !thread->win32k_enum_display_monitors_pending)
+        if (!thread || !thread->win32k_pending_wow64_callback.has_value())
         {
             return;
         }
 
-        thread->win32k_enum_display_monitors_pending = false;
+        const auto postprocess = thread->win32k_pending_wow64_callback->postprocess;
+        thread->win32k_pending_wow64_callback.reset();
+
+        if (postprocess != wow64_callback_postprocess::bool_result_to_status)
+        {
+            return;
+        }
 
         if (thread->win32k_callback_buffer == 0)
         {
@@ -627,7 +633,7 @@ namespace syscalls
             argument = c.emu.read_memory<KCONTINUE_ARGUMENT>(continue_argument);
         }
 
-        apply_pending_wow64_monitor_enum_result(c);
+        apply_pending_wow64_callback_postprocess(c);
         const auto context = thread_context.read();
         cpu_context::restore(c.emu, context);
 
