@@ -391,8 +391,11 @@ namespace syscalls
         }
 
         auto& t = c.win_emu.current_thread();
-        t.await_objects.clear();
-        t.await_any = wait_type == WaitAny;
+        t.await_objects = {};
+        t.await_any = false;
+
+        std::vector<handle> wait_handles{};
+        wait_handles.reserve(count);
 
         for (ULONG i = 0; i < count; ++i)
         {
@@ -401,11 +404,15 @@ namespace syscalls
             const auto validation_status = validate_wait_handle(c, h);
             if (!NT_SUCCESS(validation_status))
             {
+                t.await_time = {};
                 return validation_status;
             }
 
-            t.await_objects.push_back(h);
+            wait_handles.push_back(h);
         }
+
+        t.await_objects = std::move(wait_handles);
+        t.await_any = wait_type == WaitAny;
 
         if (timeout.value() && !t.await_time.has_value())
         {
@@ -428,8 +435,11 @@ namespace syscalls
         }
 
         auto& t = c.win_emu.current_thread();
-        t.await_objects.clear();
-        t.await_any = wait_type == WaitAny;
+        t.await_objects = {};
+        t.await_any = false;
+
+        std::vector<handle> wait_handles{};
+        wait_handles.reserve(count);
 
         for (ULONG i = 0; i < count; ++i)
         {
@@ -439,11 +449,15 @@ namespace syscalls
             const auto validation_status = validate_wait_handle(c, h);
             if (!NT_SUCCESS(validation_status))
             {
+                t.await_time = {};
                 return validation_status;
             }
 
-            t.await_objects.push_back(h);
+            wait_handles.push_back(h);
         }
+
+        t.await_objects = std::move(wait_handles);
+        t.await_any = wait_type == WaitAny;
 
         if (timeout.value() && !t.await_time.has_value())
         {
