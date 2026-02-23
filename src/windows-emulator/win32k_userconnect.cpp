@@ -141,11 +141,10 @@ namespace win32k_userconnect
         }
 
         connect.psi = psi;
-        connect.disp_info_low = disp_info;
-        connect.disp_info_high = 0;
         connect.ahe_list = ahe_list;
         connect.he_entry_size = sizeof(USER_HANDLEENTRY);
-        connect.monitor_info = monitor_info;
+        connect.disp_info_low = disp_info;
+        connect.monitor_info_low = monitor_info;
         connect.wndmsg_count = k_wow64_wndmsg_count;
         connect.ime_msg_count = k_wow64_ime_msg_count;
 
