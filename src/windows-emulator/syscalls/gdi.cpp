@@ -43,6 +43,8 @@ namespace syscalls
         constexpr uint32_t k_stock_dc_pen_index = 0x13;
         constexpr uint32_t k_default_gui_font_data_index = 0x07;
         constexpr uint32_t k_user_client_drawing_brush_index = USER_NUM_SYSCOLORS;
+        static_assert(k_user_client_drawing_brush_index < USER_SERVERINFO_BRUSH_SLOT_COUNT,
+                      "client drawing brush index must be inside server info brush table");
 
         constexpr uint32_t k_logfontw_size = 0x5C;
         constexpr uint32_t k_logbrush_size = 0x0C;
@@ -308,13 +310,10 @@ namespace syscalls
                     }
                 }
 
-                if (k_user_client_drawing_brush_index < USER_SERVERINFO_BRUSH_SLOT_COUNT)
+                client_drawing_brush = server_info.ahbrSystem[k_user_client_drawing_brush_index];
+                if (client_drawing_brush == 0)
                 {
-                    client_drawing_brush = server_info.ahbrSystem[k_user_client_drawing_brush_index];
-                    if (client_drawing_brush == 0)
-                    {
-                        needs_seed = true;
-                    }
+                    needs_seed = true;
                 }
             });
 
@@ -337,7 +336,7 @@ namespace syscalls
                 }
             }
 
-            if (k_user_client_drawing_brush_index < USER_SERVERINFO_BRUSH_SLOT_COUNT && client_drawing_brush == 0)
+            if (client_drawing_brush == 0)
             {
                 const uint32_t handle = allocate_gdi_object(c, k_gdi_brush_type, k_gdi_brush_attr_size);
                 if (handle != 0)
@@ -355,8 +354,7 @@ namespace syscalls
                     }
                 }
 
-                if (k_user_client_drawing_brush_index < USER_SERVERINFO_BRUSH_SLOT_COUNT &&
-                    server_info.ahbrSystem[k_user_client_drawing_brush_index] == 0)
+                if (server_info.ahbrSystem[k_user_client_drawing_brush_index] == 0)
                 {
                     server_info.ahbrSystem[k_user_client_drawing_brush_index] = client_drawing_brush;
                 }
