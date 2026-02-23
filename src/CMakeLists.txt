@@ -8,7 +8,7 @@ add_subdirectory(backend-selection)
 momo_add_subdirectory_and_get_targets("backends" BACKEND_TARGETS)
 momo_targets_set_folder("backends" ${BACKEND_TARGETS})
 
-if (NOT SOGEN_BUILD_STATIC)
+if (NOT SOGEN_BUILD_STATIC OR SOGEN_BUILD_TOOLS)
     add_subdirectory(analyzer)
     add_subdirectory(debugger)
     add_subdirectory(fuzzing-engine)
