@@ -407,7 +407,7 @@ void process_context::setup(x86_64_emulator& emu, memory_manager& memory, regist
     this->etw_notification_event.reset();
 
     const auto gdi_shared_table = this->base_allocator.reserve<GDI_SHARED_MEMORY64>();
-    gdi_shared_table.access([](GDI_SHARED_MEMORY64& table) { table = {}; });
+    gdi_shared_table.access([](GDI_SHARED_MEMORY64& table) { memset(&table, 0, sizeof(table)); });
 
     this->peb64.access([&](PEB64& peb64) {
         peb64.GdiSharedHandleTable = gdi_shared_table.value();
