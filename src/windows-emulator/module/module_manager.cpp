@@ -83,6 +83,7 @@ namespace utils
     {
         buffer.write(mod.name);
         buffer.write(mod.path);
+        buffer.write(mod.module_path);
 
         buffer.write(mod.image_base);
         buffer.write(mod.image_base_file);
@@ -107,6 +108,7 @@ namespace utils
     {
         buffer.read(mod.name);
         buffer.read(mod.path);
+        buffer.read(mod.module_path);
 
         buffer.read(mod.image_base);
         buffer.read(mod.image_base_file);
