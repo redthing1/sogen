@@ -104,7 +104,8 @@ struct process_context
     const std::u16string* get_atom_name(uint16_t atom_id) const;
 
     template <typename T>
-    void build_knowndlls_section_table(registry_manager& registry, const file_system& file_system, const apiset_map& apiset, bool is_32bit);
+    void build_knowndlls_section_table(registry_manager& registry, const file_system& file_system, const apiset_map& apiset,
+                                       const windows_path& system_root, bool is_32bit);
 
     std::optional<section> get_knowndll_section_by_name(const std::u16string& name, bool is_32bit) const;
     void add_knowndll_section(const std::u16string& name, const section& section, bool is_32bit);
@@ -141,6 +142,7 @@ struct process_context
     uint64_t instrumentation_callback{};
     uint64_t zw_callback_return{};
     uint64_t dispatch_client_message{};
+    std::optional<handle> etw_notification_event{};
 
     // For WOW64 processes
     std::optional<emulator_object<PEB32>> peb32;
@@ -154,6 +156,9 @@ struct process_context
     handle_store<handle_types::section, section> sections{};
     handle_store<handle_types::device, io_device_container> devices{};
     handle_store<handle_types::semaphore, semaphore> semaphores{};
+    handle_store<handle_types::io_completion, io_completion> io_completions{};
+    handle_store<handle_types::wait_completion_packet, wait_completion_packet> wait_completion_packets{};
+    handle_store<handle_types::worker_factory, worker_factory> worker_factories{};
     handle_store<handle_types::port, port_container> ports{};
     handle_store<handle_types::mutant, mutant> mutants{};
     user_handle_store<handle_types::window, window> windows{user_handles};

@@ -1,5 +1,6 @@
 #include "../std_include.hpp"
 #include "../emulator_utils.hpp"
+#include "../io_completion_wait.hpp"
 #include "../syscall_utils.hpp"
 
 namespace syscalls
@@ -18,6 +19,24 @@ namespace syscalls
         if (value.is_pseudo)
         {
             return STATUS_SUCCESS;
+        }
+
+        if (value.type == handle_types::wait_completion_packet)
+        {
+            auto* wait_packet = c.proc.wait_completion_packets.get(h);
+            if (wait_packet && wait_packet->ref_count == 1)
+            {
+                io_completion_wait::cleanup_wait_packet_on_close(c.proc, h);
+            }
+        }
+
+        if (value.type == handle_types::worker_factory)
+        {
+            auto* factory = c.proc.worker_factories.get(h);
+            if (factory && factory->ref_count == 1)
+            {
+                io_completion_wait::release_handle_reference(c.proc, factory->io_completion_handle);
+            }
         }
 
         auto* handle_store = c.proc.get_handle_store(h);
@@ -92,6 +111,12 @@ namespace syscalls
             return u"Window";
         case handle_types::timer:
             return u"Timer";
+        case handle_types::io_completion:
+            return u"IoCompletion";
+        case handle_types::wait_completion_packet:
+            return u"WaitCompletionPacket";
+        case handle_types::worker_factory:
+            return u"TpWorkerFactory";
         default:
             return u"";
         }
@@ -172,6 +197,36 @@ namespace syscalls
                 std::ranges::transform(registry_path, registry_path.begin(), std::towupper);
 
                 device_path = registry_path;
+                break;
+            }
+            case handle_types::io_completion: {
+                const auto* io = c.proc.io_completions.get(handle);
+                if (!io)
+                {
+                    return STATUS_INVALID_HANDLE;
+                }
+
+                device_path = io->name;
+                break;
+            }
+            case handle_types::wait_completion_packet: {
+                const auto* packet = c.proc.wait_completion_packets.get(handle);
+                if (!packet)
+                {
+                    return STATUS_INVALID_HANDLE;
+                }
+
+                device_path = packet->name;
+                break;
+            }
+            case handle_types::worker_factory: {
+                const auto* factory = c.proc.worker_factories.get(handle);
+                if (!factory)
+                {
+                    return STATUS_INVALID_HANDLE;
+                }
+
+                device_path = factory->name;
                 break;
             }
             default:
@@ -258,13 +313,89 @@ namespace syscalls
         return STATUS_NOT_SUPPORTED;
     }
 
-    bool is_awaitable_object_type(const handle h)
+    template <typename Store>
+    void collect_wait32_candidate(Store& store, const uint32_t id, std::optional<handle>& resolved, uint32_t& candidate_count)
     {
-        return h.value.type == handle_types::thread       //
-               || h.value.type == handle_types::mutant    //
-               || h.value.type == handle_types::semaphore //
-               || h.value.type == handle_types::timer     //
-               || h.value.type == handle_types::event;
+        if (!store.get_by_index(id))
+        {
+            return;
+        }
+
+        ++candidate_count;
+        if (!resolved)
+        {
+            resolved = store.make_handle(id);
+        }
+    }
+
+    std::optional<handle> resolve_wait32_handle(const syscall_context& c, const uint32_t raw_handle)
+    {
+        const auto decoded = make_handle(static_cast<uint64_t>(raw_handle));
+        if (decoded.value.type != handle_types::reserved)
+        {
+            return decoded;
+        }
+
+        // wait32 can give raw 32 bit handles without type bits
+        const auto id = static_cast<uint32_t>(decoded.value.id);
+        if (id == 0)
+        {
+            return std::nullopt;
+        }
+
+        std::optional<handle> resolved{};
+        uint32_t candidate_count = 0;
+
+        collect_wait32_candidate(c.proc.events, id, resolved, candidate_count);
+        collect_wait32_candidate(c.proc.threads, id, resolved, candidate_count);
+        collect_wait32_candidate(c.proc.mutants, id, resolved, candidate_count);
+        collect_wait32_candidate(c.proc.semaphores, id, resolved, candidate_count);
+        collect_wait32_candidate(c.proc.timers, id, resolved, candidate_count);
+
+        if (candidate_count == 1)
+        {
+            return resolved;
+        }
+
+        return std::nullopt;
+    }
+
+    NTSTATUS validate_wait_handle(const syscall_context& c, const handle h)
+    {
+        const auto validate_handle_in_store = [&](auto& store) -> NTSTATUS {
+            return store.get(h) ? STATUS_SUCCESS : STATUS_INVALID_HANDLE;
+        };
+
+        switch (h.value.type)
+        {
+        case handle_types::event:
+            if (h.value.is_pseudo)
+            {
+                return STATUS_SUCCESS;
+            }
+
+            return validate_handle_in_store(c.proc.events);
+
+        case handle_types::thread:
+            return validate_handle_in_store(c.proc.threads);
+
+        case handle_types::mutant:
+            return validate_handle_in_store(c.proc.mutants);
+
+        case handle_types::semaphore:
+            return validate_handle_in_store(c.proc.semaphores);
+
+        case handle_types::timer:
+            if (h.value.is_pseudo)
+            {
+                return STATUS_SUCCESS;
+            }
+
+            return validate_handle_in_store(c.proc.timers);
+
+        default:
+            return STATUS_OBJECT_TYPE_MISMATCH;
+        }
     }
 
     NTSTATUS handle_NtCompareObjects(const syscall_context&, const handle first, const handle second)
@@ -284,21 +415,28 @@ namespace syscalls
         }
 
         auto& t = c.win_emu.current_thread();
-        t.await_objects.clear();
-        t.await_any = wait_type == WaitAny;
+        t.await_objects = {};
+        t.await_any = false;
+
+        std::vector<handle> wait_handles{};
+        wait_handles.reserve(count);
 
         for (ULONG i = 0; i < count; ++i)
         {
             const auto h = handles.read(i);
 
-            if (!is_awaitable_object_type(h))
+            const auto validation_status = validate_wait_handle(c, h);
+            if (!NT_SUCCESS(validation_status))
             {
-                c.win_emu.log.warn("Unsupported handle type for NtWaitForMultipleObjects: %d!\n", h.value.type);
-                return STATUS_NOT_SUPPORTED;
+                t.await_time = {};
+                return validation_status;
             }
 
-            t.await_objects.push_back(h);
+            wait_handles.push_back(h);
         }
+
+        t.await_objects = std::move(wait_handles);
+        t.await_any = wait_type == WaitAny;
 
         if (timeout.value() && !t.await_time.has_value())
         {
@@ -321,22 +459,34 @@ namespace syscalls
         }
 
         auto& t = c.win_emu.current_thread();
-        t.await_objects.clear();
-        t.await_any = wait_type == WaitAny;
+        t.await_objects = {};
+        t.await_any = false;
+
+        std::vector<handle> wait_handles{};
+        wait_handles.reserve(count);
 
         for (ULONG i = 0; i < count; ++i)
         {
             const auto raw_handle = handles.read(i);
-            const auto h = make_handle(static_cast<uint64_t>(raw_handle));
-
-            if (!is_awaitable_object_type(h))
+            const auto h = resolve_wait32_handle(c, raw_handle);
+            if (!h)
             {
-                c.win_emu.log.warn("Unsupported handle type for NtWaitForMultipleObjects32: %d!\n", h.value.type);
+                t.await_time = {};
                 return STATUS_INVALID_HANDLE;
             }
 
-            t.await_objects.push_back(h);
+            const auto validation_status = validate_wait_handle(c, *h);
+            if (!NT_SUCCESS(validation_status))
+            {
+                t.await_time = {};
+                return validation_status;
+            }
+
+            wait_handles.push_back(*h);
         }
+
+        t.await_objects = std::move(wait_handles);
+        t.await_any = wait_type == WaitAny;
 
         if (timeout.value() && !t.await_time.has_value())
         {
@@ -350,10 +500,10 @@ namespace syscalls
     NTSTATUS handle_NtWaitForSingleObject(const syscall_context& c, const handle h, const BOOLEAN alertable,
                                           const emulator_object<LARGE_INTEGER> timeout)
     {
-        if (!is_awaitable_object_type(h))
+        const auto validation_status = validate_wait_handle(c, h);
+        if (!NT_SUCCESS(validation_status))
         {
-            c.win_emu.log.warn("Unsupported handle type for NtWaitForSingleObject: %d!\n", h.value.type);
-            return STATUS_NOT_SUPPORTED;
+            return validation_status;
         }
 
         auto& t = c.win_emu.current_thread();

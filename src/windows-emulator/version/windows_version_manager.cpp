@@ -102,6 +102,7 @@ bool windows_version_manager::is_build_within(uint32_t start_build, uint32_t end
 
 void windows_version_manager::serialize(utils::buffer_serializer& buffer) const
 {
+    buffer.write(info_.system_root);
     buffer.write(info_.major_version);
     buffer.write(info_.minor_version);
     buffer.write(info_.windows_build_number);
@@ -110,6 +111,7 @@ void windows_version_manager::serialize(utils::buffer_serializer& buffer) const
 
 void windows_version_manager::deserialize(utils::buffer_deserializer& buffer)
 {
+    buffer.read(info_.system_root);
     buffer.read(info_.major_version);
     buffer.read(info_.minor_version);
     buffer.read(info_.windows_build_number);

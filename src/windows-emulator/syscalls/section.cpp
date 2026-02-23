@@ -84,8 +84,9 @@ namespace syscalls
         }
 
         void initialize_shared_section_base_static_server_data_paths(const syscall_context& c, const uint64_t obj_address,
-                                                                     const uint64_t windows_dir_size)
+                                                                     std::u16string_view windows_dir)
         {
+            const auto windows_dir_size = windows_dir.size() * 2;
             const emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>> windir_obj{c.emu, obj_address};
             windir_obj.access([&](UNICODE_STRING<EmulatorTraits<Emu64>>& ucs) {
                 const auto dir_address = kusd_mmio::address() + offsetof(KUSER_SHARED_DATA64, NtSystemRoot);
@@ -95,9 +96,16 @@ namespace syscalls
                 ucs.MaximumLength = ucs.Length;
             });
 
+            std::u16string system32_path{windows_dir};
+            if (!system32_path.empty() && system32_path.back() != u'\\')
+            {
+                system32_path.push_back(u'\\');
+            }
+            system32_path += u"System32";
+
             const emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>> sysdir_obj{c.emu, windir_obj.value() + windir_obj.size()};
             sysdir_obj.access([&](UNICODE_STRING<EmulatorTraits<Emu64>>& ucs) {
-                c.proc.base_allocator.make_unicode_string(ucs, u"C:\\WINDOWS\\System32");
+                c.proc.base_allocator.make_unicode_string(ucs, system32_path);
                 ucs.Buffer = ucs.Buffer - obj_address;
             });
 
@@ -282,7 +290,6 @@ namespace syscalls
             const auto address = c.proc.shared_section_address;
 
             const std::u16string_view windows_dir = c.proc.kusd.get().NtSystemRoot.arr;
-            const auto windows_dir_size = windows_dir.size() * 2;
 
             uint64_t obj_address{};
             if (const auto status = initialize_shared_section_base_static_server_data_mapping(c, address, shared_section_size, obj_address);
@@ -291,7 +298,7 @@ namespace syscalls
                 return status;
             }
 
-            initialize_shared_section_base_static_server_data_paths(c, obj_address, windows_dir_size);
+            initialize_shared_section_base_static_server_data_paths(c, obj_address, windows_dir);
 
             if (view_size)
             {

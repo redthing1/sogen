@@ -11,7 +11,7 @@
 // NOLINTBEGIN(modernize-use-using,cppcoreguidelines-avoid-c-arrays,hicpp-avoid-c-arrays,modernize-avoid-c-arrays)
 
 #ifndef NT_SUCCESS
-#define NT_SUCCESS(Status) (((NTSTATUS)(Status)) >= 0)
+#define NT_SUCCESS(Status) ((static_cast<std::int32_t>(Status)) >= 0)
 #endif
 
 #define PROCESSOR_FEATURE_MAX                                           64

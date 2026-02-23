@@ -113,7 +113,8 @@ namespace
         return result;
     }
 
-    utils::unordered_insensitive_u16string_map<std::u16string> get_environment_variables(registry_manager& registry)
+    utils::unordered_insensitive_u16string_map<std::u16string> get_environment_variables(registry_manager& registry,
+                                                                                         const windows_version_manager& version)
     {
         utils::unordered_insensitive_u16string_map<std::u16string> env_map;
         std::unordered_set<std::u16string_view> keys_to_expand;
@@ -158,11 +159,26 @@ namespace
             env_map[u"EMULATOR_ICICLE"] = u"1";
         }
 
+        const auto system_root = version.get_system_root().u16string();
+
+        std::u16string system_drive = u"C:";
+        if (system_root.size() >= 2 && system_root[1] == u':')
+        {
+            system_drive = system_root.substr(0, 2);
+        }
+
+        auto system_temp = system_root;
+        if (!system_temp.empty() && system_temp.back() != u'\\')
+        {
+            system_temp.push_back(u'\\');
+        }
+        system_temp += u"SystemTemp";
+
         env_map[u"COMPUTERNAME"] = u"momo";
         env_map[u"USERNAME"] = u"momo";
-        env_map[u"SystemDrive"] = u"C:";
-        env_map[u"SystemRoot"] = u"C:\\WINDOWS";
-        env_map[u"SystemTemp"] = u"C:\\Windows\\SystemTemp";
+        env_map[u"SystemDrive"] = system_drive;
+        env_map[u"SystemRoot"] = system_root;
+        env_map[u"SystemTemp"] = system_temp;
         env_map[u"TMP"] = u"C:\\Users\\momo\\AppData\\Temp";
         env_map[u"TEMP"] = u"C:\\Users\\momo\\AppData\\Temp";
         env_map[u"USERPROFILE"] = u"C:\\Users\\momo";
@@ -232,7 +248,7 @@ void process_context::setup(x86_64_emulator& emu, memory_manager& memory, regist
 
         proc_params.Environment = allocator.copy_string(u"=::=::\\");
 
-        const auto env_map = get_environment_variables(registry);
+        const auto env_map = get_environment_variables(registry, version);
         for (const auto& [name, value] : env_map)
         {
             std::u16string entry;
@@ -392,8 +408,9 @@ void process_context::setup(x86_64_emulator& emu, memory_manager& memory, regist
     }
 
     this->apiset = apiset::get_namespace_table(reinterpret_cast<const API_SET_NAMESPACE*>(apiset_container.data.data()));
-    this->build_knowndlls_section_table<uint64_t>(registry, file_system, apiset, false);
-    this->build_knowndlls_section_table<uint32_t>(registry, file_system, apiset, true);
+    const auto& system_root = version.get_system_root();
+    this->build_knowndlls_section_table<uint64_t>(registry, file_system, apiset, system_root, false);
+    this->build_knowndlls_section_table<uint32_t>(registry, file_system, apiset, system_root, true);
 
     this->ntdll_image_base = ntdll.image_base;
     this->ldr_initialize_thunk = ntdll.find_export("LdrInitializeThunk");
@@ -402,6 +419,7 @@ void process_context::setup(x86_64_emulator& emu, memory_manager& memory, regist
     this->ki_user_exception_dispatcher = ntdll.find_export("KiUserExceptionDispatcher");
     this->instrumentation_callback = 0;
     this->zw_callback_return = ntdll.find_export("ZwCallbackReturn");
+    this->etw_notification_event.reset();
 
     this->default_register_set = emu.save_registers();
 
@@ -458,6 +476,7 @@ void process_context::serialize(utils::buffer_serializer& buffer) const
     buffer.write(this->instrumentation_callback);
     buffer.write(this->zw_callback_return);
     buffer.write(this->dispatch_client_message);
+    buffer.write_optional(this->etw_notification_event);
 
     buffer.write(this->user_handles);
     buffer.write(this->default_monitor_handle);
@@ -466,6 +485,9 @@ void process_context::serialize(utils::buffer_serializer& buffer) const
     buffer.write(this->sections);
     buffer.write(this->devices);
     buffer.write(this->semaphores);
+    buffer.write(this->io_completions);
+    buffer.write(this->wait_completion_packets);
+    buffer.write(this->worker_factories);
     buffer.write(this->ports);
     buffer.write(this->mutants);
     buffer.write(this->windows);
@@ -513,6 +535,7 @@ void process_context::deserialize(utils::buffer_deserializer& buffer)
     buffer.read(this->instrumentation_callback);
     buffer.read(this->zw_callback_return);
     buffer.read(this->dispatch_client_message);
+    buffer.read_optional(this->etw_notification_event);
 
     buffer.read(this->user_handles);
     buffer.read(this->default_monitor_handle);
@@ -521,6 +544,9 @@ void process_context::deserialize(utils::buffer_deserializer& buffer)
     buffer.read(this->sections);
     buffer.read(this->devices);
     buffer.read(this->semaphores);
+    buffer.read(this->io_completions);
+    buffer.read(this->wait_completion_packets);
+    buffer.read(this->worker_factories);
     buffer.read(this->ports);
     buffer.read(this->mutants);
     buffer.read(this->windows);
@@ -564,10 +590,18 @@ generic_handle_store* process_context::get_handle_store(const handle handle)
         return &devices;
     case handle_types::semaphore:
         return &semaphores;
+    case handle_types::io_completion:
+        return &io_completions;
+    case handle_types::wait_completion_packet:
+        return &wait_completion_packets;
+    case handle_types::worker_factory:
+        return &worker_factories;
     case handle_types::registry:
         return &registry_keys;
     case handle_types::mutant:
         return &mutants;
+    case handle_types::timer:
+        return &timers;
     case handle_types::port:
         return &ports;
     case handle_types::section:
@@ -689,20 +723,13 @@ const std::u16string* process_context::get_atom_name(const uint16_t atom_id) con
 
 template <typename T>
 void process_context::build_knowndlls_section_table(registry_manager& registry, const file_system& file_system, const apiset_map& apiset,
-                                                    bool is_32bit)
+                                                    const windows_path& system_root, bool is_32bit)
 {
     windows_path system_root_path;
     std::set<std::u16string> visisted;
     std::queue<std::u16string> q;
 
-    if (is_32bit)
-    {
-        system_root_path = "C:\\Windows\\SysWOW64";
-    }
-    else
-    {
-        system_root_path = "C:\\Windows\\System32";
-    }
+    system_root_path = is_32bit ? (system_root / "SysWOW64") : (system_root / "System32");
 
     std::optional<registry_key> knowndlls_key =
         registry.get_key({R"(\Registry\Machine\System\CurrentControlSet\Control\Session Manager\KnownDLLs)"});
