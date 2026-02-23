@@ -885,7 +885,8 @@ namespace syscalls
         return handle_NtQueueApcThreadEx(c, thread_handle, make_handle(0), apc_routine, apc_argument1, apc_argument2, apc_argument3);
     }
 
-    NTSTATUS handle_NtCallbackReturn(const syscall_context& c)
+    NTSTATUS handle_NtCallbackReturn(const syscall_context& c, const emulator_pointer callback_result_ptr,
+                                     const ULONG callback_result_length, const NTSTATUS /*callback_status*/)
     {
         auto& t = c.win_emu.current_thread();
 
@@ -894,7 +895,18 @@ namespace syscalls
             throw std::runtime_error("Unexpected callback return");
         }
 
-        const uint64_t callback_result = c.emu.reg(x86_register::rax);
+        uint64_t callback_result = t.callback_return_rax.value_or(c.emu.reg<uint64_t>(x86_register::rax));
+        t.callback_return_rax.reset();
+
+        if (callback_result_ptr != 0 && callback_result_length != 0 && callback_result_length <= sizeof(callback_result))
+        {
+            std::array<std::byte, sizeof(callback_result)> result_bytes{};
+            if (c.win_emu.memory.try_read_memory(callback_result_ptr, result_bytes.data(), callback_result_length))
+            {
+                callback_result = 0;
+                memcpy(&callback_result, result_bytes.data(), callback_result_length);
+            }
+        }
 
         const auto frame = std::move(t.callback_stack.back());
         t.callback_stack.pop_back();

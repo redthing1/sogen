@@ -40,14 +40,75 @@ namespace
         });
     }
 
+    void set_thread_window_context(const syscall_context& c, const uint64_t active_handle, const uint64_t active_window_ptr)
+    {
+        if (c.proc.active_thread && c.proc.active_thread->teb64)
+        {
+            c.proc.active_thread->teb64->access([&](TEB64& teb) {
+                teb.Win32ClientInfo.arr[8] = active_handle;
+                teb.Win32ClientInfo.arr[9] = active_window_ptr;
+            });
+        }
+
+        if (c.proc.is_wow64_process && c.proc.active_thread && c.proc.active_thread->teb32)
+        {
+            uint32_t active_handle32{};
+            uint32_t active_window_ptr32{};
+
+            if (active_handle <= std::numeric_limits<uint32_t>::max())
+            {
+                active_handle32 = static_cast<uint32_t>(active_handle);
+            }
+
+            if (active_window_ptr <= std::numeric_limits<uint32_t>::max())
+            {
+                active_window_ptr32 = static_cast<uint32_t>(active_window_ptr);
+            }
+
+            c.proc.active_thread->teb32->access([&](TEB32& teb) {
+                teb.Win32ClientInfo[8] = active_handle32;
+                teb.Win32ClientInfo[9] = active_window_ptr32;
+            });
+        }
+    }
+
+    void set_thread_window_context(const syscall_context& c, const hwnd hwnd)
+    {
+        const auto* win = c.proc.windows.get(hwnd);
+
+        uint64_t active_handle{};
+        uint64_t active_window_ptr{};
+
+        if (win)
+        {
+            active_handle = win->handle;
+            active_window_ptr = win->guest.value();
+        }
+
+        set_thread_window_context(c, active_handle, active_window_ptr);
+    }
+
+    void set_user_handle_owner(const syscall_context& c, const handle h, const uint64_t owner)
+    {
+        if (owner == 0)
+        {
+            return;
+        }
+
+        const auto index = static_cast<uint32_t>(h.value.id);
+        if (index == 0 || index >= user_handle_table::MAX_HANDLES)
+        {
+            return;
+        }
+
+        c.proc.user_handles.get_handle_table().access([&](USER_HANDLEENTRY& entry) { entry.pOwner = owner; }, index);
+    }
+
     template <typename T>
     void dispatch_window_message(const syscall_context& c, callback_id id, T&& state, const window& win, uint32_t message,
                                  uint64_t w_param = 0, uint64_t l_param = 0)
     {
-        c.proc.active_thread->teb64->access([&](TEB64& teb) {
-            teb.Win32ClientInfo.arr[8] = win.handle;
-            teb.Win32ClientInfo.arr[9] = win.guest.value();
-        });
+        set_thread_window_context(c, win.handle, win.guest.value());
 
         dispatch_user_callback(c, id, std::forward<T>(state), c.proc.dispatch_client_message, win.guest.value(),
                                static_cast<uint64_t>(message), w_param, l_param, win.wnd_proc);
@@ -601,6 +662,10 @@ namespace syscalls
             }
         });
 
+        const auto thread_info = ensure_win32_thread_info(c);
+        publish_win32_thread_info(c, thread_info);
+        set_user_handle_owner(c, handle, thread_info);
+
         window_create_state state{};
         state.handle = handle.bits;
 
@@ -880,6 +945,31 @@ namespace syscalls
         return s.was_visible ? TRUE : FALSE;
     }
 
+    uint64_t handle_NtUserMessageCall(const syscall_context& c, const hwnd hwnd, const UINT msg, const uint64_t w_param,
+                                      const uint64_t l_param, const uint64_t /*result_info*/, const DWORD /*type*/, const BOOL /*ansi*/)
+    {
+        const auto* win = c.proc.windows.get(hwnd);
+        if (!win)
+        {
+            return 0;
+        }
+
+        if (win->thread_id != c.proc.active_thread->id)
+        {
+            return 0;
+        }
+
+        dispatch_window_message(c, callback_id::NtUserMessageCall, nullptr, *win, msg, w_param, l_param);
+        return {};
+    }
+
+    uint64_t completion_NtUserMessageCall(const syscall_context& c, const hwnd /*hwnd*/, const UINT /*msg*/, const uint64_t /*w_param*/,
+                                          const uint64_t /*l_param*/, const uint64_t /*result_info*/, const DWORD /*type*/,
+                                          const BOOL /*ansi*/)
+    {
+        return c.get_callback_result<uint64_t>();
+    }
+
     BOOL handle_NtUserGetMessage(const syscall_context& c, const emulator_object<msg> message, const hwnd hwnd, const UINT msg_filter_min,
                                  const UINT msg_filter_max)
     {
@@ -888,6 +978,7 @@ namespace syscalls
         if (auto pending_msg = t.peek_pending_message(hwnd, msg_filter_min, msg_filter_max, true))
         {
             message.write(*pending_msg);
+            set_thread_window_context(c, pending_msg->window);
             return pending_msg->message != WM_QUIT ? TRUE : FALSE;
         }
 
@@ -908,6 +999,7 @@ namespace syscalls
         if (pending_msg)
         {
             message.write(*pending_msg);
+            set_thread_window_context(c, pending_msg->window);
             return TRUE;
         }
 

@@ -125,6 +125,7 @@ enum class callback_id : uint32_t
     NtUserCreateWindowEx,
     NtUserDestroyWindow,
     NtUserShowWindow,
+    NtUserMessageCall,
     NtUserEnumDisplayMonitors,
 };
 
@@ -268,6 +269,7 @@ class emulator_thread : public ref_counted_object
     bool debugger_hide{false};
 
     std::vector<callback_frame> callback_stack;
+    std::optional<uint64_t> callback_return_rax{};
 
     std::vector<msg> message_queue;
 
@@ -367,6 +369,7 @@ class emulator_thread : public ref_counted_object
         buffer.write(this->debugger_hide);
 
         buffer.write_vector(this->callback_stack);
+        buffer.write_optional(this->callback_return_rax);
 
         buffer.write_vector(this->message_queue);
     }
@@ -427,6 +430,7 @@ class emulator_thread : public ref_counted_object
         buffer.read(this->debugger_hide);
 
         buffer.read_vector(this->callback_stack);
+        buffer.read_optional(this->callback_return_rax);
 
         buffer.read_vector(this->message_queue);
     }
