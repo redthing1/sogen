@@ -104,7 +104,8 @@ struct process_context
     const std::u16string* get_atom_name(uint16_t atom_id) const;
 
     template <typename T>
-    void build_knowndlls_section_table(registry_manager& registry, const file_system& file_system, const apiset_map& apiset, bool is_32bit);
+    void build_knowndlls_section_table(registry_manager& registry, const file_system& file_system, const apiset_map& apiset,
+                                       const windows_path& system_root, bool is_32bit);
 
     std::optional<section> get_knowndll_section_by_name(const std::u16string& name, bool is_32bit) const;
     void add_knowndll_section(const std::u16string& name, const section& section, bool is_32bit);

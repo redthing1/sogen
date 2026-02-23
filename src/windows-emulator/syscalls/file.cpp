@@ -1413,11 +1413,9 @@ namespace syscalls
                                               const emulator_object<UNICODE_STRING<EmulatorTraits<Emu64>>> link_target,
                                               const emulator_object<ULONG> returned_length)
     {
-        if (link_handle == KNOWN_DLLS_SYMLINK)
-        {
-            constexpr std::u16string_view system32 = u"C:\\WINDOWS\\System32";
-            constexpr auto str_length = system32.size() * 2;
-            constexpr auto max_length = str_length + 2;
+        auto write_target = [&](const std::u16string& target) -> NTSTATUS {
+            const auto str_length = static_cast<uint16_t>(target.size() * sizeof(char16_t));
+            const auto max_length = static_cast<ULONG>(str_length + sizeof(char16_t));
 
             returned_length.write(max_length);
 
@@ -1430,33 +1428,22 @@ namespace syscalls
                 }
 
                 str.Length = str_length;
-                c.emu.write_memory(str.Buffer, system32.data(), max_length);
+                c.emu.write_memory(str.Buffer, target.data(), max_length);
             });
 
             return too_small ? STATUS_BUFFER_TOO_SMALL : STATUS_SUCCESS;
+        };
+
+        const auto& system_root = c.win_emu.version.get_system_root();
+
+        if (link_handle == KNOWN_DLLS_SYMLINK)
+        {
+            return write_target((system_root / "System32").u16string());
         }
 
         if (link_handle == KNOWN_DLLS32_SYMLINK)
         {
-            constexpr std::u16string_view syswow64 = u"C:\\WINDOWS\\SysWOW64";
-            constexpr auto str_length = syswow64.size() * 2;
-            constexpr auto max_length = str_length + 2;
-
-            returned_length.write(max_length);
-
-            bool too_small = false;
-            link_target.access([&](UNICODE_STRING<EmulatorTraits<Emu64>>& str) {
-                if (str.MaximumLength < max_length)
-                {
-                    too_small = true;
-                    return;
-                }
-
-                str.Length = str_length;
-                c.emu.write_memory(str.Buffer, syswow64.data(), max_length);
-            });
-
-            return too_small ? STATUS_BUFFER_TOO_SMALL : STATUS_SUCCESS;
+            return write_target((system_root / "SysWOW64").u16string());
         }
 
         return STATUS_NOT_SUPPORTED;
