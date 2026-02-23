@@ -126,6 +126,51 @@ namespace
         c.win_emu->log.print(color::dark_gray, "--> %s: 0x%X\n", u16_to_u8(device_name).c_str(), static_cast<uint32_t>(code));
     }
 
+    void handle_thread_create(const analysis_context& c, handle, emulator_thread& t)
+    {
+        std::vector<std::string> flags{};
+
+        if (t.create_flags & THREAD_CREATE_FLAGS_CREATE_SUSPENDED)
+        {
+            flags.emplace_back("suspended");
+        }
+        if (t.create_flags & THREAD_CREATE_FLAGS_SKIP_THREAD_ATTACH)
+        {
+            flags.emplace_back("skip thread attach");
+        }
+        if (t.create_flags & THREAD_CREATE_FLAGS_HIDE_FROM_DEBUGGER)
+        {
+            flags.emplace_back("hide from debugger");
+        }
+        if (t.create_flags & THREAD_CREATE_FLAGS_LOADER_WORKER)
+        {
+            flags.emplace_back("loader worker");
+        }
+        if (t.create_flags & THREAD_CREATE_FLAGS_SKIP_LOADER_INIT)
+        {
+            flags.emplace_back("skip loader init");
+        }
+        if (t.create_flags & THREAD_CREATE_FLAGS_BYPASS_PROCESS_FREEZE)
+        {
+            flags.emplace_back("bypass process freeze");
+        }
+
+        std::string flags_string{};
+        for (const auto& flag : flags)
+        {
+            flags_string += ", ";
+            flags_string += flag;
+        }
+
+        c.win_emu->log.print(color::gray, "Thread created: tid %d, start address 0x%" PRIx64 " (param 0x%" PRIx64 ")%s\n", t.id,
+                             t.start_address, t.argument, flags_string.c_str());
+    }
+
+    void handle_thread_terminated(const analysis_context& c, handle, emulator_thread& t)
+    {
+        c.win_emu->log.print(color::gray, "Thread terminated: tid %d\n", t.id);
+    }
+
     void handle_thread_set_name(const analysis_context& c, const emulator_thread& t)
     {
         c.win_emu->log.print(color::blue, "Setting thread (%u) name: %s\n", t.id, u16_to_u8(t.name).c_str());
@@ -629,6 +674,8 @@ void register_analysis_callbacks(analysis_context& c)
     (void)cb.on_module_load.add(make_callback(c, handle_module_load));
     (void)cb.on_module_unload.add(make_callback(c, handle_module_unload));
 
+    cb.on_thread_create = make_callback(c, handle_thread_create);
+    cb.on_thread_terminated = make_callback(c, handle_thread_terminated);
     cb.on_thread_switch = make_callback(c, handle_thread_switch);
     cb.on_thread_set_name = make_callback(c, handle_thread_set_name);
 
