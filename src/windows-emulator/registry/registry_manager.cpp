@@ -113,7 +113,7 @@ void registry_manager::add_path_mapping(const utils::path_key& key, const utils:
     this->path_mapping_[key] = value;
 }
 
-utils::path_key registry_manager::get_full_key_path(const registry_key& key) const
+utils::path_key registry_manager::get_full_key_path(const registry_key& key)
 {
     return utils::path_key{key.hive.get() / key.path.get()};
 }

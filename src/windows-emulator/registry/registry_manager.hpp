@@ -129,7 +129,7 @@ class registry_manager
     std::unordered_map<utils::path_key, overlay_bucket> overlay_values_{};
 
     utils::path_key normalize_path(utils::path_key path) const;
-    utils::path_key get_full_key_path(const registry_key& key) const;
+    static utils::path_key get_full_key_path(const registry_key& key);
     void add_path_mapping(const utils::path_key& key, const utils::path_key& value);
 
     hive_map::iterator find_hive(const utils::path_key& key);
