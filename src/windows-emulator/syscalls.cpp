@@ -565,8 +565,7 @@ namespace syscalls
 
     NTSTATUS handle_NtQueryWnfStateData()
     {
-        // puts("NtQueryWnfStateData not supported");
-        return STATUS_NOT_SUPPORTED;
+        return STATUS_SUCCESS;
     }
 
     NTSTATUS handle_NtQueryWnfStateNameInformation()
@@ -767,9 +766,19 @@ namespace syscalls
         return 0;
     }
 
+    NTSTATUS handle_NtSubscribeWnfStateChange()
+    {
+        return STATUS_SUCCESS;
+    }
+
+    NTSTATUS handle_NtUnsubscribeWnfStateChange()
+    {
+        return STATUS_SUCCESS;
+    }
+
     NTSTATUS handle_NtSetWnfProcessNotificationEvent()
     {
-        return STATUS_NOT_SUPPORTED;
+        return STATUS_SUCCESS;
     }
 
     NTSTATUS handle_NtSetInformationDebugObject()
@@ -855,6 +864,7 @@ void syscall_dispatcher::add_handlers(std::map<std::string, syscall_handler>& ha
     add_handler(NtCreateFile);
     add_handler(NtDeviceIoControlFile);
     add_handler(NtQueryWnfStateData);
+    add_handler(NtSubscribeWnfStateChange);
     add_handler(NtOpenProcess);
     add_handler(NtOpenProcessToken);
     add_handler(NtOpenProcessTokenEx);
@@ -1006,6 +1016,7 @@ void syscall_dispatcher::add_handlers(std::map<std::string, syscall_handler>& ha
     add_handler(NtAssociateWaitCompletionPacket);
     add_handler(NtCancelWaitCompletionPacket);
     add_handler(NtSetWnfProcessNotificationEvent);
+    add_handler(NtUnsubscribeWnfStateChange);
     add_handler(NtQuerySecurityObject);
     add_handler(NtQueryEvent);
     add_handler(NtRemoveIoCompletionEx);
