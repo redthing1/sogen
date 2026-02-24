@@ -38,7 +38,7 @@ namespace
         hives[key] = std::make_unique<hive_parser>(file);
     }
 
-    std::pair<utils::path_key, bool> perform_path_substitution(const std::unordered_map<utils::path_key, utils::path_key>& path_mapping,
+    std::pair<utils::path_key, bool> perform_path_substitution(const std::map<utils::path_key, utils::path_key>& path_mapping,
                                                                utils::path_key path)
     {
         for (const auto& mapping : path_mapping)

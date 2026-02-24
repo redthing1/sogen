@@ -110,7 +110,7 @@ class registry_manager
 
     struct overlay_bucket
     {
-        utils::unordered_insensitive_string_map<overlay_value> values{};
+        utils::insensitive_string_map<overlay_value> values{};
 
         void serialize(utils::buffer_serializer& buffer) const
         {
@@ -125,8 +125,8 @@ class registry_manager
 
     std::filesystem::path hive_path_{};
     hive_map hives_{};
-    std::unordered_map<utils::path_key, utils::path_key> path_mapping_{};
-    std::unordered_map<utils::path_key, overlay_bucket> overlay_values_{};
+    std::map<utils::path_key, utils::path_key> path_mapping_{};
+    std::map<utils::path_key, overlay_bucket> overlay_values_{};
 
     utils::path_key normalize_path(utils::path_key path) const;
     static utils::path_key get_full_key_path(const registry_key& key);
