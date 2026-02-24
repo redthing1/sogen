@@ -170,7 +170,8 @@ std::optional<registry_key> registry_manager::get_key(const utils::path_key& key
 
 std::optional<registry_value> registry_manager::get_value(const registry_key& key, const std::string_view name)
 {
-    if (const auto overlay_entry = this->overlay_values_.find(this->get_full_key_path(key)); overlay_entry != this->overlay_values_.end())
+    if (const auto overlay_entry = this->overlay_values_.find(registry_manager::get_full_key_path(key));
+        overlay_entry != this->overlay_values_.end())
     {
         if (const auto value_entry = overlay_entry->second.values.find(std::string{name});
             value_entry != overlay_entry->second.values.end())
@@ -227,7 +228,7 @@ std::optional<registry_value> registry_manager::get_value(const registry_key& ke
 
 void registry_manager::set_value(const registry_key& key, std::string name, const uint32_t type, const std::span<const std::byte> data)
 {
-    auto& bucket = this->overlay_values_[this->get_full_key_path(key)];
+    auto& bucket = this->overlay_values_[registry_manager::get_full_key_path(key)];
     auto& value = bucket.values[std::move(name)];
     value.type = type;
     value.data.assign(data.begin(), data.end());
